@@ -1,4 +1,4 @@
-# scenara
+# Scenara
 
 **Predict the future. Track your edge.**
 
