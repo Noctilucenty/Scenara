@@ -1,4 +1,4 @@
-# scenara-mobile
+# Scenara
 
 [![Expo](https://img.shields.io/badge/Expo-SDK_51-000020?logo=expo&logoColor=white)](#)
 [![React Native](https://img.shields.io/badge/React_Native-0.74-61DAFB?logo=react&logoColor=black)](#)
