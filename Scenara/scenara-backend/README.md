@@ -1,203 +1,234 @@
-# Orryin Backend — MVP v1
+# Scenara Backend
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.1.0-009688?logo=fastapi&logoColor=white)](#)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](#)
-[![License](https://img.shields.io/badge/License-TBD-lightgrey)](#)
+> Real-time prediction market simulation platform — FastAPI backend
 
-Backend MVP that validates Orryin’s end-to-end flow for cross-border investing infrastructure:
-Users → KYC (Sumsub) → FX (Wise sandbox) → Brokerage (DriveWealth mock).
-
-MVP intent: system validation and integration scaffolding. This backend is not production-ready.
+![Python](https://img.shields.io/badge/Python-3.11-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-0.110-green) ![SQLite](https://img.shields.io/badge/Database-SQLite-lightgrey) ![License](https://img.shields.io/badge/License-MIT-purple)
 
 ---
 
-## What this MVP proves
+## Overview
 
-- User and cash account creation
-- Idempotent Sumsub applicant creation (handles 409 already-exists)
-- KYC status fetch endpoint for app UI
-- Wise FX rate fetch and sandbox transfer simulation
-- DriveWealth onboarding (mock) and account persistence
-- One-call system test returning a unified JSON snapshot
+Scenara's backend is a FastAPI REST API that powers the full prediction market lifecycle — event creation, probability tracking, bet placement, resolution, payout, leaderboard, and performance analytics.
 
 ---
 
-## Tech stack
+## Tech Stack
 
-- FastAPI
-- SQLAlchemy 2.0
-- Pydantic v2
-- SQLite (dev only, auto-creates tables on startup)
-- httpx for external API calls
+| Layer | Technology |
+|---|---|
+| Framework | FastAPI 0.110 |
+| ORM | SQLAlchemy 2.0 |
+| Database | SQLite (dev) / PostgreSQL-ready |
+| Server | Uvicorn ASGI |
+| Scheduler | asyncio background tasks |
+| Prices | CoinGecko public API |
+| Language | Python 3.11 |
 
 ---
 
-## Repo structure
+## Project Structure
 
 ```
-orryin-backend/
-  app/
-    main.py                 # FastAPI app + SQLite dev table init
-    config.py               # settings (loads env vars)
-    db.py                   # SQLAlchemy engine/session/base
-    models/                 # ORM tables
-    routers/                # API routes
-    integrations/           # Sumsub/Wise/DriveWealth clients
-  .env                      # local dev (DO NOT commit)
-  requirements.txt / pyproject.toml
+scenara-backend/
+├── app/
+│   ├── main.py                  # App factory, CORS, startup, admin routes
+│   ├── config.py                # Settings (app name, debug, DB URL)
+│   ├── db.py                    # SQLAlchemy engine + session
+│   ├── models/
+│   │   ├── __init__.py          # Re-exports all models
+│   │   ├── user.py              # User + streak tracking
+│   │   ├── account.py           # Simulation wallet
+│   │   ├── event.py             # Prediction market event
+│   │   ├── scenario.py          # Outcome within an event
+│   │   ├── prediction.py        # User bet on a scenario
+│   │   ├── transaction.py       # Balance ledger
+│   │   └── probability_history.py  # Time-series chart data
+│   ├── routers/
+│   │   ├── users.py             # User creation
+│   │   ├── events.py            # Event CRUD + resolution + history
+│   │   ├── predictions.py       # Bet placement + portfolio analytics
+│   │   └── accounts.py          # Balance + leaderboard
+│   └── services/
+│       └── event_generator.py   # 5-min snapshots + hourly event creation
+├── backfill_history.py          # Seed historical probability data
+├── migrate_history.py           # Create probability_history table
+├── requirements.txt
+└── .env.example
 ```
 
 ---
 
-## Quickstart (local)
+## Getting Started
 
-### 1) Create virtual environment and install dependencies
+### Prerequisites
+- Python 3.11+
+- pip
+
+### Installation
 
 ```bash
-python -m venv .venv
-# macOS/Linux:
-source .venv/bin/activate
-# Windows PowerShell:
-.\.venv\Scripts\Activate.ps1
+# Clone the repo
+git clone https://github.com/Noctilucenty/Orryin-2.0.git
+cd Scenara/scenara-backend
 
+# Create virtual environment
+python -m venv venv
+
+# Activate (Windows)
+venv\Scripts\activate
+
+# Activate (Mac/Linux)
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2) Configure environment
+### Environment
 
-Create a `.env` file in the repo root:
-
-```env
-DB_URL=sqlite:///./orryin_dev.db
-DB_ECHO=false
-
-SUMSUB_BASE_URL=https://api.sumsub.com
-SUMSUB_LEVEL_NAME=basic-kyc-level
-SUMSUB_APP_TOKEN=your_token
-SUMSUB_SECRET_KEY=your_secret
-
-WISE_BASE_URL=https://api.sandbox.transferwise.tech
-WISE_API_TOKEN=your_token
-
-DRIVEWEALTH_BASE_URL=https://mock.local
-DRIVEWEALTH_API_TOKEN=mock
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
 ```
 
-Do not commit `.env`, database files, or `.venv/`. Use `.gitignore`.
+Default `.env`:
+```
+APP_NAME=Scenara
+APP_DEBUG=true
+DATABASE_URL=sqlite:///./scenara.db
+```
 
-### 3) Run the server
+### Database Setup
 
 ```bash
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+# Create all tables
+python migrate_history.py
+
+# Seed historical probability data for charts
+python backfill_history.py
 ```
 
-Swagger UI:
-http://127.0.0.1:8000/docs
+### Run
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+API docs available at: `http://localhost:8000/docs`
 
 ---
 
-## System test endpoint (one-call validation)
+## API Endpoints
 
-### POST /mvp/test-flow
+### Events
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/events/` | Create a new prediction market |
+| `GET` | `/events/` | List all events |
+| `GET` | `/events/{id}` | Get single event |
+| `GET` | `/events/{id}/history` | Probability time-series for charts |
+| `PATCH` | `/events/scenarios/{id}/probability` | Update scenario probability |
+| `POST` | `/events/{id}/resolve` | Resolve market, pay out winners |
 
-This endpoint is a destructive system-test endpoint.
+### Predictions
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/predictions/` | Place a prediction (bet) |
+| `GET` | `/predictions/user/{id}` | User's full prediction history |
+| `GET` | `/predictions/user/{id}/summary` | Portfolio analytics + performance grade |
 
-Behavior:
-- Creates a new user on every call
-- Creates a new cash account on every call
-- Runs KYC initiation (idempotent)
-- Fetches FX rate and simulates funding
-- Creates a mock brokerage account
-- Returns a unified JSON snapshot
+### Accounts
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/accounts/user/{id}` | Get simulation wallet |
+| `GET` | `/accounts/leaderboard` | Ranked leaderboard (sort by pnl/balance/win_rate) |
 
-Intended use:
-- Backend verification
-- Frontend integration testing
-- Demo and validation
-
-Not intended for:
-- Reuse with the same user
-- Production logic
-- Persistent user sessions
-
-Repeated calls will grow the database. This is expected for MVP v1.
-
----
-
-## Key KYC endpoints
-
-- POST /kyc/applicant — create applicant (idempotent, 409-safe)
-- GET /kyc/status?user_id=<id> — fetch current KYC status for UI
-- POST /kyc/webhook/sumsub — webhook to update approval state
-
-Idempotent logic:
-- If a KYC row exists for a user, it is returned without calling Sumsub.
-- If Sumsub returns 409 already exists, the response is treated as success and the applicant_id is parsed and stored.
+### Admin
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/admin/generate-events` | Trigger immediate event creation |
+| `POST` | `/admin/snapshot` | Trigger probability snapshot for all open events |
 
 ---
 
-## FX and funding notes
+## Core Logic
 
-FX and funding endpoints simulate Wise-like behavior.
+### Prediction Placement
+1. Validates user, scenario (must be `active`), event (must be `open`)
+2. Checks `account.balance >= amount`
+3. Deducts amount immediately
+4. Creates prediction with `entry_probability` and `payout_multiplier = 100 / probability`
+5. Logs `prediction_entry` transaction
 
-Known limitation:
-The sandbox transfer endpoint may return an error such as:
+### Resolution
+1. Selects winning scenario
+2. For **winners**: `payout = amount × multiplier`, credits account, increments streak
+3. For **losers**: `pnl = -amount`, resets streak to 0
+4. Logs final probability snapshot (100% winner, 0% loser)
+5. Sets event `status = "resolved"`
 
-"WiseClient object has no attribute 'create_sandbox_quote'"
+### Performance Analytics
+- **Accuracy score**: Brier-score based (0–100) — rewards calibration not just wins
+- **Percentile rank**: % of other users beaten by total PnL
+- **Payout multiplier**: `100 / entry_probability` (actuarially neutral)
 
-This is expected in MVP v1 and does not block:
-- Frontend testing
-- End-to-end flow validation
-- Demo execution
-
-FX rates and estimated target amounts are still returned correctly.
-
----
-
-## Database notes
-
-- SQLite is used for development only.
-- Tables auto-create on startup when DB_URL points to SQLite.
-- Production requires PostgreSQL and proper migrations (Alembic).
-
----
-
-## Troubleshooting
-
-### 409 applicant already exists
-Expected behavior. The backend treats this as success and returns status=already_exists.
-
-### Uvicorn unable to create process on Windows
-Usually caused by a broken or recreated virtual environment.
-
-Fix:
-1) deactivate
-2) re-activate the virtual environment
-3) run `python -m uvicorn app.main:app --reload`
+### Auto-Scheduler
+- **Every 5 minutes**: logs probability snapshot for all open events (±0.6% Gaussian random walk)
+- **Every 60 minutes**: creates new events from CoinGecko live prices + 6 random diverse events (Brazil politics, economy, sports, tech, geopolitics)
 
 ---
 
-## Security and compliance reminder
+## Event Categories
 
-This MVP references regulated workflows (KYC/AML) but does not implement production-grade security:
-- no hardened authentication
-- no encryption-at-rest strategy
-- no audit logs
-- no rate limiting or abuse protection
-- no secrets management
+| Category | Examples |
+|---|---|
+| `crypto` | BTC/ETH/SOL/BNB price targets |
+| `politics` | Lula approval, Brazilian elections, STF rulings |
+| `economy` | Selic rate, USD/BRL, Ibovespa, IPCA inflation |
+| `sports` | Copa do Brasil, F1, NBA, FIFA World Cup |
+| `technology` | GPT-5 release, Tesla robotaxi, 5G coverage |
+| `geopolitics` | Ukraine ceasefire, Fed rates, BRICS, Trump tariffs |
 
 ---
 
-## Status
+## Database Models
 
-- Backend MVP v1 complete
-- Frontend integration in progress
-- PostgreSQL and migrations pending
-- Production hardening pending
+| Model | Purpose |
+|---|---|
+| `User` | Auth + streak tracking (`current_streak`, `best_streak`) |
+| `Account` | Simulation wallet with balance |
+| `Event` | Prediction market (title, category, status, closes_at) |
+| `Scenario` | Outcome option with probability |
+| `Prediction` | User bet (amount, entry_prob, multiplier, pnl) |
+| `Transaction` | Full audit ledger of all balance changes |
+| `ScenarioProbabilityHistory` | Time-series data for probability charts |
+
+---
+
+## Requirements
+
+```
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+httpx
+python-dotenv
+passlib[bcrypt]
+```
+
+---
+
+## Roadmap
+
+- [ ] JWT authentication + user sessions
+- [ ] PostgreSQL + Alembic migrations
+- [ ] Auto-resolution of expired crypto events
+- [ ] WebSocket push for live probability updates
+- [ ] Portuguese (pt-BR) event templates
 
 ---
 
 ## License
 
-MIT License
-
+MIT © Scenara 2026
