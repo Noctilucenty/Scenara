@@ -4,7 +4,6 @@
 
 Scenara is a real-time prediction market simulation platform where users bet simulated currency on the outcomes of real-world events — crypto prices, Brazilian politics, global geopolitics, sports, and technology news.
 
-No real money. No risk. Just signal.
 
 ---
 
