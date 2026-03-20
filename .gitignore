@@ -1,0 +1,25 @@
+cd C:\Users\splk3\OneDrive\Desktop\Scenara
+```
+
+Create `.gitignore` in the root with this content:
+```
+# Python venvs
+venv/
+**/venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.db
+.env
+*.env
+
+# Node
+node_modules/
+**/node_modules/
+.expo/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
