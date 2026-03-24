@@ -1,0 +1,711 @@
+import { useEffect, useMemo, useState, useCallback } from "react";
+import {
+  SafeAreaView, Text, ScrollView, View,
+  TouchableOpacity, ActivityIndicator, Modal,
+  TextInput, Alert, StatusBar, Dimensions, Platform,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
+import {
+  useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
+} from "@expo-google-fonts/dm-sans";
+
+import { api } from "@/src/api/client";
+import { useTrading } from "@/src/session/TradingContext";
+import { ProbabilityChart, ScenarioHistory, SCENARIO_COLORS } from "@/components/ProbabilityChart";
+
+// ── Scenara brand tokens ─────────────────────────────────────────────────────
+const BG       = "#08090C";
+const CARD     = "#0D1117";
+const SURFACE  = "#111620";
+const BLUE     = "#4F8EF7";
+const PURPLE   = "#7C5CFC";
+const PINK     = "#F050AE";
+const BLUE_D   = "#2A5CB8";
+const PURPLE_D = "#4A3699";
+const PINK_D   = "#8C2E67";
+const TEXT     = "#F1F5F9";
+const TEXT_SUB = "#94A3B8";
+const TEXT_MID = "#64748B";
+const BORDER   = "rgba(255,255,255,0.08)";
+const BORDER_P = "rgba(124,92,252,0.2)";
+const GREEN    = "#22C55E";
+const RED      = "#EF4444";
+
+const GRAD_BRAND   = [BLUE, PURPLE, PINK]     as const;
+const GRAD_BP      = [BLUE, PURPLE]           as const;
+const GRAD_PP      = [PURPLE, PINK]           as const;
+const GRAD_GREEN   = ["#15803D", GREEN]       as const;
+const GRAD_RED     = ["#991B1B", RED]         as const;
+const GRAD_CARD    = ["rgba(79,142,247,0.07)", "rgba(124,92,252,0.03)"] as const;
+
+// ── Category metadata ─────────────────────────────────────────────────────────
+const CATS: Record<string, { icon: string; color: string; label: string }> = {
+  all:         { icon: "⚡", color: PURPLE,   label: "All" },
+  politics:    { icon: "🏛",  color: "#818CF8",label: "Politics" },
+  economy:     { icon: "📈", color: "#34D399",label: "Economy" },
+  crypto:      { icon: "₿",  color: "#F7931A",label: "Crypto" },
+  sports:      { icon: "⚽", color: "#60A5FA",label: "Sports" },
+  technology:  { icon: "💻", color: "#A78BFA",label: "Tech" },
+  geopolitics: { icon: "🌍", color: "#FB923C",label: "Global" },
+};
+function cat(c: string) { return CATS[c] ?? { icon: "◈", color: PURPLE, label: c }; }
+
+// ── Responsive ───────────────────────────────────────────────────────────────
+function getLayout(w: number) {
+  const isWeb   = w >= 900;
+  const isBig   = w >= 1300;
+  const cols    = isBig ? 4 : isWeb ? 3 : 2;
+  const sideW   = isBig ? 320 : 280;
+  const mainW   = isWeb ? w - sideW - 32 - 16 : w;
+  const gap     = 10;
+  const padH    = 16;
+  const cardW   = (mainW - padH * 2 - gap * (cols - 1)) / cols;
+  return { isWeb, cols, sideW, gap, padH, cardW };
+}
+
+// ── Types ────────────────────────────────────────────────────────────────────
+type Scenario  = { id: number; title: string; probability: number; sort_order: number; status: string };
+type EventItem = { id: number; slug: string; title: string; description?: string | null; category: string; status: string; resolution_note?: string | null; is_featured: boolean; closes_at?: string | null; resolved_at?: string | null; scenarios: Scenario[] };
+type ResolveTarget = { eventId: number; eventTitle: string; scenarios: Scenario[] };
+type DetailTarget  = { event: EventItem; history: ScenarioHistory[] };
+
+function timeAgo(d?: string | null): string {
+  if (!d) return "";
+  const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+// ── ScenaraWordmark SVG ──────────────────────────────────────────────────────
+function ScenaraWordmark({ size = 22 }: { size?: number }) {
+  // Inline SVG chevron icon matching the logo, scaled
+  const iconH = size * 1.2;
+  const iconW = size * 1.0;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <Svg width={iconW * 0.6} height={iconH * 0.6} viewBox="0 0 40 48">
+        <Defs>
+          <SvgGrad id="wm" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0" stopColor={BLUE} />
+            <Stop offset="0.5" stopColor={PURPLE} />
+            <Stop offset="1" stopColor={PINK} />
+          </SvgGrad>
+        </Defs>
+        {/* Stylized chevron lines matching logo */}
+        <Path d="M4 4 L20 36 L36 4" stroke="url(#wm)" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <Path d="M8 10 L20 30 L32 10" stroke="url(#wm)" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.75" />
+        <Path d="M12 16 L20 28 L28 16" stroke="url(#wm)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
+      </Svg>
+      <Text style={{ color: TEXT, fontSize: size, fontFamily: "DMSans_700Bold", letterSpacing: -0.3 }}>
+        scenara
+      </Text>
+    </View>
+  );
+}
+
+// ── ArcGauge ─────────────────────────────────────────────────────────────────
+function ArcGauge({ probability, size = 58 }: { probability: number; size?: number }) {
+  const cx = size / 2, cy = size / 2, r = size * 0.37, sw = size * 0.09;
+  const START = 135, SWEEP = 270;
+  function pt(a: number) { const rad = ((a - 90) * Math.PI) / 180; return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }; }
+  function arc(a1: number, a2: number) { const s = pt(a1), e = pt(a2), lg = a2 - a1 > 180 ? 1 : 0; return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${lg} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`; }
+  const end = START + (Math.min(Math.max(probability, 1), 99) / 100) * SWEEP;
+  // Color follows Scenara gradient based on probability
+  const fillColor = probability >= 60 ? BLUE : probability >= 40 ? PURPLE : PINK;
+  return (
+    <View style={{ width: size, height: size }}>
+      <Svg width={size} height={size} style={{ position: "absolute" }}>
+        <Defs>
+          <SvgGrad id={`gauge${Math.round(probability)}`} x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={BLUE} />
+            <Stop offset="0.5" stopColor={PURPLE} />
+            <Stop offset="1" stopColor={PINK} />
+          </SvgGrad>
+        </Defs>
+        <Path d={arc(START, START + SWEEP)} stroke="rgba(255,255,255,0.07)" strokeWidth={sw} fill="none" strokeLinecap="round" />
+        <Path d={arc(START, end)} stroke={`url(#gauge${Math.round(probability)})`} strokeWidth={sw} fill="none" strokeLinecap="round" />
+      </Svg>
+      <View style={{ position: "absolute", width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ color: TEXT, fontSize: size * 0.19, fontFamily: "DMSans_700Bold", includeFontPadding: false }}>{Math.round(probability)}%</Text>
+        <Text style={{ color: TEXT_MID, fontSize: size * 0.11, fontFamily: "DMSans_400Regular", includeFontPadding: false, marginTop: -1 }}>chance</Text>
+      </View>
+    </View>
+  );
+}
+
+// ── ResolveModal ──────────────────────────────────────────────────────────────
+function ResolveModal({ target, onClose, onResolved }: { target: ResolveTarget; onClose(): void; onResolved(): void }) {
+  const [sel, setSel] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const confirm = async () => {
+    if (!sel) return; setBusy(true);
+    try {
+      const r = await api.post(`/events/${target.eventId}/resolve`, { winning_scenario_id: sel });
+      Alert.alert("✓ Resolved", `${r.data.total_winners ?? 0} winner(s) paid out`, [{ text: "Done", onPress: () => { onResolved(); onClose(); } }]);
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail ?? "";
+      if (detail.toLowerCase().includes("already resolved")) {
+        Alert.alert("Already Resolved", "This market was already resolved automatically.", [{ text: "OK", onPress: () => { onResolved(); onClose(); } }]);
+      } else {
+        Alert.alert("Error", detail || "Failed to resolve");
+      }
+    }
+    finally { setBusy(false); }
+  };
+  return (
+    <Modal visible animationType="slide" transparent>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.88)", justifyContent: "flex-end" }}>
+        <View style={{ backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 44, borderTopWidth: 1, borderTopColor: BORDER_P }}>
+          <View style={{ width: 36, height: 3, borderRadius: 2, alignSelf: "center", marginBottom: 24, overflow: "hidden" }}>
+            <LinearGradient colors={GRAD_BP} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }} />
+          </View>
+          <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 2, marginBottom: 4 }}>RESOLVE MARKET</Text>
+          <Text style={{ color: TEXT, fontSize: 16, fontFamily: "DMSans_700Bold", marginBottom: 20 }}>{target.eventTitle}</Text>
+          {target.scenarios.map((s, i) => {
+            const on = sel === s.id, c = SCENARIO_COLORS[i % SCENARIO_COLORS.length];
+            return (
+              <TouchableOpacity key={s.id} onPress={() => setSel(s.id)} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderWidth: 1, borderColor: on ? c : BORDER, backgroundColor: on ? `${c}10` : "rgba(255,255,255,0.02)", borderRadius: 12, padding: 14, marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: on ? c : TEXT_MID, backgroundColor: on ? c : "transparent", alignItems: "center", justifyContent: "center" }}>
+                    {on && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: BG }} />}
+                  </View>
+                  <Text style={{ color: on ? c : TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{s.title}</Text>
+                </View>
+                <Text style={{ color: TEXT_MID, fontSize: 13 }}>{s.probability.toFixed(1)}%</Text>
+              </TouchableOpacity>
+            );
+          })}
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+            <TouchableOpacity onPress={onClose} style={{ flex: 1, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: BORDER, alignItems: "center" }}>
+              <Text style={{ color: TEXT_SUB, fontFamily: "DMSans_500Medium" }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={confirm} disabled={!sel || busy} style={{ flex: 2, borderRadius: 12, overflow: "hidden" }}>
+              <LinearGradient colors={sel && !busy ? GRAD_BP : ["#111", "#111"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 14, alignItems: "center" }}>
+                {busy ? <ActivityIndicator color={BG} /> : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>Confirm Winner</Text>}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── DetailPanelContent ────────────────────────────────────────────────────────
+function DetailPanelContent({ target, onClose, onResolve, placingId, amounts, onAmountChange, onPredict }: {
+  target: DetailTarget; onClose(): void; onResolve(): void;
+  placingId: number | null; amounts: Record<number, string>;
+  onAmountChange(id: number, val: string): void; onPredict(id: number): void;
+}) {
+  const { event, history } = target;
+  const resolved = event.status === "resolved";
+  const cm = cat(event.category);
+  const hasChart = history.some(s => s.points.length >= 2);
+  const [selId, setSelId] = useState<number | null>(event.scenarios[0]?.id ?? null);
+  const selScene = event.scenarios.find(s => s.id === selId) ?? event.scenarios[0];
+  const selIdx   = event.scenarios.findIndex(s => s.id === selId);
+
+  return (
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      {/* Header */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 }}>
+        <View style={{ backgroundColor: `${cm.color}15`, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: `${cm.color}25` }}>
+          <Text style={{ color: cm.color, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>{cm.icon}  {cm.label.toUpperCase()}</Text>
+        </View>
+        {!resolved
+          ? <View style={{ backgroundColor: "rgba(34,197,94,0.1)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}><Text style={{ color: GREEN, fontSize: 10, fontFamily: "DMSans_700Bold" }}>● LIVE</Text></View>
+          : <View style={{ backgroundColor: "rgba(100,116,139,0.15)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}><Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_700Bold" }}>CLOSED</Text></View>
+        }
+        <TouchableOpacity onPress={onClose} style={{ marginLeft: "auto", padding: 4 }}>
+          <Text style={{ color: TEXT_MID, fontSize: 18, lineHeight: 20 }}>✕</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={{ color: TEXT, fontSize: 18, fontFamily: "DMSans_700Bold", lineHeight: 26, marginBottom: 6 }}>{event.title}</Text>
+      {event.description && <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 19, marginBottom: 16 }}>{event.description}</Text>}
+
+      {hasChart && (
+        <View style={{ backgroundColor: "rgba(124,92,252,0.04)", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "rgba(124,92,252,0.12)" }}>
+          <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>PROBABILITY HISTORY</Text>
+          <ProbabilityChart scenarios={history} height={160} compact={false} />
+        </View>
+      )}
+
+      {/* Outcomes */}
+      <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>OUTCOMES</Text>
+      {event.scenarios.map((s, idx) => {
+        const won  = resolved && s.status === "won";
+        const lost = resolved && s.status === "lost";
+        const c    = SCENARIO_COLORS[idx % SCENARIO_COLORS.length];
+        const sel  = selId === s.id;
+        return (
+          <TouchableOpacity key={s.id} onPress={() => !resolved && setSelId(s.id)} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, marginBottom: 6, borderWidth: 1, backgroundColor: sel ? `${c}08` : "rgba(255,255,255,0.02)", borderColor: sel ? `${c}30` : "rgba(255,255,255,0.06)" }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: won ? c : TEXT, fontFamily: "DMSans_700Bold", fontSize: 14 }}>{s.title}{won ? "  ✓" : lost ? "  ✗" : ""}</Text>
+            </View>
+            <View style={{ alignItems: "flex-end", gap: 4 }}>
+              <Text style={{ color: won ? c : TEXT, fontFamily: "DMSans_700Bold", fontSize: 16 }}>{s.probability.toFixed(1)}%</Text>
+              <View style={{ width: 80, height: 3, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+                <View style={{ width: `${s.probability}%`, height: "100%", backgroundColor: c, borderRadius: 2 }} />
+              </View>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+
+      {/* Trade panel */}
+      {!resolved && selScene && (
+        <View style={{ marginTop: 16, backgroundColor: SURFACE, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_P }}>
+          {/* Yes/No toggle */}
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+            <TouchableOpacity onPress={() => setSelId(event.scenarios[0]?.id)} style={{ flex: 1, borderRadius: 10, overflow: "hidden" }}>
+              <LinearGradient colors={selIdx === 0 ? GRAD_GREEN : ["rgba(34,197,94,0.1)", "rgba(34,197,94,0.1)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 10, alignItems: "center" }}>
+                <Text style={{ color: selIdx === 0 ? "white" : GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>Yes  {event.scenarios[0]?.probability.toFixed(0)}%</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            {event.scenarios[1] && (
+              <TouchableOpacity onPress={() => setSelId(event.scenarios[1].id)} style={{ flex: 1, borderRadius: 10, overflow: "hidden" }}>
+                <LinearGradient colors={selIdx === 1 ? GRAD_RED : ["rgba(239,68,68,0.1)", "rgba(239,68,68,0.1)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 10, alignItems: "center" }}>
+                  <Text style={{ color: selIdx === 1 ? "white" : RED, fontFamily: "DMSans_700Bold", fontSize: 13 }}>No  {event.scenarios[1]?.probability.toFixed(0)}%</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 8 }}>AMOUNT</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, marginBottom: 10 }}>
+            <Text style={{ color: PURPLE_D, fontSize: 16, marginRight: 4 }}>$</Text>
+            <TextInput value={amounts[selScene.id] ?? "100"} onChangeText={v => onAmountChange(selScene.id, v)} keyboardType="numeric" placeholder="0" placeholderTextColor={TEXT_MID} style={{ flex: 1, color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", paddingVertical: 10 }} />
+          </View>
+
+          <View style={{ flexDirection: "row", gap: 6, marginBottom: 14 }}>
+            {["1", "5", "10", "100"].map(v => (
+              <TouchableOpacity key={v} onPress={() => onAmountChange(selScene.id, v)} style={{ flex: 1, paddingVertical: 6, borderRadius: 8, backgroundColor: "rgba(124,92,252,0.08)", alignItems: "center", borderWidth: 1, borderColor: "rgba(124,92,252,0.2)" }}>
+                <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 12 }}>+${v}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity onPress={() => onPredict(selScene.id)} disabled={placingId !== null} style={{ borderRadius: 12, overflow: "hidden" }}>
+            <LinearGradient colors={placingId !== null ? ["#111", "#111"] : GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 14, alignItems: "center" }}>
+              <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
+                {placingId === selScene.id ? "Opening position..." : `Trade · $${amounts[selScene.id] ?? "100"}`}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {!resolved && (
+        <TouchableOpacity onPress={onResolve} style={{ marginTop: 10, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: BORDER_P, alignItems: "center", backgroundColor: "rgba(124,92,252,0.04)" }}>
+          <Text style={{ color: PURPLE_D, fontFamily: "DMSans_700Bold", fontSize: 11, letterSpacing: 0.8 }}>RESOLVE MARKET</Text>
+        </TouchableOpacity>
+      )}
+    </ScrollView>
+  );
+}
+
+function DetailModal({ target, onClose, onResolve, placingId, amounts, onAmountChange, onPredict }: {
+  target: DetailTarget; onClose(): void; onResolve(): void;
+  placingId: number | null; amounts: Record<number, string>;
+  onAmountChange(id: number, val: string): void; onPredict(id: number): void;
+}) {
+  return (
+    <Modal visible animationType="slide" transparent>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", justifyContent: "flex-end" }}>
+        <View style={{ backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "92%", borderTopWidth: 1, borderTopColor: BORDER, padding: 22 }}>
+          <View style={{ width: 36, height: 3, borderRadius: 2, alignSelf: "center", marginBottom: 20, overflow: "hidden" }}>
+            <LinearGradient colors={GRAD_BP} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }} />
+          </View>
+          <DetailPanelContent target={target} onClose={onClose} onResolve={onResolve} placingId={placingId} amounts={amounts} onAmountChange={onAmountChange} onPredict={onPredict} />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── HeroCard ──────────────────────────────────────────────────────────────────
+function HeroCard({ event, history, onPredict, onResolve, placingId, amounts, onAmountChange }: {
+  event: EventItem; history: ScenarioHistory[];
+  onPredict(id: number): void; onResolve(): void;
+  placingId: number | null; amounts: Record<number, string>;
+  onAmountChange(id: number, val: string): void;
+}) {
+  const resolved = event.status === "resolved";
+  const cm = cat(event.category);
+  const hasChart = history.some(s => s.points.length >= 2);
+  return (
+    <View style={{ backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_P, overflow: "hidden", marginBottom: 16 }}>
+      <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ height: 2 }} />
+      <View style={{ padding: 20 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <View style={{ backgroundColor: `${cm.color}15`, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, borderWidth: 1, borderColor: `${cm.color}25` }}>
+            <Text style={{ color: cm.color, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>{cm.icon}  {cm.label.toUpperCase()}</Text>
+          </View>
+          {!resolved && <View style={{ backgroundColor: "rgba(34,197,94,0.1)", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 }}><Text style={{ color: GREEN, fontSize: 10, fontFamily: "DMSans_700Bold" }}>● LIVE</Text></View>}
+          <View style={{ marginLeft: "auto", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, backgroundColor: "rgba(124,92,252,0.08)" }}>
+            <Text style={{ color: PURPLE, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>★ FEATURED</Text>
+          </View>
+        </View>
+        <Text style={{ color: TEXT, fontSize: 20, fontFamily: "DMSans_700Bold", lineHeight: 27, marginBottom: 6 }}>{event.title}</Text>
+        {event.description && <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_400Regular", lineHeight: 17, marginBottom: 16 }}>{event.description}</Text>}
+
+        {hasChart && (
+          <View style={{ backgroundColor: "rgba(124,92,252,0.04)", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "rgba(124,92,252,0.1)" }}>
+            <ProbabilityChart scenarios={history} height={140} compact={false} />
+          </View>
+        )}
+
+        {event.scenarios.map((s, idx) => {
+          const won = resolved && s.status === "won";
+          const c = SCENARIO_COLORS[idx % SCENARIO_COLORS.length];
+          return (
+            <View key={s.id} style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c }} />
+                  <Text style={{ color: won ? c : TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{s.title}</Text>
+                </View>
+                <Text style={{ color: won ? c : TEXT, fontFamily: "DMSans_700Bold", fontSize: 15 }}>{s.probability.toFixed(1)}%</Text>
+              </View>
+              <View style={{ height: 4, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+                <View style={{ width: `${s.probability}%`, height: "100%", backgroundColor: c, borderRadius: 2, opacity: 0.8 }} />
+              </View>
+              {!resolved && (
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  <View style={{ width: 80, flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 8, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 8 }}>
+                    <Text style={{ color: PURPLE_D, fontSize: 12 }}>$</Text>
+                    <TextInput value={amounts[s.id] ?? "100"} onChangeText={v => onAmountChange(s.id, v)} keyboardType="numeric" placeholder="100" placeholderTextColor={TEXT_MID} style={{ flex: 1, color: TEXT, fontSize: 13, fontFamily: "DMSans_500Medium", paddingVertical: 7, marginLeft: 3 }} />
+                  </View>
+                  <TouchableOpacity onPress={() => onPredict(s.id)} disabled={placingId !== null} style={{ flex: 1, borderRadius: 8, overflow: "hidden" }}>
+                    <LinearGradient colors={placingId !== null ? ["#111", "#111"] : idx === 0 ? GRAD_GREEN : GRAD_RED} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 8, alignItems: "center" }}>
+                      <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 12 }}>{placingId === s.id ? "..." : idx === 0 ? "Yes" : "No"}</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          );
+        })}
+        {!resolved && (
+          <TouchableOpacity onPress={onResolve} style={{ marginTop: 4, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: BORDER_P, alignItems: "center", backgroundColor: "rgba(124,92,252,0.04)" }}>
+            <Text style={{ color: PURPLE_D, fontFamily: "DMSans_700Bold", fontSize: 11, letterSpacing: 0.8 }}>RESOLVE MARKET</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function Sidebar({ events, historyCache, onEventPress }: {
+  events: EventItem[]; historyCache: Record<number, ScenarioHistory[]>;
+  onEventPress(e: EventItem): void;
+}) {
+  const live = events.filter(e => e.status === "open").slice(0, 6);
+  return (
+    <View style={{ gap: 12 }}>
+      <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: "hidden" }}>
+        <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: BORDER, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 13 }}>🔥 Hot Markets</Text>
+          <Text style={{ color: TEXT_MID, fontSize: 10 }}>{live.length} live</Text>
+        </View>
+        {live.map((event, idx) => {
+          const first = event.scenarios[0];
+          const cm = cat(event.category);
+          return (
+            <TouchableOpacity key={event.id} onPress={() => onEventPress(event)} style={{ flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: idx < live.length - 1 ? 1 : 0, borderBottomColor: "rgba(255,255,255,0.04)", gap: 10 }}>
+              <Text style={{ color: TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 11, width: 14 }}>{idx + 1}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 11, lineHeight: 15 }} numberOfLines={2}>{event.title}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3 }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: cm.color }} />
+                  <Text style={{ color: TEXT_MID, fontSize: 9 }}>{cm.label}</Text>
+                </View>
+              </View>
+              <Text style={{ color: (first?.probability ?? 50) >= 60 ? BLUE : (first?.probability ?? 50) >= 40 ? PURPLE : PINK, fontFamily: "DMSans_700Bold", fontSize: 14 }}>
+                {first?.probability.toFixed(0)}%
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <View style={{ backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER }}>
+        <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+          <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 13 }}>📊 By Category</Text>
+        </View>
+        {Object.entries(CATS).filter(([k]) => k !== "all").map(([key, meta]) => {
+          const count = events.filter(e => e.category === key && e.status === "open").length;
+          if (count === 0) return null;
+          return (
+            <View key={key} style={{ flexDirection: "row", alignItems: "center", padding: 12, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.03)", gap: 10 }}>
+              <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: `${meta.color}12`, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: `${meta.color}20` }}>
+                <Text style={{ fontSize: 14 }}>{meta.icon}</Text>
+              </View>
+              <Text style={{ color: TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 12, flex: 1 }}>{meta.label}</Text>
+              <View style={{ backgroundColor: `${meta.color}12`, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 }}>
+                <Text style={{ color: meta.color, fontFamily: "DMSans_700Bold", fontSize: 10 }}>{count}</Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ── EventGridCard ─────────────────────────────────────────────────────────────
+function EventGridCard({ event, history, cardW, onPress, onResolve }: {
+  event: EventItem; history: ScenarioHistory[]; cardW: number;
+  onPress(): void; onResolve(): void;
+}) {
+  const resolved = event.status === "resolved";
+  const cm = cat(event.category);
+  const hasChart = history.some(s => s.points.length >= 2);
+  const firstProb = event.scenarios[0]?.probability ?? 50;
+  const gaugeSize = Math.min(cardW * 0.34, 60);
+
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={{ width: cardW, backgroundColor: CARD, borderRadius: 13, borderWidth: 1, borderColor: resolved ? "rgba(124,92,252,0.08)" : BORDER, overflow: "hidden" }}>
+      <View style={{ padding: 11 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+          <View style={{ backgroundColor: `${cm.color}12`, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, borderWidth: 1, borderColor: `${cm.color}20`, maxWidth: cardW * 0.54 }}>
+            <Text style={{ color: cm.color, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }} numberOfLines={1}>{cm.icon}  {cm.label.toUpperCase()}</Text>
+          </View>
+          <ArcGauge probability={firstProb} size={gaugeSize} />
+        </View>
+        <Text style={{ color: TEXT, fontSize: 11, fontFamily: "DMSans_700Bold", lineHeight: 15, marginBottom: 8 }} numberOfLines={3}>{event.title}</Text>
+        {hasChart && (
+          <View style={{ borderRadius: 7, overflow: "hidden", marginBottom: 8, backgroundColor: "rgba(124,92,252,0.03)" }}>
+            <ProbabilityChart scenarios={history} height={46} compact width={cardW - 22} />
+          </View>
+        )}
+        {event.scenarios.map((s, idx) => (
+          <View key={s.id} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: SCENARIO_COLORS[idx % SCENARIO_COLORS.length] }} />
+              <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_500Medium" }} numberOfLines={1}>{s.title}</Text>
+            </View>
+            <Text style={{ color: SCENARIO_COLORS[idx % SCENARIO_COLORS.length], fontSize: 12, fontFamily: "DMSans_700Bold" }}>{s.probability.toFixed(0)}%</Text>
+          </View>
+        ))}
+      </View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 11, paddingVertical: 7, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)", backgroundColor: "rgba(0,0,0,0.18)" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: resolved ? TEXT_MID : GREEN }} />
+          <Text style={{ color: resolved ? TEXT_MID : GREEN, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>{resolved ? "CLOSED" : "LIVE"}</Text>
+        </View>
+        {!resolved && (
+          <TouchableOpacity onPress={e => { (e as any).stopPropagation?.(); onResolve(); }} style={{ paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.06)" }}>
+            <Text style={{ color: PURPLE_D, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>RESOLVE</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ── HomeScreen ────────────────────────────────────────────────────────────────
+export default function HomeScreen() {
+  const { account, placePrediction, refreshPortfolio } = useTrading();
+  const [events, setEvents]               = useState<EventItem[]>([]);
+  const [loading, setLoading]             = useState(false);
+  const [placingId, setPlacingId]         = useState<number | null>(null);
+  const [error, setError]                 = useState("");
+  const [message, setMessage]             = useState("");
+  const [amounts, setAmounts]             = useState<Record<number, string>>({});
+  const [resolveTarget, setResolveTarget] = useState<ResolveTarget | null>(null);
+  const [detailTarget, setDetailTarget]   = useState<DetailTarget | null>(null);
+  const [historyCache, setHistoryCache]   = useState<Record<number, ScenarioHistory[]>>({});
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [screenW, setScreenW]             = useState(Dimensions.get("window").width);
+  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
+
+  const layout = useMemo(() => getLayout(screenW), [screenW]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const handler = () => setScreenW(window.innerWidth);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  const balanceText = useMemo(() => {
+    if (!account) return "—";
+    return Number(account.balance).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }, [account]);
+
+  const loadEvents = useCallback(async () => {
+    try {
+      setLoading(true); setError("");
+      const res = await api.get("/events/");
+      const evts: EventItem[] = res.data ?? [];
+      setEvents(evts);
+      const results = await Promise.allSettled(evts.map(e => api.get(`/events/${e.id}/history`)));
+      const cache: Record<number, ScenarioHistory[]> = {};
+      results.forEach((r, i) => { if (r.status === "fulfilled") cache[evts[i].id] = r.value.data.scenarios; });
+      setHistoryCache(cache);
+    } catch { setError("Failed to load markets"); }
+    finally { setLoading(false); }
+  }, []);
+
+  const handlePredict = async (scenarioId: number) => {
+    const amount = parseFloat(amounts[scenarioId] ?? "100");
+    if (isNaN(amount) || amount <= 0) { setError("Enter a valid amount"); return; }
+    try {
+      setPlacingId(scenarioId); setError(""); setMessage("");
+      const result = await placePrediction(scenarioId, amount);
+      if (!result.ok) { setError(result.error ?? "Failed"); return; }
+      setMessage(`Position opened · $${amount.toFixed(2)}`);
+      setTimeout(() => setMessage(""), 3500);
+    } catch { setError("Could not place position"); setTimeout(() => setError(""), 4000); }
+    finally { setPlacingId(null); }
+  };
+
+  const handleResolved = useCallback(() => { loadEvents(); refreshPortfolio(); setDetailTarget(null); }, [loadEvents, refreshPortfolio]);
+
+  useEffect(() => { loadEvents(); }, []);
+
+  if (!fontsLoaded) return null;
+
+  const filtered = activeCategory === "all" ? events : events.filter(e => e.category === activeCategory);
+  const heroEvent = events.find(e => e.is_featured && e.status === "open") ?? events.find(e => e.status === "open") ?? events[0];
+  const gridEvents = filtered.filter(e => e.id !== heroEvent?.id);
+  const { isWeb, cols, sideW, gap, padH, cardW } = layout;
+  const rows: EventItem[][] = [];
+  for (let i = 0; i < gridEvents.length; i += cols) rows.push(gridEvents.slice(i, i + cols));
+  const liveCount = events.filter(e => e.status === "open").length;
+  const closedCount = events.filter(e => e.status === "resolved").length;
+  const openDetail = (e: EventItem) => setDetailTarget({ event: e, history: historyCache[e.id] ?? [] });
+
+  return (
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle="light-content" />
+      <SafeAreaView style={{ flex: 1 }}>
+
+        {/* Header */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.1)", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <ScenaraWordmark size={20} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <TouchableOpacity onPress={loadEvents} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.06)" }}>
+              <Text style={{ color: PURPLE_D, fontFamily: "DMSans_700Bold", fontSize: 9, letterSpacing: 0.8 }}>{loading ? "..." : "↻ REFRESH"}</Text>
+            </TouchableOpacity>
+            <View style={{ borderRadius: 10, overflow: "hidden" }}>
+              <LinearGradient colors={GRAD_CARD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: BORDER_P, borderRadius: 10 }}>
+                <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>BALANCE</Text>
+                <Text style={{ color: TEXT, fontSize: 14, fontFamily: "DMSans_700Bold", marginTop: 1 }}>${balanceText}</Text>
+              </LinearGradient>
+            </View>
+          </View>
+        </View>
+
+        {/* Trending bar */}
+        <View style={{ borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.08)", backgroundColor: "rgba(124,92,252,0.02)" }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 7, gap: 6, flexDirection: "row", alignItems: "center" }}>
+            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginRight: 4 }}>↗ TRENDING</Text>
+            {events.filter(e => e.status === "open").slice(0, 10).map(e => (
+              <TouchableOpacity key={e.id} onPress={() => openDetail(e)} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: "rgba(124,92,252,0.08)", borderWidth: 1, borderColor: "rgba(124,92,252,0.15)" }}>
+                <Text style={{ color: TEXT_SUB, fontSize: 10, fontFamily: "DMSans_500Medium" }} numberOfLines={1}>{e.title.length > 32 ? e.title.slice(0, 32) + "…" : e.title}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Category tabs */}
+        <View style={{ borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 6, flexDirection: "row" }}>
+            {Object.entries(CATS).map(([key, meta]) => {
+              const active = activeCategory === key;
+              return (
+                <TouchableOpacity key={key} onPress={() => setActiveCategory(key)} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: active ? `${meta.color}15` : "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: active ? `${meta.color}35` : "rgba(255,255,255,0.06)" }}>
+                  <Text style={{ color: active ? meta.color : TEXT_SUB, fontSize: 11, fontFamily: active ? "DMSans_700Bold" : "DMSans_500Medium" }}>{meta.icon}  {meta.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Floating toast banner — always visible over content */}
+        {(message || error) ? (
+          <View style={{
+            position: "absolute", top: 80, left: 16, right: 16, zIndex: 999,
+            backgroundColor: message ? "rgba(22,163,74,0.95)" : "rgba(220,38,38,0.95)",
+            borderRadius: 12, padding: 12,
+            flexDirection: "row", alignItems: "center", gap: 8,
+            shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12,
+          }}>
+            <Text style={{ color: "white", fontSize: 15 }}>{message ? "✓" : "⚠"}</Text>
+            <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 13, flex: 1 }}>
+              {message || error}
+            </Text>
+          </View>
+        ) : null}
+
+        {loading && !events.length && <View style={{ alignItems: "center", paddingVertical: 40 }}><ActivityIndicator color={PURPLE} /></View>}
+
+        {/* Main content */}
+        {isWeb ? (
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <View style={{ flexDirection: "row", padding: 16, gap: 16, alignItems: "flex-start" }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <Text style={{ color: TEXT_SUB, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>{liveCount} LIVE · {closedCount} CLOSED · {filtered.length} SHOWN</Text>
+                </View>
+                {heroEvent && <HeroCard event={heroEvent} history={historyCache[heroEvent.id] ?? []} onPredict={handlePredict} onResolve={() => setResolveTarget({ eventId: heroEvent.id, eventTitle: heroEvent.title, scenarios: heroEvent.scenarios })} placingId={placingId} amounts={amounts} onAmountChange={(id, val) => setAmounts(p => ({ ...p, [id]: val }))} />}
+                <Text style={{ color: TEXT_SUB, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 10 }}>ALL MARKETS</Text>
+                <View style={{ gap }}>
+                  {rows.map((row, ri) => (
+                    <View key={ri} style={{ flexDirection: "row", gap }}>
+                      {row.map(event => <EventGridCard key={event.id} event={event} history={historyCache[event.id] ?? []} cardW={cardW} onPress={() => openDetail(event)} onResolve={() => setResolveTarget({ eventId: event.id, eventTitle: event.title, scenarios: event.scenarios })} />)}
+                      {row.length < cols && Array(cols - row.length).fill(0).map((_, i) => <View key={i} style={{ width: cardW }} />)}
+                    </View>
+                  ))}
+                </View>
+                {events.length === 0 && !loading && (
+                  <View style={{ alignItems: "center", paddingTop: 80 }}>
+                    <Text style={{ color: PURPLE_D, fontSize: 28, marginBottom: 12 }}>◈</Text>
+                    <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_500Medium" }}>No markets yet</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Inline detail panel */}
+              {detailTarget && (
+                <View style={{ width: 420, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER_P, padding: 20, maxHeight: "85vh" as any, position: "sticky" as any, top: 16, alignSelf: "flex-start" }}>
+                  <DetailPanelContent target={detailTarget} onClose={() => setDetailTarget(null)} onResolve={() => { setDetailTarget(null); setResolveTarget({ eventId: detailTarget.event.id, eventTitle: detailTarget.event.title, scenarios: detailTarget.event.scenarios }); }} placingId={placingId} amounts={amounts} onAmountChange={(id, val) => setAmounts(p => ({ ...p, [id]: val }))} onPredict={handlePredict} />
+                </View>
+              )}
+
+              <View style={{ width: detailTarget ? 240 : sideW }}>
+                <Sidebar events={events} historyCache={historyCache} onEventPress={openDetail} />
+              </View>
+            </View>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        ) : (
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <View style={{ padding: 16, gap }}>
+              <Text style={{ color: TEXT_SUB, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>{liveCount} LIVE · {closedCount} CLOSED</Text>
+              {heroEvent && <HeroCard event={heroEvent} history={historyCache[heroEvent.id] ?? []} onPredict={handlePredict} onResolve={() => setResolveTarget({ eventId: heroEvent.id, eventTitle: heroEvent.title, scenarios: heroEvent.scenarios })} placingId={placingId} amounts={amounts} onAmountChange={(id, val) => setAmounts(p => ({ ...p, [id]: val }))} />}
+              {rows.map((row, ri) => (
+                <View key={ri} style={{ flexDirection: "row", gap }}>
+                  {row.map(event => <EventGridCard key={event.id} event={event} history={historyCache[event.id] ?? []} cardW={cardW} onPress={() => openDetail(event)} onResolve={() => setResolveTarget({ eventId: event.id, eventTitle: event.title, scenarios: event.scenarios })} />)}
+                  {row.length < cols && Array(cols - row.length).fill(0).map((_, i) => <View key={i} style={{ width: cardW }} />)}
+                </View>
+              ))}
+              {events.length === 0 && !loading && <View style={{ alignItems: "center", paddingTop: 60 }}><Text style={{ color: PURPLE_D, fontSize: 28, marginBottom: 12 }}>◈</Text><Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_500Medium" }}>No markets yet</Text></View>}
+            </View>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        )}
+      </SafeAreaView>
+
+      {resolveTarget && <ResolveModal target={resolveTarget} onClose={() => setResolveTarget(null)} onResolved={handleResolved} />}
+      {!isWeb && detailTarget && <DetailModal target={detailTarget} onClose={() => setDetailTarget(null)} onResolve={() => { setDetailTarget(null); setResolveTarget({ eventId: detailTarget.event.id, eventTitle: detailTarget.event.title, scenarios: detailTarget.event.scenarios }); }} placingId={placingId} amounts={amounts} onAmountChange={(id, val) => setAmounts(p => ({ ...p, [id]: val }))} onPredict={handlePredict} />}
+    </View>
+  );
+}
