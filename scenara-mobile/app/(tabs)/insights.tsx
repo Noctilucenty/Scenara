@@ -11,6 +11,7 @@ import {
 
 import { api } from "@/src/api/client";
 import { useTrading } from "@/src/session/TradingContext";
+import { useLanguage } from "@/src/i18n";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
@@ -28,7 +29,6 @@ const GREEN    = "#22C55E";
 const RED      = "#EF4444";
 const BLUE_A   = "#60A5FA";
 
-const GRAD_BRAND = [BLUE, PURPLE, PINK] as const;
 const GRAD_CARD  = ["rgba(79,142,247,0.08)", "rgba(124,92,252,0.03)"] as const;
 const SIDEBAR_W  = 300;
 
@@ -40,12 +40,12 @@ type Summary = {
   best_pnl: number; worst_pnl: number; avg_pnl_per_prediction: number;
 };
 
-function getGrade(a: number) {
-  if (a >= 85) return { grade: "S", color: BLUE,    label: "Elite Predictor" };
-  if (a >= 75) return { grade: "A", color: GREEN,   label: "Sharp" };
-  if (a >= 65) return { grade: "B", color: PURPLE,  label: "Solid" };
-  if (a >= 55) return { grade: "C", color: TEXT_SUB,label: "Average" };
-  return            { grade: "D", color: RED,       label: "Needs Work" };
+function getGrade(a: number, t: any) {
+  if (a >= 85) return { grade: "S", color: BLUE,    label: t.insights.gradeLabels.S };
+  if (a >= 75) return { grade: "A", color: GREEN,   label: t.insights.gradeLabels.A };
+  if (a >= 65) return { grade: "B", color: PURPLE,  label: t.insights.gradeLabels.B };
+  if (a >= 55) return { grade: "C", color: TEXT_SUB,label: t.insights.gradeLabels.C };
+  return            { grade: "D", color: RED,       label: t.insights.gradeLabels.D };
 }
 
 function StatRow({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
@@ -71,6 +71,7 @@ function Card({ title, children }: { title?: string; children: React.ReactNode }
 
 export default function InsightsScreen() {
   const { userId } = useTrading();
+  const { t } = useLanguage();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -82,44 +83,40 @@ export default function InsightsScreen() {
     if (!userId) return;
     setLoading(true); setError("");
     try { const res = await api.get(`/predictions/user/${userId}/summary`); setSummary(res.data); }
-    catch { setError("Failed to load insights"); }
+    catch { setError(t.insights.noData); }
     finally { setLoading(false); }
-  }, [userId]);
+  }, [userId, t]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   if (!fontsLoaded) return null;
 
-  const grade = summary ? getGrade(summary.accuracy_score) : null;
+  const grade = summary ? getGrade(summary.accuracy_score, t) : null;
   const pnlPos = (summary?.total_pnl ?? 0) >= 0;
 
   const mainContent = summary && grade ? (
     <>
-      {/* Grade hero */}
       <LinearGradient colors={GRAD_CARD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 16, padding: 24, marginBottom: 12, borderWidth: 1, borderColor: BORDER_P }}>
-        <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 16 }}>PERFORMANCE GRADE</Text>
+        <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 16 }}>{t.insights.grade}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <View>
             <Text style={{ color: grade.color, fontSize: 80, fontFamily: "DMSans_700Bold", lineHeight: 84, letterSpacing: -2 }}>{grade.grade}</Text>
             <Text style={{ color: grade.color, fontSize: 15, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>{grade.label.toUpperCase()}</Text>
-            <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_400Regular", marginTop: 4 }}>Based on Brier-score calibration</Text>
+            <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_400Regular", marginTop: 4 }}>{t.insights.calibration}</Text>
           </View>
           <View style={{ alignItems: "flex-end" }}>
-            <Text style={{ color: PURPLE_D, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginBottom: 4 }}>ACCURACY</Text>
+            <Text style={{ color: PURPLE_D, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginBottom: 4 }}>{t.insights.accuracy}</Text>
             <Text style={{ color: grade.color, fontSize: 48, fontFamily: "DMSans_700Bold", letterSpacing: -2 }}>{summary.accuracy_score}</Text>
             <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium" }}>/100</Text>
           </View>
         </View>
       </LinearGradient>
 
-      {/* Percentile */}
       <Card>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 8 }}>PERCENTILE RANK</Text>
+            <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 8 }}>{t.insights.percentileRank}</Text>
             <Text style={{ color: TEXT, fontSize: 14, fontFamily: "DMSans_400Regular", lineHeight: 20 }}>
-              You outperform{" "}
-              <Text style={{ color: BLUE, fontFamily: "DMSans_700Bold" }}>{summary.percentile_rank}%</Text>
-              {" "}of all traders on this platform
+              {t.insights.outperform(summary.percentile_rank)}
             </Text>
           </View>
           <View style={{ width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", marginLeft: 16, overflow: "hidden" }}>
@@ -129,29 +126,29 @@ export default function InsightsScreen() {
         </View>
       </Card>
 
-      <Card title="TRADING STATS">
-        <StatRow label="Total Predictions"    value={`${summary.total_predictions}`} />
-        <StatRow label="Win Rate"             value={`${summary.win_rate}%`}          color={summary.win_rate >= 50 ? GREEN : RED} />
-        <StatRow label="Accuracy Score"       value={`${summary.accuracy_score}/100`} color={grade.color} sub="Brier-score calibration" />
-        <StatRow label="Avg Entry Probability"value={`${summary.avg_entry_prob}%`}    color={TEXT_SUB} sub="Lower = higher risk tolerance" />
-        <StatRow label="Current Streak"       value={`🔥 ${summary.current_streak}`}  color={summary.current_streak > 0 ? "#FB923C" : TEXT_SUB} />
-        <StatRow label="Best Streak"          value={`${summary.best_streak} wins`}   color={PURPLE} />
+      <Card title={t.insights.tradingStats}>
+        <StatRow label={t.insights.totalPreds}    value={`${summary.total_predictions}`} />
+        <StatRow label={t.insights.winRate}        value={`${summary.win_rate}%`}          color={summary.win_rate >= 50 ? GREEN : RED} />
+        <StatRow label={t.insights.accuracyScore}  value={`${summary.accuracy_score}/100`} color={grade.color} sub={t.insights.brierSub} />
+        <StatRow label={t.insights.avgEntry}       value={`${summary.avg_entry_prob}%`}    color={TEXT_SUB} sub={t.insights.avgEntrySub} />
+        <StatRow label={t.insights.currentStreak}  value={`🔥 ${summary.current_streak}`}  color={summary.current_streak > 0 ? "#FB923C" : TEXT_SUB} />
+        <StatRow label={t.insights.bestStreak}     value={t.insights.wins(summary.best_streak)} color={PURPLE} />
       </Card>
 
-      <Card title="P&L BREAKDOWN">
-        <StatRow label="Total P&L"             value={`${pnlPos ? "+" : ""}${Number(summary.total_pnl).toFixed(2)}`}     color={pnlPos ? GREEN : RED} />
-        <StatRow label="Avg P&L per Prediction"value={`${summary.avg_pnl_per_prediction >= 0 ? "+" : ""}${summary.avg_pnl_per_prediction.toFixed(2)}`} color={summary.avg_pnl_per_prediction >= 0 ? GREEN : RED} />
-        <StatRow label="Best Single Prediction" value={`+${summary.best_pnl.toFixed(2)}`}  color={GREEN} />
-        <StatRow label="Worst Single Prediction"value={`${summary.worst_pnl.toFixed(2)}`}  color={RED} />
-        <StatRow label="Total Wagered"          value={`$${Number(summary.total_wagered).toFixed(0)}`} color={TEXT_SUB} />
+      <Card title={t.insights.pnlBreakdown}>
+        <StatRow label={t.insights.totalPnl}   value={`${pnlPos ? "+" : ""}${Number(summary.total_pnl).toFixed(2)}`} color={pnlPos ? GREEN : RED} />
+        <StatRow label={t.insights.avgPnl}     value={`${summary.avg_pnl_per_prediction >= 0 ? "+" : ""}${summary.avg_pnl_per_prediction.toFixed(2)}`} color={summary.avg_pnl_per_prediction >= 0 ? GREEN : RED} />
+        <StatRow label={t.insights.bestPred}   value={`+${summary.best_pnl.toFixed(2)}`}  color={GREEN} />
+        <StatRow label={t.insights.worstPred}  value={`${summary.worst_pnl.toFixed(2)}`}  color={RED} />
+        <StatRow label={t.insights.totalWagered} value={`$${Number(summary.total_wagered).toFixed(0)}`} color={TEXT_SUB} />
       </Card>
 
-      <Card title="POSITION SUMMARY">
+      <Card title={t.insights.positionSummary}>
         <View style={{ flexDirection: "row", gap: 8 }}>
           {[
-            { label: "OPEN", value: summary.open_count, color: BLUE_A },
-            { label: "WON",  value: summary.won_count,  color: GREEN },
-            { label: "LOST", value: summary.lost_count, color: RED },
+            { label: t.portfolio.open, value: summary.open_count, color: BLUE_A },
+            { label: t.portfolio.won,  value: summary.won_count,  color: GREEN },
+            { label: t.portfolio.lost, value: summary.lost_count, color: RED },
           ].map(s => (
             <View key={s.label} style={{ flex: 1, backgroundColor: SURFACE, borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: BORDER }}>
               <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>{s.label}</Text>
@@ -163,34 +160,38 @@ export default function InsightsScreen() {
     </>
   ) : null;
 
+  const gradeScale = [
+    { grade: "S", range: "85–100", color: BLUE },
+    { grade: "A", range: "75–84",  color: GREEN },
+    { grade: "B", range: "65–74",  color: PURPLE },
+    { grade: "C", range: "55–64",  color: TEXT_SUB },
+    { grade: "D", range: "0–54",   color: RED },
+  ];
+
   const sidebar = summary && grade ? (
     <View style={{ gap: 12 }}>
-      <Card title="GRADE SCALE">
-        {[
-          { grade: "S", range: "85–100", label: "Elite Predictor", color: BLUE },
-          { grade: "A", range: "75–84",  label: "Sharp",           color: GREEN },
-          { grade: "B", range: "65–74",  label: "Solid",           color: PURPLE },
-          { grade: "C", range: "55–64",  label: "Average",         color: TEXT_SUB },
-          { grade: "D", range: "0–54",   label: "Needs Work",      color: RED },
-        ].map(g => (
+      <Card title={t.insights.gradeScale}>
+        {gradeScale.map(g => (
           <View key={g.grade} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" }}>
             <View style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: `${g.color}15`, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: `${g.color}30` }}>
               <Text style={{ color: g.color, fontFamily: "DMSans_700Bold", fontSize: 15 }}>{g.grade}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: g.grade === grade.grade ? g.color : TEXT_SUB, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{g.label}{g.grade === grade.grade ? "  ← You" : ""}</Text>
-              <Text style={{ color: TEXT_MID, fontFamily: "DMSans_400Regular", fontSize: 11 }}>Score {g.range}</Text>
+              <Text style={{ color: g.grade === grade.grade ? g.color : TEXT_SUB, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
+                {(t.insights.gradeLabels as any)[g.grade]}{g.grade === grade.grade ? `  ${t.insights.youLabel}` : ""}
+              </Text>
+              <Text style={{ color: TEXT_MID, fontFamily: "DMSans_400Regular", fontSize: 11 }}>{t.insights.score(g.range)}</Text>
             </View>
           </View>
         ))}
       </Card>
 
-      <Card title="QUICK STATS">
+      <Card title={t.insights.quickStats}>
         {[
-          { label: "Balance",   value: `$${Number(summary.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, color: TEXT },
-          { label: "Win Rate",  value: `${summary.win_rate}%`,           color: summary.win_rate >= 50 ? GREEN : RED },
-          { label: "Total P&L", value: `${pnlPos ? "+" : ""}${Number(summary.total_pnl).toFixed(2)}`, color: pnlPos ? GREEN : RED },
-          { label: "Accuracy",  value: `${summary.accuracy_score}/100`,  color: grade.color },
+          { label: t.insights.balance,  value: `$${Number(summary.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, color: TEXT },
+          { label: t.insights.winRate,  value: `${summary.win_rate}%`, color: summary.win_rate >= 50 ? GREEN : RED },
+          { label: t.insights.totalPnl, value: `${pnlPos ? "+" : ""}${Number(summary.total_pnl).toFixed(2)}`, color: pnlPos ? GREEN : RED },
+          { label: t.insights.accuracy, value: `${summary.accuracy_score}/100`, color: grade.color },
         ].map(s => (
           <View key={s.label} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
             <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium" }}>{s.label}</Text>
@@ -206,8 +207,8 @@ export default function InsightsScreen() {
       <StatusBar barStyle="light-content" />
       <SafeAreaView style={{ flex: 1 }}>
         <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.1)" }}>
-          <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 2 }}>SCENARA</Text>
-          <Text style={{ color: TEXT, fontSize: 26, fontFamily: "DMSans_700Bold", letterSpacing: -0.5, marginTop: 4 }}>Insights</Text>
+          <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 2 }}>{t.common.scenara}</Text>
+          <Text style={{ color: TEXT, fontSize: 26, fontFamily: "DMSans_700Bold", letterSpacing: -0.5, marginTop: 4 }}>{t.insights.title}</Text>
         </View>
 
         {loading && <View style={{ alignItems: "center", paddingVertical: 40 }}><ActivityIndicator color={PURPLE} /></View>}
@@ -216,8 +217,8 @@ export default function InsightsScreen() {
         {!summary && !loading && !error && (
           <View style={{ alignItems: "center", paddingTop: 80 }}>
             <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 12 }}>◎</Text>
-            <Text style={{ color: TEXT_SUB, fontSize: 16, fontFamily: "DMSans_500Medium" }}>No data yet</Text>
-            <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_400Regular", marginTop: 4 }}>Place predictions to see your insights</Text>
+            <Text style={{ color: TEXT_SUB, fontSize: 16, fontFamily: "DMSans_500Medium" }}>{t.insights.noData}</Text>
+            <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_400Regular", marginTop: 4 }}>{t.insights.noDataSub}</Text>
           </View>
         )}
 

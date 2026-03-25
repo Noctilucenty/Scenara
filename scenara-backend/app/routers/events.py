@@ -56,7 +56,9 @@ class EventOut(BaseModel):
     id: int
     slug: str
     title: str
+    title_pt: str | None
     description: str | None
+    description_pt: str | None
     category: str
     source: str | None
     status: str

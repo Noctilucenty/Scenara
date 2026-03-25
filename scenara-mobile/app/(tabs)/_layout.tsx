@@ -5,12 +5,9 @@ import { HapticTab } from "@/components/haptic-tab";
 import {
   useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
+import { useLanguage } from "@/src/i18n";
 
-// Scenara brand
-const BLUE   = "#4F8EF7";
 const PURPLE = "#7C5CFC";
-const PINK   = "#F050AE";
-const BG     = "#08090C";
 
 function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
   return (
@@ -22,6 +19,7 @@ function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
 
 export default function TabLayout() {
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
+  const { t } = useLanguage();
 
   return (
     <Tabs
@@ -48,29 +46,36 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "MARKETS",
+          title: t.tabs.markets,
           tabBarIcon: ({ focused }) => <TabIcon emoji="◈" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="portfolio"
         options={{
-          title: "PORTFOLIO",
+          title: t.tabs.portfolio,
           tabBarIcon: ({ focused }) => <TabIcon emoji="◉" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="insights"
         options={{
-          title: "INSIGHTS",
+          title: t.tabs.insights,
           tabBarIcon: ({ focused }) => <TabIcon emoji="◎" focused={focused} />,
         }}
       />
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: "RANKINGS",
+          title: t.tabs.rankings,
           tabBarIcon: ({ focused }) => <TabIcon emoji="◆" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: t.tabs.settings,
+          tabBarIcon: ({ focused }) => <TabIcon emoji="⚙" focused={focused} />,
         }}
       />
       <Tabs.Screen name="kyc"     options={{ href: null }} />
