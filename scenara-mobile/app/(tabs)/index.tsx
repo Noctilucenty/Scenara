@@ -45,13 +45,18 @@ const GRAD_CARD    = ["rgba(79,142,247,0.07)", "rgba(124,92,252,0.03)"] as const
 
 // ── Category metadata (static colors/icons, labels come from i18n) ───────────
 const CAT_META: Record<string, { icon: string; color: string }> = {
-  all:         { icon: "⚡", color: PURPLE   },
-  politics:    { icon: "🏛",  color: "#818CF8" },
-  economy:     { icon: "📈", color: "#34D399" },
-  crypto:      { icon: "₿",  color: "#F7931A" },
-  sports:      { icon: "⚽", color: "#60A5FA" },
-  technology:  { icon: "💻", color: "#A78BFA" },
-  geopolitics: { icon: "🌍", color: "#FB923C" },
+  all:           { icon: "⚡", color: PURPLE   },
+  politics:      { icon: "🏛",  color: "#818CF8" },
+  economy:       { icon: "📈", color: "#34D399" },
+  crypto:        { icon: "₿",  color: "#F7931A" },
+  sports:        { icon: "⚽", color: "#60A5FA" },
+  technology:    { icon: "💻", color: "#A78BFA" },
+  geopolitics:   { icon: "🌍", color: "#FB923C" },
+  entertainment: { icon: "🎬", color: "#F472B6" },
+  music:         { icon: "🎵", color: "#C084FC" },
+  tv:            { icon: "📺", color: "#22D3EE" },
+  science:       { icon: "🔬", color: "#86EFAC" },
+  weather:       { icon: "🌦",  color: "#7DD3FC" },
 };
 function catMeta(c: string) { return CAT_META[c] ?? { icon: "◈", color: PURPLE }; }
 
