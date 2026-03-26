@@ -381,3 +381,56 @@ def settle_event_predictions(event_id: int, db: Session = Depends(get_db)):
 
     db.commit()
     return SettlementResponse(settled_count=settled_count, event_id=event_id)
+
+
+# ---------------------------------------------------------------------------
+# Crowd sentiment — how users bet on an event
+# ---------------------------------------------------------------------------
+
+class ScenarioSentiment(BaseModel):
+    scenario_id: int
+    scenario_title: str
+    scenario_title_pt: str | None
+    player_count: int
+    percentage: float
+
+class CrowdSentimentOut(BaseModel):
+    event_id: int
+    total_players: int
+    scenarios: list[ScenarioSentiment]
+
+
+@router.get("/events/{event_id}/sentiment", response_model=CrowdSentimentOut)
+def get_crowd_sentiment(event_id: int, db: Session = Depends(get_db)):
+    """Returns how many players bet on each scenario for a given event."""
+    event = db.query(models.Event).filter(models.Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    scenarios = db.query(models.Scenario).filter(
+        models.Scenario.event_id == event_id
+    ).order_by(models.Scenario.sort_order).all()
+
+    result = []
+    total = 0
+    counts = {}
+
+    for s in scenarios:
+        count = db.query(models.Prediction).filter(
+            models.Prediction.scenario_id == s.id
+        ).count()
+        counts[s.id] = count
+        total += count
+
+    for s in scenarios:
+        count = counts[s.id]
+        pct = round((count / total * 100), 1) if total > 0 else 0.0
+        result.append(ScenarioSentiment(
+            scenario_id=s.id,
+            scenario_title=s.title,
+            scenario_title_pt=s.title_pt,
+            player_count=count,
+            percentage=pct,
+        ))
+
+    return CrowdSentimentOut(event_id=event_id, total_players=total, scenarios=result)

@@ -17,6 +17,8 @@ class Scenario(Base):
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
 
+    title_pt: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     probability: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)

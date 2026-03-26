@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useRef } from "react";
 import {
   SafeAreaView, Text, View, ScrollView,
-  ActivityIndicator, TouchableOpacity, StatusBar,
+  ActivityIndicator, TouchableOpacity, StatusBar, Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
@@ -60,10 +60,103 @@ function streakMeta(n: number, t: any) {
   return             { emoji: "",       label: "" };
 }
 
+// ── ShareCardModal ────────────────────────────────────────────────────────────
+type ShareCardData = {
+  eventTitle: string;
+  scenarioTitle: string;
+  pnl: number;
+  wagered: number;
+  multiplier: number;
+  entryProb: number;
+  status: string;
+};
+
+function ShareCardModal({ data, onClose, language }: { data: ShareCardData; onClose(): void; language: string }) {
+  const isWin = data.pnl >= 0;
+  const pnlStr = `${isWin ? "+" : ""}$${Math.abs(data.pnl).toFixed(2)}`;
+
+  return (
+    <Modal visible animationType="fade" transparent>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", justifyContent: "center", alignItems: "center", padding: 24 }}>
+
+        {/* Card */}
+        <View style={{ width: "100%", maxWidth: 380, borderRadius: 24, overflow: "hidden", borderWidth: 1, borderColor: isWin ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)" }}>
+          <LinearGradient colors={isWin ? ["#0a1f14", "#08090C"] : ["#1f0a0a", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 28 }}>
+
+            {/* Top row */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              {/* Wordmark */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <View style={{ width: 18, height: 18, borderRadius: 4, overflow: "hidden" }}>
+                  <LinearGradient colors={["#4F8EF7", "#7C5CFC", "#F050AE"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color: "white", fontSize: 10, fontFamily: "DMSans_700Bold" }}>S</Text>
+                  </LinearGradient>
+                </View>
+                <Text style={{ color: "#F1F5F9", fontSize: 14, fontFamily: "DMSans_700Bold", letterSpacing: -0.3 }}>scenara</Text>
+              </View>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: isWin ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", borderWidth: 1, borderColor: isWin ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)" }}>
+                <Text style={{ color: isWin ? "#22C55E" : "#EF4444", fontFamily: "DMSans_700Bold", fontSize: 10, letterSpacing: 1 }}>
+                  {isWin ? (language === "pt" ? "GANHOU" : "WON") : (language === "pt" ? "PERDEU" : "LOST")}
+                </Text>
+              </View>
+            </View>
+
+            {/* Event title */}
+            <Text style={{ color: "#64748B", fontSize: 11, fontFamily: "DMSans_500Medium", marginBottom: 6 }} numberOfLines={2}>{data.eventTitle}</Text>
+            <Text style={{ color: "#F1F5F9", fontSize: 17, fontFamily: "DMSans_700Bold", lineHeight: 24, marginBottom: 24 }} numberOfLines={2}>{data.scenarioTitle}</Text>
+
+            {/* PnL */}
+            <View style={{ alignItems: "center", marginBottom: 28 }}>
+              <Text style={{ color: "#64748B", fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 8 }}>
+                {language === "pt" ? "RESULTADO" : "RESULT"}
+              </Text>
+              <LinearGradient colors={isWin ? ["#22C55E", "#16a34a"] : ["#EF4444", "#dc2626"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14 }}>
+                <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 36, letterSpacing: -1 }}>{pnlStr}</Text>
+              </LinearGradient>
+            </View>
+
+            {/* Stats row */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 14, padding: 14, marginBottom: 20 }}>
+              {[
+                { label: language === "pt" ? "APOSTADO" : "WAGERED", value: `$${data.wagered.toFixed(0)}` },
+                { label: language === "pt" ? "ENTRADA" : "ENTRY PROB", value: `${data.entryProb}%` },
+                { label: "MULT", value: `${data.multiplier}x` },
+              ].map(s => (
+                <View key={s.label} style={{ alignItems: "center" }}>
+                  <Text style={{ color: "#64748B", fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>{s.label}</Text>
+                  <Text style={{ color: "#F1F5F9", fontFamily: "DMSans_700Bold", fontSize: 15, marginTop: 4 }}>{s.value}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Footer */}
+            <Text style={{ color: "#64748B", fontSize: 10, fontFamily: "DMSans_400Regular", textAlign: "center" }}>
+              scenara.app  ·  {language === "pt" ? "Mercado de Previsões Simulado" : "Simulated Prediction Market"}
+            </Text>
+          </LinearGradient>
+        </View>
+
+        {/* Instructions */}
+        <Text style={{ color: "#64748B", fontSize: 12, fontFamily: "DMSans_400Regular", textAlign: "center", marginTop: 20, marginBottom: 24 }}>
+          {language === "pt" ? "Tire um print para compartilhar" : "Take a screenshot to share"}
+        </Text>
+
+        {/* Close */}
+        <TouchableOpacity onPress={onClose} style={{ paddingHorizontal: 32, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: "rgba(124,92,252,0.2)", backgroundColor: "rgba(124,92,252,0.08)" }}>
+          <Text style={{ color: "#4A3699", fontFamily: "DMSans_700Bold", fontSize: 13, letterSpacing: 0.5 }}>
+            {language === "pt" ? "Fechar" : "Close"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
 export default function PortfolioScreen() {
   const { account, predictions, loadingPortfolio, portfolioError, refreshPortfolio, userId } = useTrading();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [shareCard, setShareCard] = useState<ShareCardData | null>(null);
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFocused = useRef(false);
@@ -251,7 +344,25 @@ export default function PortfolioScreen() {
                     <View style={{ height: 1, backgroundColor: "rgba(124,92,252,0.08)", marginTop: 12, marginBottom: 10 }} />
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                       <Text style={{ color: pnlNum >= 0 ? GREEN : RED, fontFamily: "DMSans_700Bold", fontSize: 16 }}>{pnlNum >= 0 ? "+" : ""}{pnlNum.toFixed(2)}</Text>
-                      {p.settled_at && <Text style={{ color: TEXT_MID, fontSize: 10 }}>{timeAgo(p.settled_at, t)}</Text>}
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        {p.settled_at && <Text style={{ color: TEXT_MID, fontSize: 10 }}>{timeAgo(p.settled_at, t)}</Text>}
+                        <TouchableOpacity
+                          onPress={() => setShareCard({
+                            eventTitle: p.event_title,
+                            scenarioTitle: p.scenario_title,
+                            pnl: pnlNum,
+                            wagered: Number(p.simulated_amount),
+                            multiplier: Number(p.payout_multiplier),
+                            entryProb: Number(p.entry_probability),
+                            status: p.status,
+                          })}
+                          style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: "rgba(124,92,252,0.25)", backgroundColor: "rgba(124,92,252,0.08)" }}
+                        >
+                          <Text style={{ color: PURPLE_D, fontFamily: "DMSans_700Bold", fontSize: 9, letterSpacing: 0.8 }}>
+                            {language === "pt" ? "COMPARTILHAR" : "SHARE"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </>
                 )}
@@ -261,6 +372,7 @@ export default function PortfolioScreen() {
           })}
         </ScrollView>
       </SafeAreaView>
+      {shareCard && <ShareCardModal data={shareCard} onClose={() => setShareCard(null)} language={language} />}
     </View>
   );
 }

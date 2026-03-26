@@ -45,6 +45,7 @@ class ScenarioOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     title: str
+    title_pt: str | None = None
     description: str | None
     probability: float
     sort_order: int

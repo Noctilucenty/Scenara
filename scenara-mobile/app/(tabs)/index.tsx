@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   SafeAreaView, Text, ScrollView, View,
   TouchableOpacity, ActivityIndicator, Modal,
   TextInput, Alert, StatusBar, Dimensions, Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "@react-navigation/native";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
 import {
   useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
@@ -13,6 +14,8 @@ import {
 import { api } from "@/src/api/client";
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
+
+const AUTO_REFRESH_MS = 30_000;
 import { ProbabilityChart, ScenarioHistory, SCENARIO_COLORS } from "@/components/ProbabilityChart";
 
 // ── Scenara brand tokens ─────────────────────────────────────────────────────
@@ -156,7 +159,7 @@ function ArcGauge({ probability, size = 58, t }: { probability: number; size?: n
 }
 
 // ── ResolveModal ──────────────────────────────────────────────────────────────
-function ResolveModal({ target, onClose, onResolved, t }: { target: ResolveTarget; onClose(): void; onResolved(): void; t: any }) {
+function ResolveModal({ target, onClose, onResolved, t, language }: { target: ResolveTarget; onClose(): void; onResolved(): void; t: any; language: string }) {
   const [sel, setSel] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const confirm = async () => {
@@ -191,7 +194,7 @@ function ResolveModal({ target, onClose, onResolved, t }: { target: ResolveTarge
                   <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: on ? c : TEXT_MID, backgroundColor: on ? c : "transparent", alignItems: "center", justifyContent: "center" }}>
                     {on && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: BG }} />}
                   </View>
-                  <Text style={{ color: on ? c : TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{s.title}</Text>
+                  <Text style={{ color: on ? c : TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{scenarioTitle(s, language)}</Text>
                 </View>
                 <Text style={{ color: TEXT_MID, fontSize: 13 }}>{s.probability.toFixed(1)}%</Text>
               </TouchableOpacity>
@@ -228,6 +231,21 @@ function DetailPanelContent({ target, onClose, onResolve, placingId, amounts, on
   const title = eventTitle(event, language);
   const desc  = eventDesc(event, language);
 
+  // Crowd sentiment
+  const [sentiment, setSentiment] = useState<{ total: number; scenarios: { id: number; pct: number; title: string; title_pt: string | null }[] } | null>(null);
+  useEffect(() => {
+    api.get(`/predictions/events/${event.id}/sentiment`)
+      .then(r => {
+        if (r.data.total_players > 0) {
+          setSentiment({
+            total: r.data.total_players,
+            scenarios: r.data.scenarios.map((s: any) => ({ id: s.scenario_id, pct: s.percentage, title: s.scenario_title, title_pt: s.scenario_title_pt })),
+          });
+        }
+      })
+      .catch(() => {});
+  }, [event.id]);
+
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 }}>
@@ -250,6 +268,35 @@ function DetailPanelContent({ target, onClose, onResolve, placingId, amounts, on
         <View style={{ backgroundColor: "rgba(124,92,252,0.04)", borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: "rgba(124,92,252,0.12)" }}>
           <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>{t.markets.probHistory}</Text>
           <ProbabilityChart scenarios={history} height={160} compact={false} />
+        </View>
+      )}
+
+      {/* Crowd sentiment */}
+      {sentiment && sentiment.total > 0 && (
+        <View style={{ backgroundColor: "rgba(124,92,252,0.04)", borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: "rgba(124,92,252,0.1)" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
+              {language === "pt" ? "COMO OS JOGADORES APOSTARAM" : "HOW PLAYERS BET"}
+            </Text>
+            <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_500Medium" }}>
+              {sentiment.total} {language === "pt" ? (sentiment.total === 1 ? "jogador" : "jogadores") : (sentiment.total === 1 ? "player" : "players")}
+            </Text>
+          </View>
+          {sentiment.scenarios.map((s, idx) => {
+            const c = SCENARIO_COLORS[idx % SCENARIO_COLORS.length];
+            const label = language === "pt" && s.title_pt ? s.title_pt : s.title;
+            return (
+              <View key={s.id} style={{ marginBottom: idx < sentiment.scenarios.length - 1 ? 10 : 0 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 5 }}>
+                  <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_500Medium" }}>{label}</Text>
+                  <Text style={{ color: c, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{s.pct.toFixed(0)}%</Text>
+                </View>
+                <View style={{ height: 6, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
+                  <View style={{ width: `${s.pct}%`, height: "100%", backgroundColor: c, borderRadius: 3, opacity: 0.85 }} />
+                </View>
+              </View>
+            );
+          })}
         </View>
       )}
 
@@ -385,7 +432,7 @@ function HeroCard({ event, history, onPredict, onResolve, placingId, amounts, on
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c }} />
-                  <Text style={{ color: won ? c : TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{s.title}</Text>
+                  <Text style={{ color: won ? c : TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{scenarioTitle(s, language)}</Text>
                 </View>
                 <Text style={{ color: won ? c : TEXT, fontFamily: "DMSans_700Bold", fontSize: 15 }}>{s.probability.toFixed(1)}%</Text>
               </View>
@@ -509,7 +556,7 @@ function EventGridCard({ event, history, cardW, onPress, onResolve, t, language 
           <View key={s.id} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 5, flex: 1 }}>
               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: SCENARIO_COLORS[idx % SCENARIO_COLORS.length] }} />
-              <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_500Medium" }} numberOfLines={1}>{s.title}</Text>
+              <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_500Medium" }} numberOfLines={1}>{scenarioTitle(s, language)}</Text>
             </View>
             <Text style={{ color: SCENARIO_COLORS[idx % SCENARIO_COLORS.length], fontSize: 12, fontFamily: "DMSans_700Bold" }}>{s.probability.toFixed(0)}%</Text>
           </View>
@@ -530,7 +577,81 @@ function EventGridCard({ event, history, cardW, onPress, onResolve, t, language 
   );
 }
 
-// ── HomeScreen ────────────────────────────────────────────────────────────────
+// ── ShareCardModal ────────────────────────────────────────────────────────────
+type ShareCardData = {
+  eventTitle: string;
+  scenarioTitle: string;
+  pnl: number;
+  wagered: number;
+  multiplier: number;
+  entryProb: number;
+};
+
+function ShareCardModal({ data, onClose, t, language }: { data: ShareCardData; onClose(): void; t: any; language: string }) {
+  const isWin = data.pnl >= 0;
+  const pnlStr = `${isWin ? "+" : ""}$${Math.abs(data.pnl).toFixed(2)}`;
+
+  return (
+    <Modal visible animationType="fade" transparent>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.92)", justifyContent: "center", alignItems: "center", padding: 24 }}>
+
+        {/* Card */}
+        <View style={{ width: "100%", maxWidth: 380, borderRadius: 24, overflow: "hidden", borderWidth: 1, borderColor: isWin ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)" }}>
+          <LinearGradient colors={isWin ? ["#0a1f14", "#08090C"] : ["#1f0a0a", "#08090C"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 28 }}>
+
+            {/* Top row */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <ScenaraWordmark size={18} />
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: isWin ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", borderWidth: 1, borderColor: isWin ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)" }}>
+                <Text style={{ color: isWin ? GREEN : RED, fontFamily: "DMSans_700Bold", fontSize: 10, letterSpacing: 1 }}>{isWin ? (language === "pt" ? "GANHOU" : "WON") : (language === "pt" ? "PERDEU" : "LOST")}</Text>
+              </View>
+            </View>
+
+            {/* Event title */}
+            <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_500Medium", marginBottom: 6 }} numberOfLines={2}>{data.eventTitle}</Text>
+            <Text style={{ color: TEXT, fontSize: 17, fontFamily: "DMSans_700Bold", lineHeight: 24, marginBottom: 24 }} numberOfLines={2}>{data.scenarioTitle}</Text>
+
+            {/* PnL */}
+            <View style={{ alignItems: "center", marginBottom: 28 }}>
+              <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 8 }}>{language === "pt" ? "RESULTADO" : "RESULT"}</Text>
+              <LinearGradient colors={isWin ? [GREEN, "#16a34a"] : [RED, "#dc2626"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14 }}>
+                <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 36, letterSpacing: -1 }}>{pnlStr}</Text>
+              </LinearGradient>
+            </View>
+
+            {/* Stats row */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 14, padding: 14, marginBottom: 20 }}>
+              {[
+                { label: language === "pt" ? "APOSTADO" : "WAGERED", value: `$${data.wagered.toFixed(0)}` },
+                { label: language === "pt" ? "PROB ENTRADA" : "ENTRY PROB", value: `${data.entryProb}%` },
+                { label: language === "pt" ? "MULT" : "MULT", value: `${data.multiplier}x` },
+              ].map(s => (
+                <View key={s.label} style={{ alignItems: "center" }}>
+                  <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>{s.label}</Text>
+                  <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 15, marginTop: 4 }}>{s.value}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Footer */}
+            <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular", textAlign: "center" }}>scenara.app  ·  {language === "pt" ? "Mercado de Previsões Simulado" : "Simulated Prediction Market"}</Text>
+          </LinearGradient>
+        </View>
+
+        {/* Instructions */}
+        <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", textAlign: "center", marginTop: 20, marginBottom: 24 }}>
+          {language === "pt" ? "Tire um print para compartilhar" : "Take a screenshot to share"}
+        </Text>
+
+        {/* Close */}
+        <TouchableOpacity onPress={onClose} style={{ paddingHorizontal: 32, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.08)" }}>
+          <Text style={{ color: PURPLE_D, fontFamily: "DMSans_700Bold", fontSize: 13, letterSpacing: 0.5 }}>{language === "pt" ? "Fechar" : "Close"}</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
 export default function HomeScreen() {
   const { account, placePrediction, refreshPortfolio } = useTrading();
   const { t, language } = useLanguage();
@@ -545,7 +666,10 @@ export default function HomeScreen() {
   const [historyCache, setHistoryCache]   = useState<Record<number, ScenarioHistory[]>>({});
   const [activeCategory, setActiveCategory] = useState("all");
   const [screenW, setScreenW]             = useState(Dimensions.get("window").width);
+  const [shareCard, setShareCard]         = useState<ShareCardData | null>(null);
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isFocused = useRef(false);
 
   const layout = useMemo(() => getLayout(screenW), [screenW]);
 
@@ -584,13 +708,39 @@ export default function HomeScreen() {
       if (!result.ok) { setError(result.error ?? "Failed"); return; }
       setMessage(t.markets.positionOpened(amount.toFixed(2)));
       setTimeout(() => setMessage(""), 3500);
+
+      // Find event + scenario for share card
+      const event = events.find(e => e.scenarios.some(s => s.id === scenarioId));
+      const scenario = event?.scenarios.find(s => s.id === scenarioId);
+      if (event && scenario) {
+        setTimeout(() => {
+          setShareCard({
+            eventTitle: eventTitle(event, language),
+            scenarioTitle: scenarioTitle(scenario, language),
+            pnl: amount * 0.8, // approximate — real pnl set on resolution
+            wagered: amount,
+            multiplier: parseFloat((1 / (scenario.probability / 100)).toFixed(2)),
+            entryProb: scenario.probability,
+          });
+        }, 500);
+      }
     } catch { setError("Could not place position"); setTimeout(() => setError(""), 4000); }
     finally { setPlacingId(null); }
   };
 
   const handleResolved = useCallback(() => { loadEvents(); refreshPortfolio(); setDetailTarget(null); }, [loadEvents, refreshPortfolio]);
 
-  useEffect(() => { loadEvents(); }, []);
+  useFocusEffect(useCallback(() => {
+    isFocused.current = true;
+    loadEvents();
+    intervalRef.current = setInterval(() => {
+      if (isFocused.current) loadEvents();
+    }, AUTO_REFRESH_MS);
+    return () => {
+      isFocused.current = false;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [loadEvents]));
 
   if (!fontsLoaded) return null;
 
@@ -727,8 +877,9 @@ export default function HomeScreen() {
         )}
       </SafeAreaView>
 
-      {resolveTarget && <ResolveModal target={resolveTarget} onClose={() => setResolveTarget(null)} onResolved={handleResolved} t={t} />}
+      {resolveTarget && <ResolveModal target={resolveTarget} onClose={() => setResolveTarget(null)} onResolved={handleResolved} t={t} language={language} />}
       {!isWeb && detailTarget && <DetailModal target={detailTarget} onClose={() => setDetailTarget(null)} onResolve={() => { setDetailTarget(null); setResolveTarget({ eventId: detailTarget.event.id, eventTitle: detailTarget.event.title, scenarios: detailTarget.event.scenarios }); }} placingId={placingId} amounts={amounts} onAmountChange={(id, val) => setAmounts(p => ({ ...p, [id]: val }))} onPredict={handlePredict} t={t} language={language} />}
+      {shareCard && <ShareCardModal data={shareCard} onClose={() => setShareCard(null)} t={t} language={language} />}
     </View>
   );
 }
