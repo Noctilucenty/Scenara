@@ -1646,6 +1646,8 @@ STATIC_EVENTS = [
         "scenarios_pt": [("Sim", 36), ("Não", 64)],
     },
 ]
+
+CATEGORY_ICONS = {
     "politics":      "🏛",
     "economy":       "📈",
     "sports":        "⚽",
