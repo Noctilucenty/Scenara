@@ -721,7 +721,7 @@ function ShareCardModal({ data, onClose, t, language }: { data: ShareCardData; o
 }
 
 export default function HomeScreen() {
-  const { account, placePrediction, refreshPortfolio, isAuthenticated } = useTrading();
+  const { account, placePrediction, refreshPortfolio, isAuthenticated, predictions } = useTrading();
   const { t, language } = useLanguage();
   const router = useRouter();
   const { open: openSidebar } = React.useContext(SidebarContext);
@@ -779,6 +779,8 @@ export default function HomeScreen() {
       setHistoryCache(cache);
     } catch {
       setError(language === "pt" ? "Servidor offline. Tente novamente." : "Server offline. Please retry.");
+      // Auto-retry after 15s in case Render is cold-starting
+      setTimeout(() => loadEvents(), 15000);
     }
     finally { setLoading(false); }
   }, [language]);
@@ -905,6 +907,26 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
         </View>
+
+        {/* Active bets banner — shows when user has open predictions */}
+        {isAuthenticated && predictions.filter(p => p.status === "open").length > 0 && (
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/portfolio")}
+            style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(124,92,252,0.08)", borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.15)" }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN }} />
+              <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
+                {language === "pt"
+                  ? `${predictions.filter(p => p.status === "open").length} apostas abertas`
+                  : `${predictions.filter(p => p.status === "open").length} open bets`}
+              </Text>
+            </View>
+            <Text style={{ color: PURPLE_D, fontSize: 11, fontFamily: "DMSans_700Bold" }}>
+              {language === "pt" ? "Ver carteira →" : "View portfolio →"}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {/* Category tabs */}
         <View style={{ borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" }}>
