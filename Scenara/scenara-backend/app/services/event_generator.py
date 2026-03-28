@@ -2204,9 +2204,9 @@ async def run_snapshot() -> None:
         db.close()
 
 
-MAX_OPEN_EVENTS = 40        # hard cap on open markets at any time
-MAX_STATIC_PER_RUN = 10    # add up to 10 new static events per hour
-MIN_OPEN_EVENTS = 20       # if below this, fill aggressively
+MAX_OPEN_EVENTS = 80       # hard cap on open markets at any time
+MAX_STATIC_PER_RUN = 15   # add up to 15 new static events per hour
+MIN_OPEN_EVENTS = 40      # if below this, fill aggressively
 
 
 def _make_slug(key: str) -> str:
@@ -2286,7 +2286,7 @@ async def run_event_generator() -> None:
                     "category": template["category"],
                     "source": "Scenara",
                     "is_featured": False,
-                    "closes_hours": random.choice([48, 72, 96]),  # longer lifetime
+                    "closes_hours": random.choice([72, 96, 120, 168]),  # 3-7 days
                     "scenarios": template["scenarios"],
                     "scenarios_pt": template.get("scenarios_pt", template["scenarios"]),
                 }
