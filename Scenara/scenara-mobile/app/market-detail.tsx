@@ -83,14 +83,13 @@ export default function MarketDetailScreen() {
   useEffect(() => {
     if (!eventId) return;
     Promise.all([
-      api.get("/events/"),
+      api.get(`/events/${eventId}`),
       api.get(`/events/${eventId}/history`),
-    ]).then(([eventsRes, histRes]) => {
-      const found = eventsRes.data?.find((e: any) => e.id === eventId);
+    ]).then(([eventRes, histRes]) => {
+      const found = eventRes.data;
       if (found) {
         setEvent(found);
         setSelId(found.scenarios[0]?.id ?? null);
-        // Fetch related news
         api.get("/news/single", { params: { category: found.category, lang: language, max_results: 4 } })
           .then(r => {
             const articles = r.data.articles ?? [];
@@ -100,7 +99,6 @@ export default function MarketDetailScreen() {
               score: words.filter((w: string) => a.title.toLowerCase().includes(w.toLowerCase())).length,
             })).sort((x: any, y: any) => y.score - x.score);
             setRelatedNews(scored.slice(0, 3));
-            // AI summary of top article
             if (scored[0]) {
               setLoadingSummary(true);
               api.post("/news/summary", {

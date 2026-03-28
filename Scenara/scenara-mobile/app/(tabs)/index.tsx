@@ -19,7 +19,7 @@ import { CommentSection } from "@/components/CommentSection";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SidebarContext } from "./_layout";
 
-const AUTO_REFRESH_MS = 30_000;
+const AUTO_REFRESH_MS = 60_000; // 60s — was 30s, reduces server load
 import { ProbabilityChart, ScenarioHistory, SCENARIO_COLORS } from "@/components/ProbabilityChart";
 
 // ── Scenara brand tokens ─────────────────────────────────────────────────────
@@ -760,15 +760,18 @@ export default function HomeScreen() {
     try {
       setLoading(true); setError("");
       const res = await api.get("/events/");
-      const evts: EventItem[] = res.data ?? [];
+      const evts: EventItem[] = (res.data ?? []).filter((e: EventItem) => e.status === "open");
       setEvents(evts);
-      const results = await Promise.allSettled(evts.map(e => api.get(`/events/${e.id}/history`)));
+      // Only fetch history for first 10 events to avoid hammering backend
+      const results = await Promise.allSettled(evts.slice(0, 10).map(e => api.get(`/events/${e.id}/history`)));
       const cache: Record<number, ScenarioHistory[]> = {};
       results.forEach((r, i) => { if (r.status === "fulfilled") cache[evts[i].id] = r.value.data.scenarios; });
       setHistoryCache(cache);
-    } catch { setError("Failed to load markets"); }
+    } catch {
+      setError(language === "pt" ? "Servidor offline. Tente novamente." : "Server offline. Please retry.");
+    }
     finally { setLoading(false); }
-  }, []);
+  }, [language]);
 
   const handlePredict = async (scenarioId: number) => {
     if (!isAuthenticated) {
@@ -983,7 +986,7 @@ export default function HomeScreen() {
       </SafeAreaView>
 
       {resolveTarget && <ResolveModal target={resolveTarget} onClose={() => setResolveTarget(null)} onResolved={handleResolved} t={t} language={language} />}
-      {!isWeb && detailTarget && <DetailModal target={detailTarget} onClose={() => setDetailTarget(null)} onResolve={() => { setDetailTarget(null); setResolveTarget({ eventId: detailTarget.event.id, eventTitle: detailTarget.event.tfitle, scenarios: detailTarget.event.scenarios }); }} placingId={placingId} amounts={amounts} onAmountChange={(id, val) => setAmounts(p => ({ ...p, [id]: val }))} onPredict={handlePredict} t={t} language={language} />}
+      {!isWeb && detailTarget && <DetailModal target={detailTarget} onClose={() => setDetailTarget(null)} onResolve={() => { setDetailTarget(null); setResolveTarget({ eventId: detailTarget.event.id, eventTitle: detailTarget.event.title, scenarios: detailTarget.event.scenarios }); }} placingId={placingId} amounts={amounts} onAmountChange={(id, val) => setAmounts(p => ({ ...p, [id]: val }))} onPredict={handlePredict} t={t} language={language} />}
       {shareCard && <ShareCardModal data={shareCard} onClose={() => setShareCard(null)} t={t} language={language} />}
     </View>
   );

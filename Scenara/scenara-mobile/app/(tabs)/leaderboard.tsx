@@ -13,6 +13,7 @@ import {
 import { api } from "@/src/api/client";
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
+import { router } from "expo-router";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
@@ -157,8 +158,8 @@ function LeaderboardSidebar({ data, userId, t }: { data: LeaderboardData | null;
 }
 
 export default function LeaderboardScreen() {
-  const { userId } = useTrading();
-  const { t } = useLanguage();
+  const { userId, isAuthenticated } = useTrading();
+  const { t, language } = useLanguage();
   const [data, setData]       = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
@@ -184,6 +185,9 @@ export default function LeaderboardScreen() {
   useFocusEffect(useCallback(() => { load(sortBy); }, [sortBy, load]));
   if (!fontsLoaded) return null;
 
+  // Leaderboard is public — guests can see it but with a join prompt at the top
+  const showJoinPrompt = !isAuthenticated;
+
   const SORTS: { key: SortOption; label: string }[] = [
     { key: "pnl",      label: t.rankings.topPnl },
     { key: "balance",  label: t.rankings.balance },
@@ -192,6 +196,26 @@ export default function LeaderboardScreen() {
 
   const mainContent = (
     <>
+      {/* Guest join prompt */}
+      {showJoinPrompt && (
+        <View style={{ backgroundColor: "rgba(124,92,252,0.08)", borderRadius: 14, borderWidth: 1, borderColor: BORDER_P, padding: 16, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 14, marginBottom: 3 }}>
+              {language === "pt" ? "Entre para competir" : "Join to compete"}
+            </Text>
+            <Text style={{ color: TEXT_MID, fontSize: 12 }}>
+              {language === "pt" ? "Crie uma conta e apareça no ranking" : "Create an account and appear in rankings"}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={() => router.push("/register")} style={{ borderRadius: 10, overflow: "hidden" }}>
+            <LinearGradient colors={["#4F8EF7", "#7C5CFC"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 14, paddingVertical: 9 }}>
+              <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 13 }}>
+                {language === "pt" ? "Cadastrar" : "Sign Up"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
       <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
         {SORTS.map(({ key, label }) => (
           <TouchableOpacity key={key} onPress={() => setSortBy(key)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center", backgroundColor: sortBy === key ? "rgba(124,92,252,0.12)" : "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: sortBy === key ? BORDER_P : BORDER }}>

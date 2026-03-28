@@ -12,6 +12,7 @@ import {
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
 import { api } from "@/src/api/client";
+import { router } from "expo-router";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
@@ -153,13 +154,45 @@ function ShareCardModal({ data, onClose, language }: { data: ShareCardData; onCl
 }
 
 export default function PortfolioScreen() {
-  const { account, predictions, loadingPortfolio, portfolioError, refreshPortfolio, userId } = useTrading();
+  const { account, predictions, loadingPortfolio, portfolioError, refreshPortfolio, userId, isAuthenticated } = useTrading();
   const { t, language } = useLanguage();
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [shareCard, setShareCard] = useState<ShareCardData | null>(null);
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFocused = useRef(false);
+
+  if (fontsLoaded && !isAuthenticated) {
+    return (
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <SafeAreaView style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 28 }}>
+          <LinearGradient colors={["#4F8EF7", "#7C5CFC", "#F050AE"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+            <Text style={{ color: "white", fontSize: 28, fontFamily: "DMSans_700Bold" }}>S</Text>
+          </LinearGradient>
+          <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", marginBottom: 10, textAlign: "center" }}>
+            {language === "pt" ? "Sua carteira está aqui" : "Your portfolio lives here"}
+          </Text>
+          <Text style={{ color: TEXT_MID, fontSize: 14, textAlign: "center", lineHeight: 21, marginBottom: 32 }}>
+            {language === "pt"
+              ? "Crie uma conta gratuita para acompanhar suas apostas, P&L e histórico de previsões."
+              : "Create a free account to track your bets, P&L and prediction history."}
+          </Text>
+          <TouchableOpacity onPress={() => router.push("/register")} style={{ borderRadius: 14, overflow: "hidden", width: "100%", marginBottom: 12 }}>
+            <LinearGradient colors={["#4F8EF7", "#7C5CFC", "#F050AE"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: "center" }}>
+              <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 16 }}>
+                {language === "pt" ? "Criar conta grátis" : "Create free account"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/login")} style={{ paddingVertical: 15, borderRadius: 14, alignItems: "center", borderWidth: 1, borderColor: BORDER_P, width: "100%" }}>
+            <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 16 }}>
+              {language === "pt" ? "Já tenho conta" : "I already have an account"}
+            </Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   const fetchSummary = useCallback(async () => {
     if (!userId) return;

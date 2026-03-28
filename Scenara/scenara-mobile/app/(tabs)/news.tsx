@@ -295,9 +295,9 @@ export default function NewsScreen() {
         const sliced = evts.slice(0, 20);
         setEvents(sliced);
 
-        // Fetch sparkline history for top scenario of each event
+        // Only fetch sparkline history for first 10 to avoid hammering backend
         const histResults = await Promise.allSettled(
-          sliced.map(e => api.get(`/events/${e.id}/history`))
+          sliced.slice(0, 10).map(e => api.get(`/events/${e.id}/history`))
         );
         const cache: Record<number, number[]> = {};
         histResults.forEach((r, i) => {
