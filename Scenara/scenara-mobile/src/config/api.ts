@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 
-const USE_LOCAL = true;
+const USE_LOCAL = false;
 
 const LOCAL_IP = "127.0.0.1";
 const PROD_URL = "https://scenara-backend.onrender.com";
