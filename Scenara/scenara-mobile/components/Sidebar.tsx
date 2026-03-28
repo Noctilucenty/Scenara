@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import {
   View, Text, TouchableOpacity, Animated, Dimensions,
   SafeAreaView, Platform, Linking,
@@ -156,7 +156,7 @@ function NativeSidebar({ visible, onClose, isAuthenticated, userId, language, se
   );
 }
 
-function SidebarContent({ isAuthenticated, userId, language, setLanguage, logout, onClose, nav, label }: any) {
+const SidebarContent = memo(function SidebarContent({ isAuthenticated, userId, language, setLanguage, logout, onClose, nav, label }: any) {
   return (
     <View style={{ flex: 1, paddingTop: 20 }}>
       <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ height: 2, marginBottom: 20 }} />
@@ -250,4 +250,4 @@ function SidebarContent({ isAuthenticated, userId, language, setLanguage, logout
       )}
     </View>
   );
-}
+});

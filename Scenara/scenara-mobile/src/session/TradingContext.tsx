@@ -6,6 +6,20 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { api } from "../api/client";
 
+// Register Expo push token with backend
+async function registerPushToken(): Promise<void> {
+  if (Platform.OS === "web") return;
+  try {
+    const Notifications = await import("expo-notifications");
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== "granted") return;
+    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    if (token) await api.post("/push/register-token", { token });
+  } catch {
+    // Push notifications optional
+  }
+}
+
 // ── Token storage (SecureStore on mobile, localStorage on web) ───────────────
 
 const TOKEN_KEY = "scenara_token";
@@ -155,6 +169,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       await saveToken(access_token);
       setAxiosToken(access_token);
       setAuthUser({ id: user_id, email, display_name, balance });
+      // Register push token after login
+      registerPushToken();
       return { ok: true };
     } catch (e: any) {
       const error = e?.response?.data?.detail ?? "Login failed";
@@ -173,6 +189,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       await saveToken(access_token);
       setAxiosToken(access_token);
       setAuthUser({ id: user_id, email, display_name: dn, balance });
+      // Register push token after register
+      registerPushToken();
       return { ok: true };
     } catch (e: any) {
       const error = e?.response?.data?.detail ?? "Registration failed";

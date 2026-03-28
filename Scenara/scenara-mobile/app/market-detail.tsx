@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView,
   StatusBar, TextInput, ActivityIndicator, Linking, Image,
+  KeyboardAvoidingView, Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -12,6 +13,7 @@ import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-s
 import { useLanguage } from "@/src/i18n";
 import { useTrading } from "@/src/session/TradingContext";
 import { api } from "@/src/api/client";
+import { shareContent, buildMarketShareText } from "@/src/utils/useShare";
 import { ProbabilityChart } from "@/components/ProbabilityChart";
 import { CommentSection } from "@/components/CommentSection";
 
@@ -154,8 +156,15 @@ export default function MarketDetailScreen() {
   const hasChart = history.some((s: any) => s.points?.length >= 2);
   const balanceText = account ? Number(account.balance).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
 
+  // Estimated payout
+  const betAmt = parseFloat(amount) || 0;
+  const entryProb = selScene?.probability ?? 50;
+  const multiplier = entryProb > 0 ? (100 / entryProb) : 2;
+  const estimatedPayout = (betAmt * multiplier).toFixed(2);
+  const estimatedProfit = (betAmt * multiplier - betAmt).toFixed(2);
+
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <StatusBar barStyle="light-content" />
       <SafeAreaView style={{ flex: 1 }}>
 
@@ -299,17 +308,46 @@ export default function MarketDetailScreen() {
                 </View>
 
                 {message ? (
-                  <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 10, padding: 12, alignItems: "center" }}>
-                    <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{message}</Text>
+                  <View style={{ gap: 8 }}>
+                    <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 10, padding: 12, alignItems: "center" }}>
+                      <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{message}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => shareContent({
+                        title: language === "pt" ? "Apostei no Scenara!" : "I bet on Scenara!",
+                        message: buildMarketShareText(title, scenarioTitle(selScene!, language), selScene?.probability ?? 50, language),
+                      })}
+                      style={{ paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: BORDER_P }}
+                    >
+                      <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
+                        {language === "pt" ? "Compartilhar aposta ↗" : "Share bet ↗"}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ) : (
-                  <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 12, overflow: "hidden" }}>
-                    <LinearGradient colors={placing ? ["#111", "#111"] : GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
-                      <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                        {placing ? "..." : (language === "pt" ? `Apostar · $${amount}` : `Bet · $${amount}`)}
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                  <View>
+                    {/* Estimated payout */}
+                    {selScene && parseFloat(amount) > 0 && (
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10, paddingHorizontal: 4 }}>
+                        <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular" }}>
+                          {language === "pt" ? "Retorno estimado" : "Estimated return"}
+                        </Text>
+                        <Text style={{ color: GREEN, fontSize: 12, fontFamily: "DMSans_700Bold" }}>
+                          ${(parseFloat(amount || "0") / (selScene.probability / 100)).toFixed(2)}
+                          <Text style={{ color: TEXT_MID, fontFamily: "DMSans_400Regular" }}>
+                            {" "}({(100 / selScene.probability).toFixed(2)}x)
+                          </Text>
+                        </Text>
+                      </View>
+                    )}
+                    <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 12, overflow: "hidden" }}>
+                      <LinearGradient colors={placing ? ["#111", "#111"] : GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
+                        <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
+                          {placing ? "..." : (language === "pt" ? `Apostar · $${amount}` : `Bet · $${amount}`)}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
                 )}
 
                 {!isAuthenticated && (
@@ -391,6 +429,6 @@ export default function MarketDetailScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }

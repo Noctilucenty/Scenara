@@ -14,6 +14,8 @@ from app.routers.accounts import router as accounts_router
 from app.routers.auth import router as auth_router
 from app.routers.news import router as news_router
 from app.routers.comments import router as comments_router
+from app.routers.push import router as push_router
+from app.routers.voting import router as voting_router
 
 from app.services.event_generator import run_snapshot, run_event_generator, start_scheduler
 from app.services.auto_resolver import run_auto_resolver, start_auto_resolver
@@ -52,7 +54,15 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["health"])
     def health_check():
-        return {"ok": True}
+        # Check DB is reachable
+        try:
+            from sqlalchemy import text as sql_text
+            with engine.connect() as conn:
+                conn.execute(sql_text("SELECT 1"))
+            db_ok = True
+        except Exception:
+            db_ok = False
+        return {"ok": True, "db": db_ok, "version": "0.6.0"}
 
     @app.post("/admin/generate-events", tags=["admin"])
     async def trigger_event_generation():
@@ -76,6 +86,8 @@ def create_app() -> FastAPI:
     app.include_router(accounts_router,    prefix="/accounts",    tags=["accounts"])
     app.include_router(news_router,        prefix="/news",        tags=["news"])
     app.include_router(comments_router,    prefix="/comments",    tags=["comments"])
+    app.include_router(push_router,        prefix="/push",        tags=["push"])
+    app.include_router(voting_router,      prefix="/voting",      tags=["voting"])
 
     return app
 

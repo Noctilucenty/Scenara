@@ -162,38 +162,6 @@ export default function PortfolioScreen() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFocused = useRef(false);
 
-  if (fontsLoaded && !isAuthenticated) {
-    return (
-      <View style={{ flex: 1, backgroundColor: BG }}>
-        <SafeAreaView style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 28 }}>
-          <LinearGradient colors={["#4F8EF7", "#7C5CFC", "#F050AE"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
-            <Text style={{ color: "white", fontSize: 28, fontFamily: "DMSans_700Bold" }}>S</Text>
-          </LinearGradient>
-          <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", marginBottom: 10, textAlign: "center" }}>
-            {language === "pt" ? "Sua carteira está aqui" : "Your portfolio lives here"}
-          </Text>
-          <Text style={{ color: TEXT_MID, fontSize: 14, textAlign: "center", lineHeight: 21, marginBottom: 32 }}>
-            {language === "pt"
-              ? "Crie uma conta gratuita para acompanhar suas apostas, P&L e histórico de previsões."
-              : "Create a free account to track your bets, P&L and prediction history."}
-          </Text>
-          <TouchableOpacity onPress={() => router.push("/register")} style={{ borderRadius: 14, overflow: "hidden", width: "100%", marginBottom: 12 }}>
-            <LinearGradient colors={["#4F8EF7", "#7C5CFC", "#F050AE"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: "center" }}>
-              <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 16 }}>
-                {language === "pt" ? "Criar conta grátis" : "Create free account"}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push("/login")} style={{ paddingVertical: 15, borderRadius: 14, alignItems: "center", borderWidth: 1, borderColor: BORDER_P, width: "100%" }}>
-            <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 16 }}>
-              {language === "pt" ? "Já tenho conta" : "I already have an account"}
-            </Text>
-          </TouchableOpacity>
-        </SafeAreaView>
-      </View>
-    );
-  }
-
   const fetchSummary = useCallback(async () => {
     if (!userId) return;
     try {
@@ -237,6 +205,39 @@ export default function PortfolioScreen() {
   }, [predictions]);
 
   if (!fontsLoaded) return null;
+
+  // Guest view — all hooks already called above
+  if (!isAuthenticated) {
+    return (
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <SafeAreaView style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 28 }}>
+          <LinearGradient colors={["#4F8EF7", "#7C5CFC", "#F050AE"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+            <Text style={{ color: "white", fontSize: 28, fontFamily: "DMSans_700Bold" }}>S</Text>
+          </LinearGradient>
+          <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", marginBottom: 10, textAlign: "center" }}>
+            {language === "pt" ? "Sua carteira está aqui" : "Your portfolio lives here"}
+          </Text>
+          <Text style={{ color: TEXT_MID, fontSize: 14, textAlign: "center", lineHeight: 21, marginBottom: 32 }}>
+            {language === "pt"
+              ? "Crie uma conta gratuita para acompanhar suas apostas, P&L e histórico de previsões."
+              : "Create a free account to track your bets, P&L and prediction history."}
+          </Text>
+          <TouchableOpacity onPress={() => router.push("/register")} style={{ borderRadius: 14, overflow: "hidden", width: "100%", marginBottom: 12 }}>
+            <LinearGradient colors={["#4F8EF7", "#7C5CFC", "#F050AE"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: "center" }}>
+              <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 16 }}>
+                {language === "pt" ? "Criar conta grátis" : "Create free account"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/login")} style={{ paddingVertical: 15, borderRadius: 14, alignItems: "center", borderWidth: 1, borderColor: BORDER_P, width: "100%" }}>
+            <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 16 }}>
+              {language === "pt" ? "Já tenho conta" : "I already have an account"}
+            </Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   const pnlPos = stats.totalPnl >= 0;
   const streak = streakMeta(summary?.current_streak ?? 0, t);

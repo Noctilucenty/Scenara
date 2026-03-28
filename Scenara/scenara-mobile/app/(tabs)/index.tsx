@@ -19,10 +19,10 @@ import { CommentSection } from "@/components/CommentSection";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SidebarContext } from "./_layout";
 
-const AUTO_REFRESH_MS = 60_000; // 60s — was 30s, reduces server load
+const AUTO_REFRESH_MS = 60_000; // 60s - was 30s, reduces server load
 import { ProbabilityChart, ScenarioHistory, SCENARIO_COLORS } from "@/components/ProbabilityChart";
 
-// ── Scenara brand tokens ─────────────────────────────────────────────────────
+// --- Scenara brand tokens -------------------------------------------------------
 const BG       = "#08090C";
 const CARD     = "#0D1117";
 const SURFACE  = "#111620";
@@ -47,7 +47,7 @@ const GRAD_GREEN   = ["#15803D", GREEN]       as const;
 const GRAD_RED     = ["#991B1B", RED]         as const;
 const GRAD_CARD    = ["rgba(79,142,247,0.07)", "rgba(124,92,252,0.03)"] as const;
 
-// ── Category metadata (static colors/icons, labels come from i18n) ───────────
+// --- Category metadata (static colors/icons, labels come from i18n) -------------
 const CAT_META: Record<string, { icon: string; color: string }> = {
   all:           { icon: "⚡", color: PURPLE   },
   politics:      { icon: "🏛",  color: "#818CF8" },
@@ -64,7 +64,7 @@ const CAT_META: Record<string, { icon: string; color: string }> = {
 };
 function catMeta(c: string) { return CAT_META[c] ?? { icon: "◈", color: PURPLE }; }
 
-// ── Responsive ───────────────────────────────────────────────────────────────
+// --- Responsive -----------------------------------------------------------------
 function getLayout(w: number) {
   const isWeb   = w >= 900;
   const isBig   = w >= 1300;
@@ -77,13 +77,13 @@ function getLayout(w: number) {
   return { isWeb, cols, sideW, gap, padH, cardW };
 }
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// --- Types ----------------------------------------------------------------------
 type Scenario  = { id: number; title: string; title_pt?: string | null; probability: number; sort_order: number; status: string };
 type EventItem = { id: number; slug: string; title: string; title_pt?: string | null; description?: string | null; description_pt?: string | null; category: string; status: string; resolution_note?: string | null; is_featured: boolean; closes_at?: string | null; resolved_at?: string | null; scenarios: Scenario[] };
 type ResolveTarget = { eventId: number; eventTitle: string; scenarios: Scenario[] };
 type DetailTarget  = { event: EventItem; history: ScenarioHistory[] };
 
-// ── Bilingual helpers ─────────────────────────────────────────────────────────
+// --- Bilingual helpers -----------------------------------------------------------
 function eventTitle(event: EventItem, lang: string): string {
   return lang === "pt" && (event as any).title_pt ? (event as any).title_pt : event.title;
 }
@@ -110,7 +110,7 @@ function timeAgo(d?: string | null, t?: any): string {
   return t.common.dAgo(Math.floor(s / 86400));
 }
 
-// ── ScenaraWordmark SVG ──────────────────────────────────────────────────────
+// --- ScenaraWordmark SVG --------------------------------------------------------
 function ScenaraWordmark({ size = 22 }: { size?: number }) {
   // Inline SVG chevron icon matching the logo, scaled
   const iconH = size * 1.2;
@@ -137,7 +137,7 @@ function ScenaraWordmark({ size = 22 }: { size?: number }) {
   );
 }
 
-// ── ArcGauge ─────────────────────────────────────────────────────────────────
+// --- ArcGauge -------------------------------------------------------------------
 function ArcGauge({ probability, size = 58, t }: { probability: number; size?: number; t?: any }) {
   const cx = size / 2, cy = size / 2, r = size * 0.37, sw = size * 0.09;
   const START = 135, SWEEP = 270;
@@ -167,7 +167,7 @@ function ArcGauge({ probability, size = 58, t }: { probability: number; size?: n
   );
 }
 
-// ── ResolveModal ──────────────────────────────────────────────────────────────
+// --- ResolveModal ----------------------------------------------------------------
 function ResolveModal({ target, onClose, onResolved, t, language }: { target: ResolveTarget; onClose(): void; onResolved(): void; t: any; language: string }) {
   const [sel, setSel] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -255,7 +255,7 @@ function DetailPanelContent({ target, onClose, onResolve, placingId, amounts, on
       .catch(() => {});
   }, [event.id]);
 
-  // Related news — search in user's language only
+  // Related news - search in user's language only
   const [relatedNews, setRelatedNews] = useState<{ title: string; url: string; source: string; image: string; published: string }[]>([]);
   useEffect(() => {
     const stopWords = new Set(["will", "that", "this", "from", "with", "before", "after", "above", "below", "their", "between", "which", "where", "what", "when", "into", "about", "have", "been", "more", "than", "some", "over", "also", "para", "sera", "vai", "ficar", "estar", "pelo", "pela", "mais", "como", "uma", "que"]);
@@ -265,7 +265,7 @@ function DetailPanelContent({ target, onClose, onResolve, placingId, amounts, on
       .filter(w => w.length > 4 && !stopWords.has(w.toLowerCase()))
       .slice(0, 4);
     if (words.length === 0) return;
-    // Single language only — no mixed feed
+    // Single language only - no mixed feed
     api.get("/news/single", {
       params: { category: event.category, lang: language === "pt" ? "pt" : "en", max_results: 6 }
     })
@@ -458,8 +458,8 @@ function DetailModal({ target, onClose, onResolve, placingId, amounts, onAmountC
   );
 }
 
-// ── HeroCard ──────────────────────────────────────────────────────────────────
-function HeroCard({ event, history, onPredict, onResolve, placingId, amounts, onAmountChange, t, language }: {
+// --- HeroCard --------------------------------------------------------------------
+const HeroCard = React.memo(function HeroCard({ event, history, onPredict, onResolve, placingId, amounts, onAmountChange, t, language }: {
   event: EventItem; history: ScenarioHistory[];
   onPredict(id: number): void; onResolve(): void;
   placingId: number | null; amounts: Record<number, string>;
@@ -531,9 +531,9 @@ function HeroCard({ event, history, onPredict, onResolve, placingId, amounts, on
       </View>
     </View>
   );
-}
+});
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
+// --- Sidebar ---------------------------------------------------------------------
 function Sidebar({ events, historyCache, onEventPress, t, language }: {
   events: EventItem[]; historyCache: Record<number, ScenarioHistory[]>;
   onEventPress(e: EventItem): void; t: any; language: string;
@@ -593,8 +593,8 @@ function Sidebar({ events, historyCache, onEventPress, t, language }: {
   );
 }
 
-// ── EventGridCard ─────────────────────────────────────────────────────────────
-function EventGridCard({ event, history, cardW, onPress, onResolve, t, language }: {
+// --- EventGridCard ---------------------------------------------------------------
+const EventGridCard = React.memo(function EventGridCard({ event, history, cardW, onPress, onResolve, t, language }: {
   event: EventItem; history: ScenarioHistory[]; cardW: number;
   onPress(): void; onResolve(): void; t: any; language: string;
 }) {
@@ -643,9 +643,9 @@ function EventGridCard({ event, history, cardW, onPress, onResolve, t, language 
       </View>
     </TouchableOpacity>
   );
-}
+});
 
-// ── ShareCardModal ────────────────────────────────────────────────────────────
+// --- ShareCardModal --------------------------------------------------------------
 type ShareCardData = {
   eventTitle: string;
   scenarioTitle: string;
@@ -735,7 +735,11 @@ export default function HomeScreen() {
   const [resolveTarget, setResolveTarget] = useState<ResolveTarget | null>(null);
   const [detailTarget, setDetailTarget]   = useState<DetailTarget | null>(null);
   const [historyCache, setHistoryCache]   = useState<Record<number, ScenarioHistory[]>>({});
-  const [activeCategory, setActiveCategory] = useState("all");
+  const historyCacheTime = useRef<number>(0);
+  const [activeCategory, setActiveCategory] = useState(() => {
+    try { return (Platform.OS === "web" && localStorage.getItem("scenara_cat")) || "all"; }
+    catch { return "all"; }
+  });
   const [screenW, setScreenW]             = useState(Dimensions.get("window").width);
   const [shareCard, setShareCard]         = useState<ShareCardData | null>(null);
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
@@ -762,7 +766,13 @@ export default function HomeScreen() {
       const res = await api.get("/events/");
       const evts: EventItem[] = (res.data ?? []).filter((e: EventItem) => e.status === "open");
       setEvents(evts);
-      // Only fetch history for first 10 events to avoid hammering backend
+      // Skip history fetch if cache is less than 5 minutes old
+      const now = Date.now();
+      if (now - historyCacheTime.current < 5 * 60 * 1000 && Object.keys(historyCache).length > 0) {
+        return;
+      }
+      historyCacheTime.current = now;
+      // Only fetch history for first 10 events
       const results = await Promise.allSettled(evts.slice(0, 10).map(e => api.get(`/events/${e.id}/history`)));
       const cache: Record<number, ScenarioHistory[]> = {};
       results.forEach((r, i) => { if (r.status === "fulfilled") cache[evts[i].id] = r.value.data.scenarios; });
@@ -792,12 +802,13 @@ export default function HomeScreen() {
       const scenario = event?.scenarios.find(s => s.id === scenarioId);
       if (event && scenario) {
         setTimeout(() => {
+          const multiplier = parseFloat((1 / (scenario.probability / 100)).toFixed(2));
           setShareCard({
             eventTitle: eventTitle(event, language),
             scenarioTitle: scenarioTitle(scenario, language),
-            pnl: amount * 0.8, // approximate — real pnl set on resolution
+            pnl: amount * multiplier - amount, // actual expected profit
             wagered: amount,
-            multiplier: parseFloat((1 / (scenario.probability / 100)).toFixed(2)),
+            multiplier,
             entryProb: scenario.probability,
           });
         }, 500);
@@ -902,7 +913,10 @@ export default function HomeScreen() {
               const active = activeCategory === key;
               const label = (t.markets as any)[key] ?? key;
               return (
-                <TouchableOpacity key={key} onPress={() => setActiveCategory(key)} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: active ? `${meta.color}15` : "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: active ? `${meta.color}35` : "rgba(255,255,255,0.06)" }}>
+                <TouchableOpacity key={key} onPress={() => {
+                  setActiveCategory(key);
+                  try { if (Platform.OS === "web") localStorage.setItem("scenara_cat", key); } catch {}
+                }} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: active ? `${meta.color}15` : "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: active ? `${meta.color}35` : "rgba(255,255,255,0.06)" }}>
                   <Text style={{ color: active ? meta.color : TEXT_SUB, fontSize: 11, fontFamily: active ? "DMSans_700Bold" : "DMSans_500Medium" }}>{meta.icon}  {label}</Text>
                 </TouchableOpacity>
               );
@@ -947,9 +961,20 @@ export default function HomeScreen() {
                   ))}
                 </View>
                 {events.length === 0 && !loading && (
-                  <View style={{ alignItems: "center", paddingTop: 80 }}>
+                  <View style={{ alignItems: "center", paddingTop: 80, paddingHorizontal: 32 }}>
                     <Text style={{ color: PURPLE_D, fontSize: 28, marginBottom: 12 }}>◈</Text>
-                    <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_500Medium" }}>{t.markets.noMarkets}</Text>
+                    <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_500Medium", marginBottom: 8, textAlign: "center" }}>{t.markets.noMarkets}</Text>
+                    {error ? (
+                      <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", padding: 14, marginTop: 8, width: "100%" }}>
+                        <Text style={{ color: RED, fontSize: 13, fontFamily: "DMSans_500Medium", textAlign: "center", marginBottom: 10 }}>{error}</Text>
+                        <Text style={{ color: TEXT_MID, fontSize: 12, textAlign: "center", marginBottom: 12 }}>
+                          {language === "pt" ? "O servidor pode estar acordando (até 30s). Tente novamente." : "The server may be waking up (up to 30s). Please retry."}
+                        </Text>
+                        <TouchableOpacity onPress={loadEvents} style={{ backgroundColor: "rgba(124,92,252,0.1)", borderRadius: 10, paddingVertical: 10, alignItems: "center", borderWidth: 1, borderColor: BORDER_P }}>
+                          <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{language === "pt" ? "Tentar novamente" : "Retry"}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
                   </View>
                 )}
               </View>
