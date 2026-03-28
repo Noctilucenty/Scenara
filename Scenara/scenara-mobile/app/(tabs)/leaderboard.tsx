@@ -12,12 +12,12 @@ import {
 
 import { api } from "@/src/api/client";
 import { useTrading } from "@/src/session/TradingContext";
+import { useLanguage } from "@/src/i18n";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
-const SURFACE  = "#111620";
-const BLUE     = "#4F8EF7";
 const PURPLE   = "#7C5CFC";
+const BLUE     = "#4F8EF7";
 const PINK     = "#F050AE";
 const PURPLE_D = "#4A3699";
 const TEXT     = "#F1F5F9";
@@ -28,10 +28,8 @@ const BORDER_P = "rgba(124,92,252,0.2)";
 const GREEN    = "#22C55E";
 const RED      = "#EF4444";
 
-const GRAD_BRAND = [BLUE, PURPLE, PINK] as const;
-const GRAD_BP    = [BLUE, PURPLE]       as const;
-const GRAD_CARD  = ["rgba(79,142,247,0.07)", "rgba(124,92,252,0.03)"] as const;
-const SIDEBAR_W  = 300;
+const GRAD_CARD = ["rgba(79,142,247,0.07)", "rgba(124,92,252,0.03)"] as const;
+const SIDEBAR_W = 300;
 
 type SortOption = "pnl" | "balance" | "win_rate";
 type LeaderboardEntry = {
@@ -43,8 +41,8 @@ type LeaderboardEntry = {
 type LeaderboardData = { entries: LeaderboardEntry[]; total_users: number };
 
 function rankMeta(rank: number) {
-  if (rank === 1) return { label: "I",   size: 14, colors: [PURPLE, BLUE]    as const };
-  if (rank === 2) return { label: "II",  size: 13, colors: ["#888", "#C0C0C0"] as const };
+  if (rank === 1) return { label: "I",   size: 14, colors: [PURPLE, BLUE]         as const };
+  if (rank === 2) return { label: "II",  size: 13, colors: ["#888", "#C0C0C0"]    as const };
   if (rank === 3) return { label: "III", size: 12, colors: ["#7A4A2A", "#CD7F32"] as const };
   return               { label: `${rank}`, size: 12, colors: null };
 }
@@ -57,7 +55,7 @@ function streakBadge(n: number) {
   return "";
 }
 
-function EntryRow({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
+function EntryRow({ entry, isMe, t }: { entry: LeaderboardEntry; isMe: boolean; t: any }) {
   const pnlPos = entry.total_pnl >= 0;
   const rank   = rankMeta(entry.rank);
   const badge  = streakBadge(entry.current_streak);
@@ -74,21 +72,19 @@ function EntryRow({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
           <Text style={{ color: TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{rank.label}</Text>
         )}
       </View>
-
       <View style={{ flex: 1, paddingHorizontal: 12 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Text style={{ color: isMe ? BLUE : isTop3 ? TEXT : TEXT_SUB, fontFamily: "DMSans_700Bold", fontSize: 15 }}>{entry.display_name}</Text>
           {isMe && (
             <View style={{ backgroundColor: "rgba(79,142,247,0.15)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 }}>
-              <Text style={{ color: BLUE, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>YOU</Text>
+              <Text style={{ color: BLUE, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>{t.rankings.youBadge}</Text>
             </View>
           )}
           {badge ? <Text style={{ fontSize: 13 }}>{badge}</Text> : null}
         </View>
-        <Text style={{ color: TEXT_MID, fontSize: 12, marginTop: 3, fontFamily: "DMSans_400Regular" }}>{entry.won_count}W · {entry.lost_count}L · {entry.win_rate}% win rate</Text>
+        <Text style={{ color: TEXT_MID, fontSize: 12, marginTop: 3, fontFamily: "DMSans_400Regular" }}>{entry.won_count}W · {entry.lost_count}L · {entry.win_rate}% {t.rankings.winRate.toLowerCase()}</Text>
         {entry.current_streak >= 2 && <Text style={{ color: "#FB923C", fontSize: 11, marginTop: 2, fontFamily: "DMSans_500Medium" }}>🔥 {entry.current_streak} streak</Text>}
       </View>
-
       <View style={{ alignItems: "flex-end" }}>
         <Text style={{ color: pnlPos ? (isTop3 ? BLUE : PURPLE) : RED, fontFamily: "DMSans_700Bold", fontSize: 16 }}>{pnlPos ? "+" : ""}{entry.total_pnl.toFixed(2)}</Text>
         <Text style={{ color: TEXT_MID, fontSize: 11, marginTop: 3 }}>${entry.balance.toLocaleString("en-US", { maximumFractionDigits: 0 })}</Text>
@@ -97,16 +93,17 @@ function EntryRow({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
   );
 }
 
-function LeaderboardSidebar({ data, userId }: { data: LeaderboardData | null; userId: number | null }) {
+function LeaderboardSidebar({ data, userId, t }: { data: LeaderboardData | null; userId: number | null; t: any }) {
   if (!data) return null;
   const myEntry = data.entries.find(e => e.user_id === userId);
   const top3 = data.entries.filter(e => e.rank <= 3);
+  const gradients: readonly [string, string][] = [[PURPLE, BLUE], ["#888", "#C0C0C0"], ["#7A4A2A", "#CD7F32"]];
 
   return (
     <View style={{ gap: 12 }}>
       {myEntry && (
         <LinearGradient colors={GRAD_CARD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER_P }}>
-          <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 2, marginBottom: 14 }}>YOUR STANDING</Text>
+          <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 2, marginBottom: 14 }}>{t.rankings.yourStanding}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View style={{ width: 46, height: 46, borderRadius: 23, borderWidth: 1.5, borderColor: BORDER_P, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(124,92,252,0.08)" }}>
@@ -114,43 +111,44 @@ function LeaderboardSidebar({ data, userId }: { data: LeaderboardData | null; us
               </View>
               <View>
                 <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 16 }}>{myEntry.display_name}</Text>
-                <Text style={{ color: TEXT_MID, fontSize: 12, marginTop: 2 }}>{myEntry.total_predictions} predictions</Text>
+                <Text style={{ color: TEXT_MID, fontSize: 12, marginTop: 2 }}>{t.rankings.predictions(myEntry.total_predictions)}</Text>
               </View>
             </View>
             <View style={{ alignItems: "flex-end" }}>
               <Text style={{ color: myEntry.total_pnl >= 0 ? GREEN : RED, fontFamily: "DMSans_700Bold", fontSize: 20 }}>{myEntry.total_pnl >= 0 ? "+" : ""}{myEntry.total_pnl.toFixed(2)}</Text>
-              <Text style={{ color: TEXT_MID, fontSize: 9, letterSpacing: 0.8, marginTop: 2 }}>TOTAL P&L</Text>
+              <Text style={{ color: TEXT_MID, fontSize: 9, letterSpacing: 0.8, marginTop: 2 }}>{t.rankings.pnl}</Text>
             </View>
           </View>
-          {myEntry.current_streak > 0 && <Text style={{ color: "#FB923C", fontSize: 12, fontFamily: "DMSans_500Medium", marginTop: 10 }}>🔥 {myEntry.current_streak} win streak · Best: {myEntry.best_streak}</Text>}
+          {myEntry.current_streak > 0 && (
+            <Text style={{ color: "#FB923C", fontSize: 12, fontFamily: "DMSans_500Medium", marginTop: 10 }}>
+              {t.rankings.streak(myEntry.current_streak, myEntry.best_streak)}
+            </Text>
+          )}
         </LinearGradient>
       )}
 
       <View style={{ backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: "hidden" }}>
         <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-          <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 13 }}>🏆 Top Traders</Text>
+          <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{t.rankings.topTraders}</Text>
         </View>
-        {top3.map((entry, idx) => {
-          const gradients: readonly [string, string][] = [[PURPLE, BLUE], ["#888", "#C0C0C0"], ["#7A4A2A", "#CD7F32"]];
-          return (
-            <View key={entry.user_id} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderBottomWidth: idx < 2 ? 1 : 0, borderBottomColor: "rgba(255,255,255,0.04)", gap: 12 }}>
-              <LinearGradient colors={gradients[idx]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 11 }}>{["I", "II", "III"][idx]}</Text>
-              </LinearGradient>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{entry.display_name}</Text>
-                <Text style={{ color: TEXT_MID, fontSize: 11 }}>{entry.win_rate}% win rate</Text>
-              </View>
-              <Text style={{ color: entry.total_pnl >= 0 ? BLUE : RED, fontFamily: "DMSans_700Bold", fontSize: 14 }}>{entry.total_pnl >= 0 ? "+" : ""}{entry.total_pnl.toFixed(0)}</Text>
+        {top3.map((entry, idx) => (
+          <View key={entry.user_id} style={{ flexDirection: "row", alignItems: "center", padding: 14, borderBottomWidth: idx < 2 ? 1 : 0, borderBottomColor: "rgba(255,255,255,0.04)", gap: 12 }}>
+            <LinearGradient colors={gradients[idx]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 11 }}>{["I", "II", "III"][idx]}</Text>
+            </LinearGradient>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{entry.display_name}</Text>
+              <Text style={{ color: TEXT_MID, fontSize: 11 }}>{entry.win_rate}% {t.rankings.winRate.toLowerCase()}</Text>
             </View>
-          );
-        })}
+            <Text style={{ color: entry.total_pnl >= 0 ? BLUE : RED, fontFamily: "DMSans_700Bold", fontSize: 14 }}>{entry.total_pnl >= 0 ? "+" : ""}{entry.total_pnl.toFixed(0)}</Text>
+          </View>
+        ))}
       </View>
 
       <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER }}>
-        <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 12 }}>PLATFORM STATS</Text>
+        <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 12 }}>{t.rankings.platformStats}</Text>
         <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" }}>
-          <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium" }}>Total Traders</Text>
+          <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium" }}>{t.rankings.totalTraders}</Text>
           <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold" }}>{data.total_users}</Text>
         </View>
       </View>
@@ -160,6 +158,7 @@ function LeaderboardSidebar({ data, userId }: { data: LeaderboardData | null; us
 
 export default function LeaderboardScreen() {
   const { userId } = useTrading();
+  const { t } = useLanguage();
   const [data, setData]       = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
@@ -178,17 +177,17 @@ export default function LeaderboardScreen() {
   const load = useCallback(async (sort: SortOption) => {
     setLoading(true); setError("");
     try { const res = await api.get(`/accounts/leaderboard?sort_by=${sort}&limit=50`); setData(res.data); }
-    catch { setError("Failed to load rankings"); }
+    catch { setError(t.rankings.noTraders); }
     finally { setLoading(false); }
-  }, []);
+  }, [t]);
 
   useFocusEffect(useCallback(() => { load(sortBy); }, [sortBy, load]));
   if (!fontsLoaded) return null;
 
   const SORTS: { key: SortOption; label: string }[] = [
-    { key: "pnl",      label: "Top P&L" },
-    { key: "balance",  label: "Balance" },
-    { key: "win_rate", label: "Win Rate" },
+    { key: "pnl",      label: t.rankings.topPnl },
+    { key: "balance",  label: t.rankings.balance },
+    { key: "win_rate", label: t.rankings.winRate },
   ];
 
   const mainContent = (
@@ -203,20 +202,20 @@ export default function LeaderboardScreen() {
 
       {data?.entries.length ? (
         <View style={{ flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 4, marginBottom: 8 }}>
-          <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>TRADER</Text>
-          <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>P&L</Text>
+          <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>{t.rankings.trader}</Text>
+          <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>{t.rankings.pnl}</Text>
         </View>
       ) : null}
 
       {loading && <View style={{ alignItems: "center", paddingVertical: 20 }}><ActivityIndicator color={PURPLE} /></View>}
       {error ? <View style={{ marginBottom: 12, backgroundColor: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.2)", borderWidth: 1, padding: 12, borderRadius: 12 }}><Text style={{ color: RED, fontSize: 13 }}>{error}</Text></View> : null}
 
-      {data?.entries.map(entry => <EntryRow key={entry.user_id} entry={entry} isMe={entry.user_id === userId} />)}
+      {data?.entries.map(entry => <EntryRow key={entry.user_id} entry={entry} isMe={entry.user_id === userId} t={t} />)}
 
       {data?.entries.length === 0 && !loading && (
         <View style={{ alignItems: "center", paddingTop: 60 }}>
           <Text style={{ color: PURPLE_D, fontSize: 30, marginBottom: 12 }}>◆</Text>
-          <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_500Medium" }}>No traders ranked yet</Text>
+          <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_500Medium" }}>{t.rankings.noTraders}</Text>
         </View>
       )}
     </>
@@ -228,22 +227,22 @@ export default function LeaderboardScreen() {
       <SafeAreaView style={{ flex: 1 }}>
         <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.1)", flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
           <View>
-            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 2 }}>SCENARA</Text>
-            <Text style={{ color: TEXT, fontSize: 26, fontFamily: "DMSans_700Bold", letterSpacing: -0.5, marginTop: 4 }}>Rankings</Text>
+            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 2 }}>{t.common.scenara}</Text>
+            <Text style={{ color: TEXT, fontSize: 26, fontFamily: "DMSans_700Bold", letterSpacing: -0.5, marginTop: 4 }}>{t.rankings.title}</Text>
           </View>
-          {data && <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", paddingBottom: 2 }}>{data.total_users} traders</Text>}
+          {data && <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", paddingBottom: 2 }}>{t.rankings.traders(data.total_users)}</Text>}
         </View>
 
         {isWeb ? (
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
             <View style={{ flexDirection: "row", padding: 20, gap: 16, alignItems: "flex-start" }}>
               <View style={{ flex: 1 }}>{mainContent}</View>
-              <View style={{ width: SIDEBAR_W }}><LeaderboardSidebar data={data} userId={userId} /></View>
+              <View style={{ width: SIDEBAR_W }}><LeaderboardSidebar data={data} userId={userId} t={t} /></View>
             </View>
           </ScrollView>
         ) : (
           <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-            {data && <><LeaderboardSidebar data={data} userId={userId} /><View style={{ height: 12 }} /></>}
+            {data && <><LeaderboardSidebar data={data} userId={userId} t={t} /><View style={{ height: 12 }} /></>}
             {mainContent}
           </ScrollView>
         )}

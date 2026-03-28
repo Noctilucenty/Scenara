@@ -62,8 +62,19 @@ export function ProbabilityChart({ scenarios, height = 120, compact = true, widt
   const maxTime = hasData ? new Date(allTimes[allTimes.length - 1]).getTime() : 1;
   const timeRange = maxTime - minTime || 1;
 
+  // Dynamic Y axis — zoom in to actual data range for dramatic curves
+  const allProbs = scenarios.flatMap(s => s.points.map(p => p.probability));
+  const dataMin = allProbs.length > 0 ? Math.min(...allProbs) : 0;
+  const dataMax = allProbs.length > 0 ? Math.max(...allProbs) : 100;
+  const dataRange = dataMax - dataMin || 1;
+  // Add 10% padding above and below
+  const yPad = dataRange * 0.15;
+  const yMin = Math.max(0, dataMin - yPad);
+  const yMax = Math.min(100, dataMax + yPad);
+  const yRange = yMax - yMin || 1;
+
   function toX(d: string) { return PAD_LEFT + ((new Date(d).getTime() - minTime) / timeRange) * chartW; }
-  function toY(p: number) { return PAD_TOP + chartH - (p / 100) * chartH; }
+  function toY(p: number) { return PAD_TOP + chartH - ((p - yMin) / yRange) * chartH; }
 
   function buildPath(points: HistoryPoint[]) {
     const sorted = [...points].sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
