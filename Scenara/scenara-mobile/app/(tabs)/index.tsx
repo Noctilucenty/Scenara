@@ -760,27 +760,30 @@ export default function HomeScreen() {
     return Number(account.balance).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }, [account]);
 
+  const [warmingUp, setWarmingUp] = useState(false);
+
   const loadEvents = useCallback(async () => {
     try {
       setLoading(true); setError("");
       const res = await api.get("/events/");
       const evts: EventItem[] = (res.data ?? []).filter((e: EventItem) => e.status === "open");
       setEvents(evts);
-      // Skip history fetch if cache is less than 5 minutes old
+      setWarmingUp(false);
+      // Only fetch history for first 10 events to avoid hammering backend
       const now = Date.now();
       if (now - historyCacheTime.current < 5 * 60 * 1000 && Object.keys(historyCache).length > 0) {
         return;
       }
       historyCacheTime.current = now;
-      // Only fetch history for first 10 events
       const results = await Promise.allSettled(evts.slice(0, 10).map(e => api.get(`/events/${e.id}/history`)));
       const cache: Record<number, ScenarioHistory[]> = {};
       results.forEach((r, i) => { if (r.status === "fulfilled") cache[evts[i].id] = r.value.data.scenarios; });
       setHistoryCache(cache);
     } catch {
-      setError(language === "pt" ? "Servidor offline. Tente novamente." : "Server offline. Please retry.");
-      // Auto-retry after 15s in case Render is cold-starting
-      setTimeout(() => loadEvents(), 15000);
+      setWarmingUp(true);
+      setError("");
+      // Auto-retry — Render free tier takes up to 60s to wake
+      setTimeout(() => loadEvents(), 8000);
     }
     finally { setLoading(false); }
   }, [language]);
@@ -895,6 +898,21 @@ export default function HomeScreen() {
             )}
           </View>
         </View>
+
+        {/* Warming up banner - shown during cold start instead of red error */}
+        {warmingUp && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "rgba(124,92,252,0.08)", borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.15)" }}>
+            <ActivityIndicator size="small" color={PURPLE} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold" }}>
+                {language === "pt" ? "Acordando o servidor..." : "Warming up server..."}
+              </Text>
+              <Text style={{ color: TEXT_MID, fontSize: 11 }}>
+                {language === "pt" ? "Primeira visita pode levar até 60s. Tentando novamente..." : "First visit may take up to 60s. Retrying automatically..."}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Trending bar */}
         <View style={{ borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.08)", backgroundColor: "rgba(124,92,252,0.02)" }}>

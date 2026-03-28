@@ -53,6 +53,7 @@ def create_app() -> FastAPI:
         return {"status": "ok", "name": settings.app_name, "version": "0.6.0"}
 
     @app.get("/health", tags=["health"])
+    @app.head("/health", tags=["health"])
     def health_check():
         # Check DB is reachable
         try:
