@@ -185,6 +185,27 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
     return created
 
 
+@router.get("/search", response_model=list[EventOut])
+def search_events(
+    q: str = Query(..., min_length=1),
+    category: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Search open events by title keyword."""
+    from sqlalchemy import or_
+    query = db.query(Event).options(joinedload(Event.scenarios)).filter(
+        Event.status == "open",
+        or_(
+            Event.title.ilike(f"%{q}%"),
+            Event.title_pt.ilike(f"%{q}%"),
+            Event.description.ilike(f"%{q}%"),
+        )
+    )
+    if category and category != "all":
+        query = query.filter(Event.category == category)
+    return query.order_by(Event.created_at.desc()).limit(30).all()
+
+
 @router.get("/", response_model=list[EventOut])
 def list_events(
     db: Session = Depends(get_db),
@@ -378,6 +399,31 @@ def resolve_event(
 
     db.commit()
 
+    # Send push notifications to all affected users
+    try:
+        import asyncio
+        from app.routers.push import send_push_notifications
+        winning_scenario = next((s for s in event.scenarios if s.id == payload.winning_scenario_id), None)
+        winner_title = winning_scenario.title if winning_scenario else "Unknown"
+        winner_user_ids = [p.user_id for p in open_predictions if p.scenario_id == payload.winning_scenario_id]
+        loser_user_ids  = [p.user_id for p in open_predictions if p.scenario_id != payload.winning_scenario_id]
+        if winner_user_ids:
+            asyncio.create_task(send_push_notifications(
+                winner_user_ids,
+                title="You won! 🎉",
+                body=f'"{event.title}" resolved as "{winner_title}". Check your portfolio!',
+                data={"event_id": event.id, "type": "won"},
+            ))
+        if loser_user_ids:
+            asyncio.create_task(send_push_notifications(
+                loser_user_ids,
+                title="Market resolved",
+                body=f'"{event.title}" has been resolved. See results in your portfolio.',
+                data={"event_id": event.id, "type": "lost"},
+            ))
+    except Exception:
+        pass  # Push notifications are optional
+
     return EventResolveResponse(
         ok=True,
         event_id=event.id,
@@ -388,3 +434,12 @@ def resolve_event(
         total_losers=total_losers,
         total_payout=round(total_payout, 2),
     )
+
+
+def _resolve_event(event_id: int, winning_scenario_id: int, db: Session, resolution_note: str = "") -> EventResolveResponse:
+    """Internal helper for programmatic resolution (used by voting, auto-resolver)."""
+    from pydantic import BaseModel
+    class _Req(BaseModel):
+        winning_scenario_id: int
+        resolution_note: str | None = None
+    return resolve_event(event_id, _Req(winning_scenario_id=winning_scenario_id, resolution_note=resolution_note), db)

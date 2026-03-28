@@ -4,8 +4,7 @@ import {
   SafeAreaView, Text, ScrollView, View,
   TouchableOpacity, ActivityIndicator, Modal,
   TextInput, Alert, StatusBar, Dimensions, Platform, Linking, Image,
-} from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+} from "react-native";import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
 import {
@@ -742,6 +741,9 @@ export default function HomeScreen() {
   });
   const [screenW, setScreenW]             = useState(Dimensions.get("window").width);
   const [shareCard, setShareCard]         = useState<ShareCardData | null>(null);
+  const [searchQuery, setSearchQuery]     = useState("");
+  const [searchResults, setSearchResults] = useState<EventItem[]>([]);
+  const [searchActive, setSearchActive]   = useState(false);
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFocused = useRef(false);
@@ -822,6 +824,20 @@ export default function HomeScreen() {
     finally { setPlacingId(null); }
   };
 
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSearch = useCallback((q: string) => {
+    setSearchQuery(q);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!q.trim()) { setSearchResults([]); setSearchActive(false); return; }
+    setSearchActive(true);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const res = await api.get(`/events/search?q=${encodeURIComponent(q)}`);
+        setSearchResults(res.data ?? []);
+      } catch { setSearchResults([]); }
+    }, 300);
+  }, []);
+
   const handleResolved = useCallback(() => { loadEvents(); refreshPortfolio(); setDetailTarget(null); }, [loadEvents, refreshPortfolio]);
 
   // Auto-open event from navigation params (e.g. from Breaking tab)
@@ -899,7 +915,74 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Warming up banner - shown during cold start instead of red error */}
+        {/* Search bar */}
+        <View style={{ paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.08)" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, borderWidth: 1, borderColor: searchActive ? BORDER_P : "rgba(255,255,255,0.08)", paddingHorizontal: 12, gap: 8 }}>
+            <Text style={{ color: TEXT_MID, fontSize: 14 }}>🔍</Text>
+            <TextInput
+              value={searchQuery}
+              onChangeText={handleSearch}
+              placeholder={language === "pt" ? "Buscar mercados..." : "Search markets..."}
+              placeholderTextColor={TEXT_MID}
+              style={{ flex: 1, color: TEXT, fontSize: 13, fontFamily: "DMSans_400Regular", paddingVertical: 9 }}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => { setSearchQuery(""); setSearchResults([]); setSearchActive(false); }}>
+                <Text style={{ color: TEXT_MID, fontSize: 16 }}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Search results overlay */}
+        {searchActive && (
+          <View style={{ position: "absolute", top: 160, left: 0, right: 0, bottom: 0, backgroundColor: BG, zIndex: 100 }}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {searchResults.length === 0 ? (
+                <View style={{ alignItems: "center", paddingTop: 60 }}>
+                  <Text style={{ color: TEXT_MID, fontSize: 14 }}>
+                    {language === "pt" ? "Nenhum resultado encontrado" : "No results found"}
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ padding: 16, gap: 8 }}>
+                  <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 4 }}>
+                    {searchResults.length} {language === "pt" ? "resultados" : "results"}
+                  </Text>
+                  {searchResults.map(event => {
+                    const cm = catMeta(event.category);
+                    const topProb = event.scenarios[0]?.probability ?? 50;
+                    return (
+                      <TouchableOpacity
+                        key={event.id}
+                        onPress={() => { setSearchActive(false); setSearchQuery(""); openDetail(event); }}
+                        style={{ backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER, flexDirection: "row", alignItems: "center", gap: 12 }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                            <View style={{ backgroundColor: `${cm.color}15`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 }}>
+                              <Text style={{ color: cm.color, fontSize: 9, fontFamily: "DMSans_700Bold" }}>{cm.icon} {event.category.toUpperCase()}</Text>
+                            </View>
+                          </View>
+                          <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", lineHeight: 18 }} numberOfLines={2}>
+                            {eventTitle(event, language)}
+                          </Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={{ color: topProb >= 60 ? GREEN : topProb <= 40 ? RED : TEXT_SUB, fontSize: 18, fontFamily: "DMSans_700Bold" }}>
+                            {topProb.toFixed(0)}%
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Warming up banner */}
         {warmingUp && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: "rgba(124,92,252,0.08)", borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.15)" }}>
             <ActivityIndicator size="small" color={PURPLE} />
