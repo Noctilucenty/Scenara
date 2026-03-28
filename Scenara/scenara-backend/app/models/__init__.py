@@ -6,6 +6,7 @@ from app.models.event import Event
 from app.models.scenario import Scenario
 from app.models.prediction import Prediction
 from app.models.probability_history import ScenarioProbabilityHistory
+from app.models.comment import Comment
 
 __all__ = [
     "Base",
@@ -16,4 +17,5 @@ __all__ = [
     "Scenario",
     "Prediction",
     "ScenarioProbabilityHistory",
+    "Comment",
 ]

@@ -11,13 +11,18 @@ from app.routers.users import router as users_router
 from app.routers.events import router as events_router
 from app.routers.predictions import router as predictions_router
 from app.routers.accounts import router as accounts_router
+from app.routers.auth import router as auth_router
+from app.routers.news import router as news_router
+from app.routers.comments import router as comments_router
+
 from app.services.event_generator import run_snapshot, run_event_generator, start_scheduler
+from app.services.auto_resolver import run_auto_resolver, start_auto_resolver
 
 logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.app_name, version="0.4.0", debug=settings.app_debug)
+    app = FastAPI(title=settings.app_name, version="0.6.0", debug=settings.app_debug)
 
     cors_allow_origins = [
         "http://localhost:8081", "http://127.0.0.1:8081",
@@ -26,8 +31,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_allow_origins,
-        allow_origin_regex=r"https://.*\.railway\.app",
+        allow_origins=["*"],
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -39,13 +43,14 @@ def create_app() -> FastAPI:
     async def _startup() -> None:
         Base.metadata.create_all(bind=engine)
         asyncio.create_task(start_scheduler())
-        logger.info("[Startup] 5-minute snapshot scheduler started.")
+        asyncio.create_task(start_auto_resolver())
+        logger.info("[Startup] Scenara backend v0.6.0 ready.")
 
-    @app.get("/")
+    @app.get("/", tags=["health"])
     def health():
-        return {"status": "ok", "name": settings.app_name, "version": "0.4.0"}
+        return {"status": "ok", "name": settings.app_name, "version": "0.6.0"}
 
-    @app.get("/health")
+    @app.get("/health", tags=["health"])
     def health_check():
         return {"ok": True}
 
@@ -59,10 +64,18 @@ def create_app() -> FastAPI:
         await run_snapshot()
         return {"ok": True, "message": "Snapshot logged"}
 
-    app.include_router(users_router, prefix="/users", tags=["users"])
-    app.include_router(events_router, prefix="/events", tags=["events"])
-    app.include_router(predictions_router, prefix="/predictions", tags=["predictions"])
-    app.include_router(accounts_router, prefix="/accounts", tags=["accounts"])
+    @app.post("/admin/resolve-expired", tags=["admin"])
+    async def trigger_auto_resolve():
+        await run_auto_resolver()
+        return {"ok": True, "message": "Auto-resolution complete"}
+
+    app.include_router(auth_router,        prefix="/auth",        tags=["auth"])
+    app.include_router(users_router,       prefix="/users",       tags=["users"])
+    app.include_router(events_router,      prefix="/events",      tags=["events"])
+    app.include_router(predictions_router, prefix="/predictions",  tags=["predictions"])
+    app.include_router(accounts_router,    prefix="/accounts",    tags=["accounts"])
+    app.include_router(news_router,        prefix="/news",        tags=["news"])
+    app.include_router(comments_router,    prefix="/comments",    tags=["comments"])
 
     return app
 
