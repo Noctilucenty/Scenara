@@ -42,6 +42,24 @@ def create_app() -> FastAPI:
         max_age=86400,
     )
 
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request as StarletteRequest
+
+    class CacheHeaderMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: StarletteRequest, call_next):
+            response = await call_next(request)
+            path = request.url.path
+            # Cache events list for 30s, history for 5min, news for 1hr
+            if path == "/events/" and request.method == "GET":
+                response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=60"
+            elif "/history" in path and request.method == "GET":
+                response.headers["Cache-Control"] = "public, max-age=300"
+            elif path.startswith("/news") and request.method == "GET":
+                response.headers["Cache-Control"] = "public, max-age=3600"
+            return response
+
+    app.add_middleware(CacheHeaderMiddleware)
+
     @app.on_event("startup")
     async def _startup() -> None:
         Base.metadata.create_all(bind=engine)

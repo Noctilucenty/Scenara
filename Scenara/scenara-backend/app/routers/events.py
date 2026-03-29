@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from typing import Optional
 
@@ -17,6 +18,17 @@ from app.models.user import User
 from app.models.probability_history import ScenarioProbabilityHistory
 
 router = APIRouter()
+
+# In-memory cache for the events list — invalidated on resolve/create
+_events_cache: list | None = None
+_events_cache_time: float = 0
+EVENTS_CACHE_TTL = 60  # seconds
+
+
+def _invalidate_events_cache() -> None:
+    global _events_cache, _events_cache_time
+    _events_cache = None
+    _events_cache_time = 0
 
 
 # ---------------------------------------------------------------------------
@@ -213,12 +225,28 @@ def list_events(
     featured_only: bool = Query(default=False),
     limit: int = Query(default=80, ge=1, le=200),
 ):
+    global _events_cache, _events_cache_time
+    # Serve from cache for default requests
+    if status is None and not featured_only and limit == 80:
+        now = time.time()
+        if _events_cache is not None and now - _events_cache_time < EVENTS_CACHE_TTL:
+            return _events_cache
+
     query = db.query(Event).options(joinedload(Event.scenarios))
     if status:
         query = query.filter(Event.status == status)
+    else:
+        query = query.filter(Event.status == "open")
     if featured_only:
         query = query.filter(Event.is_featured.is_(True))
-    return query.order_by(Event.created_at.desc()).limit(limit).all()
+    results = query.order_by(Event.created_at.desc()).limit(limit).all()
+
+    # Cache default requests
+    if status is None and not featured_only and limit == 80:
+        _events_cache = results
+        _events_cache_time = time.time()
+
+    return results
 
 
 @router.get("/{event_id}", response_model=EventOut)
@@ -242,7 +270,17 @@ def get_event_probability_history(
     """
     Returns full probability history for all scenarios of an event.
     Used to render the live chart on each event card.
+    Cached for 5 minutes per event.
     """
+    # Simple per-event history cache
+    cache_key = f"history_{event_id}"
+    now = time.time()
+    if not hasattr(get_event_probability_history, "_cache"):
+        get_event_probability_history._cache = {}
+    cached = get_event_probability_history._cache.get(cache_key)
+    if cached and now - cached[0] < 300:  # 5 min TTL
+        return cached[1]
+
     event = (
         db.query(Event)
         .options(joinedload(Event.scenarios))
@@ -279,7 +317,9 @@ def get_event_probability_history(
             points=points,
         ))
 
-    return EventHistoryOut(event_id=event_id, scenarios=result)
+    out = EventHistoryOut(event_id=event_id, scenarios=result)
+    get_event_probability_history._cache[cache_key] = (time.time(), out)
+    return out
 
 
 @router.patch("/scenarios/{scenario_id}/probability", response_model=ScenarioOut)
@@ -398,8 +438,7 @@ def resolve_event(
         _log_probability(db, scenario, source="resolved")
 
     db.commit()
-
-    # Send push notifications to all affected users
+    _invalidate_events_cache()
     try:
         import asyncio
         from app.routers.push import send_push_notifications
