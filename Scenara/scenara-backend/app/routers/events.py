@@ -203,7 +203,7 @@ def search_events(
     )
     if category and category != "all":
         query = query.filter(Event.category == category)
-    return query.order_by(Event.created_at.desc()).limit(30).all()
+    return query.order_by(Event.created_at.desc()).limit(50).all()
 
 
 @router.get("/", response_model=list[EventOut])
@@ -211,7 +211,7 @@ def list_events(
     db: Session = Depends(get_db),
     status: Optional[str] = Query(default=None),
     featured_only: bool = Query(default=False),
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=80, ge=1, le=200),
 ):
     query = db.query(Event).options(joinedload(Event.scenarios))
     if status:

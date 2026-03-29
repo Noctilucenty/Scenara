@@ -767,7 +767,7 @@ export default function HomeScreen() {
   const loadEvents = useCallback(async () => {
     try {
       setLoading(true); setError("");
-      const res = await api.get("/events/");
+      const res = await api.get("/events/?limit=80");
       const evts: EventItem[] = (res.data ?? []).filter((e: EventItem) => e.status === "open");
       setEvents(evts);
       setWarmingUp(false);
