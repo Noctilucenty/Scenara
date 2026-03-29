@@ -3,6 +3,7 @@ import { View, ActivityIndicator, Platform } from "react-native";
 import { Stack, router, useSegments } from "expo-router";
 import { TradingProvider, useTrading } from "@/src/session/TradingContext";
 import { LanguageProvider } from "@/src/i18n";
+import { usePushNotifications } from "@/src/utils/usePushNotifications";
 
 const PURPLE = "#7C5CFC";
 const BG     = "#08090C";
@@ -17,6 +18,7 @@ function hasSeenOnboarding(): boolean {
 function AuthGuard() {
   const { isAuthenticated, isLoadingAuth } = useTrading();
   const segments = useSegments();
+  usePushNotifications(); // Listen for push notification taps app-wide
 
   useEffect(() => {
     if (isLoadingAuth) return;

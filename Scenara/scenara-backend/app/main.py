@@ -19,6 +19,7 @@ from app.routers.voting import router as voting_router
 
 from app.services.event_generator import run_snapshot, run_event_generator, start_scheduler
 from app.services.auto_resolver import run_auto_resolver, start_auto_resolver
+from app.services.news_market_generator import run_news_market_generator, start_news_market_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +47,16 @@ def create_app() -> FastAPI:
         Base.metadata.create_all(bind=engine)
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
-        logger.info("[Startup] Scenara backend v0.6.0 ready.")
+        asyncio.create_task(start_news_market_scheduler())
+        logger.info("[Startup] Scenara backend v0.7.0 ready.")
 
     @app.get("/", tags=["health"])
     def health():
-        return {"status": "ok", "name": settings.app_name, "version": "0.6.0"}
+        return {"status": "ok", "name": settings.app_name, "version": "0.7.0"}
 
     @app.get("/health", tags=["health"])
     @app.head("/health", tags=["health"])
     def health_check():
-        # Check DB is reachable
         try:
             from sqlalchemy import text as sql_text
             with engine.connect() as conn:
@@ -63,12 +64,17 @@ def create_app() -> FastAPI:
             db_ok = True
         except Exception:
             db_ok = False
-        return {"ok": True, "db": db_ok, "version": "0.6.0"}
+        return {"ok": True, "db": db_ok, "version": "0.7.0"}
 
     @app.post("/admin/generate-events", tags=["admin"])
     async def trigger_event_generation():
         await run_event_generator()
         return {"ok": True, "message": "Events generated"}
+
+    @app.post("/admin/generate-news-markets", tags=["admin"])
+    async def trigger_news_markets():
+        created = await run_news_market_generator()
+        return {"ok": True, "created": created, "message": f"Generated {created} news markets"}
 
     @app.post("/admin/snapshot", tags=["admin"])
     async def trigger_snapshot():

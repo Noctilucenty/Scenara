@@ -6,17 +6,16 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { api } from "../api/client";
 
+import { registerForPushNotificationsAsync, sendPushTokenToServer } from "@/src/utils/usePushNotifications";
+
 // Register Expo push token with backend
 async function registerPushToken(): Promise<void> {
   if (Platform.OS === "web") return;
   try {
-    const Notifications = await import("expo-notifications");
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== "granted") return;
-    const token = (await Notifications.getExpoPushTokenAsync()).data;
-    if (token) await api.post("/push/register-token", { token });
+    const token = await registerForPushNotificationsAsync();
+    if (token) await sendPushTokenToServer(token);
   } catch {
-    // Push notifications optional
+    // Push notifications optional — don't crash
   }
 }
 
