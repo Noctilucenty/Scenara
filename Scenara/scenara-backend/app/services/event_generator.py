@@ -2205,15 +2205,17 @@ async def run_snapshot() -> None:
 
 
 MAX_OPEN_EVENTS = 80       # hard cap on open markets at any time
-MAX_STATIC_PER_RUN = 15   # add up to 15 new static events per hour
-MIN_OPEN_EVENTS = 40      # if below this, fill aggressively
+MAX_STATIC_PER_RUN = 20   # add up to 20 new static events per hour
+MIN_OPEN_EVENTS = 30      # if below this, fill aggressively
 
 
 def _make_slug(key: str) -> str:
-    """Stable slug based on key only — no timestamp so same event isn't duplicated."""
+    """Slug includes a week number so same event can repeat weekly."""
     import hashlib
-    short_hash = hashlib.md5(key.encode()).hexdigest()[:6]
-    return f"{key[:100]}-{short_hash}"
+    from datetime import datetime
+    week = datetime.utcnow().strftime("%Y-W%W")
+    short_hash = hashlib.md5(f"{key}{week}".encode()).hexdigest()[:6]
+    return f"{key[:80]}-{short_hash}"
 
 
 def _expire_old_events(db: Session) -> int:
@@ -2268,10 +2270,10 @@ async def run_event_generator() -> None:
 
         slots_available = MAX_OPEN_EVENTS - open_count
         if slots_available > 0:
-            # Fill aggressively if below minimum, otherwise add slowly
-            to_add = slots_available if open_count < MIN_OPEN_EVENTS else min(slots_available, MAX_STATIC_PER_RUN)
-            to_add = min(to_add, MAX_STATIC_PER_RUN * 2)  # safety cap
-            selected = random.sample(STATIC_EVENTS, min(len(STATIC_EVENTS), len(STATIC_EVENTS)))
+            # Emergency fill if critically low — use all available slots
+            is_critical = open_count < 10
+            to_add = slots_available if (open_count < MIN_OPEN_EVENTS or is_critical) else min(slots_available, MAX_STATIC_PER_RUN)
+            selected = list(STATIC_EVENTS)
             random.shuffle(selected)
             static_count = 0
             for template in selected:
@@ -2314,12 +2316,17 @@ async def run_event_generator() -> None:
 
 
 async def start_scheduler() -> None:
-    """Snapshot every 5 min, create new events every 60 min."""
+    """Snapshot every 5 min, create new events every 60 min.
+    Also runs event generation immediately on startup."""
+    # Run immediately on startup to fill markets
+    logger.info("[Scheduler] Running initial event generation on startup...")
+    await run_event_generator()
+
     snapshot_count = 0
     while True:
         await run_snapshot()
         snapshot_count += 1
-        if snapshot_count % 12 == 1:  # every 12 * 5min = 60min
+        if snapshot_count % 12 == 0:  # every 12 * 5min = 60min
             await run_event_generator()
         logger.info("[Scheduler] Next snapshot in 5 minutes.")
         await asyncio.sleep(SNAPSHOT_INTERVAL_SECONDS)

@@ -18,7 +18,7 @@ import { CommentSection } from "@/components/CommentSection";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SidebarContext } from "./_layout";
 
-const AUTO_REFRESH_MS = 60_000; // 60s - was 30s, reduces server load
+const AUTO_REFRESH_MS = 5 * 60_000; // 5 minutes - keeps markets fresh without hammering server
 import { ProbabilityChart, ScenarioHistory, SCENARIO_COLORS } from "@/components/ProbabilityChart";
 
 // --- Scenara brand tokens -------------------------------------------------------
@@ -764,13 +764,15 @@ export default function HomeScreen() {
 
   const [warmingUp, setWarmingUp] = useState(false);
 
-  const loadEvents = useCallback(async () => {
+  const loadEvents = useCallback(async (silent = false) => {
     try {
-      setLoading(true); setError("");
+      if (!silent) { setLoading(true); setError(""); }
       const res = await api.get("/events/?limit=80");
       const evts: EventItem[] = (res.data ?? []).filter((e: EventItem) => e.status === "open");
-      setEvents(evts);
-      setWarmingUp(false);
+      if (evts.length > 0) {
+        setEvents(evts);
+        setWarmingUp(false);
+      }
       // Only fetch history for first 10 events to avoid hammering backend
       const now = Date.now();
       if (now - historyCacheTime.current < 5 * 60 * 1000 && Object.keys(historyCache).length > 0) {
@@ -783,13 +785,14 @@ export default function HomeScreen() {
       results.forEach((r, i) => { if (r.status === "fulfilled") cache[evts[i].id] = r.value.data.scenarios; });
       setHistoryCache(cache);
     } catch {
-      setWarmingUp(true);
+      // Don't clear existing events on error — keep showing old data
+      if (events.length === 0) setWarmingUp(true);
       setError("");
       // Auto-retry — Render free tier takes up to 60s to wake
-      setTimeout(() => loadEvents(), 8000);
+      setTimeout(() => loadEvents(true), 8000);
     }
     finally { setLoading(false); }
-  }, [language]);
+  }, [language, events.length]);
 
   const handlePredict = async (scenarioId: number) => {
     if (!isAuthenticated) {
@@ -853,7 +856,7 @@ export default function HomeScreen() {
     isFocused.current = true;
     loadEvents();
     intervalRef.current = setInterval(() => {
-      if (isFocused.current) loadEvents();
+      if (isFocused.current) loadEvents(true); // silent — don't show loading spinner
     }, AUTO_REFRESH_MS);
     return () => {
       isFocused.current = false;
