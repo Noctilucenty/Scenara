@@ -777,7 +777,8 @@ export default function HomeScreen() {
         return;
       }
       historyCacheTime.current = now;
-      const results = await Promise.allSettled(evts.slice(0, 10).map(e => api.get(`/events/${e.id}/history`)));
+      // Only fetch history for first 5 events — avoids DB pool exhaustion
+      const results = await Promise.allSettled(evts.slice(0, 5).map(e => api.get(`/events/${e.id}/history`)));
       const cache: Record<number, ScenarioHistory[]> = {};
       results.forEach((r, i) => { if (r.status === "fulfilled") cache[evts[i].id] = r.value.data.scenarios; });
       setHistoryCache(cache);

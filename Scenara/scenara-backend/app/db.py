@@ -25,10 +25,11 @@ if "sqlite" in DATABASE_URL:
 else:
     engine = create_engine(
         DATABASE_URL,
-        pool_size=5,
-        max_overflow=10,
+        pool_size=10,
+        max_overflow=20,
         pool_pre_ping=True,
-        pool_recycle=300,
+        pool_recycle=60,
+        pool_timeout=30,
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
