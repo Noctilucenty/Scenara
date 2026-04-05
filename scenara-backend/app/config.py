@@ -43,11 +43,17 @@ class Settings(BaseSettings):
     drivewealth_use_mock: bool = True
 
     # ---------- CORS ----------
+    # Override this via the CORS_ALLOW_ORIGINS environment variable on Render.
+    # Comma-separated list of allowed origins.
+    # Example Render env var value:
+    #   http://localhost:8081,http://127.0.0.1:8081,https://scenara.vercel.app,https://scenara-git-main-yourname.vercel.app
     cors_allow_origins: str = (
         "http://localhost:8081,"
         "http://127.0.0.1:8081,"
         "http://localhost:19006,"
-        "http://127.0.0.1:19006"
+        "http://127.0.0.1:19006,"
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000"
     )
 
     # ---------- Config ----------

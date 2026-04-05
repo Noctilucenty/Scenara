@@ -118,6 +118,7 @@ def _parse_rss(xml_text: str) -> list[dict]:
             raw_desc = desc_el.text if desc_el is not None else ""
             pub_raw = pub_el.text if pub_el is not None else ""
             source_name = source_el.text if source_el is not None else "News"
+            source_url = source_el.get("url", "") if source_el is not None else ""
 
             # Remove source suffix from title (Google appends " - Source Name")
             if source_name and title.endswith(f" - {source_name}"):
@@ -156,6 +157,7 @@ def _parse_rss(xml_text: str) -> list[dict]:
                     "image": "",  # RSS doesn't include images
                     "published": pub_iso,
                     "source": source_name,
+                    "source_url": source_url,  # e.g. "https://www.bbc.com"
                 })
     except Exception:
         pass
