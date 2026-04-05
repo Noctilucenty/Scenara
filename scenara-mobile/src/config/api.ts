@@ -1,8 +1,10 @@
 import { Platform } from "react-native";
 
-const USE_LOCAL = true;
-
 const LOCAL_IP = "127.0.0.1";
 const PROD_URL = "https://scenara-backend.onrender.com";
 
-export const API_BASE_URL = USE_LOCAL ? `http://${LOCAL_IP}:8000` : PROD_URL;
+const isWeb = Platform.OS === "web";
+const isDev = typeof __DEV__ !== "undefined" && __DEV__;
+
+export const API_BASE_URL =
+  isDev && !isWeb ? `http://${LOCAL_IP}:8000` : PROD_URL;
