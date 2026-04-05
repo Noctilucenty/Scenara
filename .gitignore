@@ -1,0 +1,6 @@
+scenara-mobile/venv/
+scenara-backend/venv/
+__pycache__/
+*.pyc
+.env
+venv/

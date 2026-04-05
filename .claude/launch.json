@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "scenara-web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["expo", "start", "--web", "--port", "8082", "--clear"],
+      "cwd": "scenara-mobile",
+      "port": 8082,
+      "autoPort": false
+    }
+  ]
+}
