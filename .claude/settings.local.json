@@ -63,7 +63,31 @@
       "Bash(curl -s \"http://localhost:8001/\")",
       "Bash(powershell -Command \"Stop-Process -Id 36252 -Force\")",
       "Bash(node -e \"let d='''''''';process.stdin.on\\(''''data'''',c=>d+=c\\);process.stdin.on\\(''''end'''',\\(\\)=>{const a=JSON.parse\\(d\\).articles;a.forEach\\(x=>console.log\\(''''TITLE:'''',x.title,''''\\\\nDESC:'''',x.description||''''\\(empty\\)'''',''''\\\\n''''\\)\\);}\\)\")",
-      "Bash(grep -v \"&&$\")"
+      "Bash(grep -v \"&&$\")",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s \"http://localhost:8000/events?lang=en&limit=6\")",
+      "Bash(curl -sv \"http://localhost:8000/events?lang=en&limit=6\")",
+      "Bash(curl -s \"http://localhost:8000/events/?lang=en&limit=6\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''''{len\\(d\\)} events'''' if isinstance\\(d,list\\) else f''''keys: {list\\(d.keys\\(\\)\\)}''''\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/health)",
+      "Bash(curl -s -H \"Origin: http://localhost:8082\" \"http://localhost:8000/health\" -v)",
+      "Bash(curl -s -H \"Origin: http://localhost:8082\" \"http://localhost:8000/events/?status=open&limit=3\" -v)",
+      "Bash(curl -s -H \"Origin: http://localhost:8082\" -X OPTIONS \"http://localhost:8000/events/\" -v)",
+      "Bash(curl -s -H \"Origin: http://localhost:8082\" -H \"Access-Control-Request-Method: GET\" -X OPTIONS \"http://localhost:8000/events/\" -v)",
+      "Bash(curl -s -H \"Origin: http://localhost:8082\" -H \"Access-Control-Request-Method: GET\" -X OPTIONS \"http://localhost:8000/events/\")",
+      "Bash(curl -sv -H \"Origin: http://localhost:8082\" -H \"Access-Control-Request-Method: GET\" -X OPTIONS \"http://localhost:8000/events/\")",
+      "Bash(wc -l \"C:\\\\Users\\\\splk3\\\\OneDrive\\\\Desktop\\\\Scenara\\\\Scenara\\\\scenara-mobile\\\\app\\\\\\(tabs\\)\\\\index.tsx\" \"C:\\\\Users\\\\splk3\\\\OneDrive\\\\Desktop\\\\Scenara\\\\Scenara\\\\scenara-backend\\\\app\\\\services\\\\event_generator.py\")",
+      "Bash(curl -s -X POST http://localhost:8000/events/top-up)",
+      "Bash(curl -s \"http://localhost:8000/events/?status=open&limit=1&offset=0\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''''{len\\(d\\)} events in page''''\\)\")",
+      "Bash(curl -s \"http://localhost:8000/events/?status=open&limit=100&offset=0\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''''total open: checking offset 0 = {len\\(d\\)} events''''\\)\")",
+      "Bash(curl -s \"http://localhost:8000/events/?status=open&limit=100&offset=100\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f''''offset 100 = {len\\(d\\)} events''''\\)\")",
+      "Bash(curl -s -X POST http://localhost:8000/news/summary -H \"Content-Type: application/json\" -d '{\"\"\"\"title\"\"\"\":\"\"\"\"Bitcoin hits all-time high above $100,000\"\"\"\",\"\"\"\"url\"\"\"\":\"\"\"\"https://test.com/btc\"\"\"\",\"\"\"\"language\"\"\"\":\"\"\"\"en\"\"\"\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d[''''summary'''']\\)\")",
+      "Bash(curl -s \"http://localhost:8000/events/?status=open&limit=1\")",
+      "Bash(python -c \"import sys,json; print\\(''''API ok''''\\)\")"
     ]
   }
 }

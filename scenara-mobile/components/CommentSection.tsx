@@ -84,10 +84,21 @@ type Props = {
 export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props) {
   const { userId } = useTrading();
   const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
+
+  // Pre-compute seeds so they never sit inside JSX logic
+  const seeds = newsUrl && !loading && comments.length === 0
+    ? seedComments(newsUrl, 3)
+    : [];
+
+  function fakeAgo(h: number) {
+    return language === "pt"
+      ? (h < 24 ? `${h}h atrás` : `${Math.floor(h / 24)}d atrás`)
+      : (h < 24 ? `${h}h ago`   : `${Math.floor(h / 24)}d ago`);
+  }
 
   const fetchComments = useCallback(async () => {
     try {
@@ -226,37 +237,32 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
             );
           })}
 
-          {/* Seed comments — shown when no real comments yet (news articles only) */}
-          {comments.length === 0 && newsUrl && (() => {
-            const seeds = seedComments(newsUrl, 3);
-            const fakeAgo = (h: number) =>
-              language === "pt" ? (h < 24 ? `${h}h atrás` : `${Math.floor(h / 24)}d atrás`) : (h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`);
-            return seeds.map(s => {
-              const color = avatarColor(s.uid);
-              return (
-                <View key={s.uid} style={{ backgroundColor: CARD, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: BORDER }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                    <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: color + "20", borderWidth: 1, borderColor: color + "40", alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ color: color, fontSize: 11, fontFamily: "DMSans_700Bold" }}>{initials(s.name)}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: TEXT, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{s.name}</Text>
-                      <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>{fakeAgo(s.hoursAgo)}</Text>
-                    </View>
+          {/* Seed comments — shown when no real comments yet (news only) */}
+          {seeds.map(s => {
+            const color = avatarColor(s.uid);
+            return (
+              <View key={s.uid} style={{ backgroundColor: CARD, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: BORDER }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: color + "20", borderWidth: 1, borderColor: color + "40", alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ color, fontSize: 11, fontFamily: "DMSans_700Bold" }}>{initials(s.name)}</Text>
                   </View>
-                  <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 }}>
-                    {language === "pt" ? s.pt : s.en}
-                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: TEXT, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{s.name}</Text>
+                    <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>{fakeAgo(s.hoursAgo)}</Text>
+                  </View>
                 </View>
-              );
-            });
-          })()}
+                <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 }}>
+                  {language === "pt" ? s.pt : s.en}
+                </Text>
+              </View>
+            );
+          })}
 
-          {/* Join prompt when no real comments */}
-          {comments.length === 0 && (
-            <View style={{ alignItems: "center", paddingVertical: 12 }}>
-              <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular" }}>
-                {language === "pt" ? "💬 Seja o primeiro a comentar de verdade" : "💬 Be the first to leave a real comment"}
+          {/* Empty state — only when no seeds either */}
+          {comments.length === 0 && seeds.length === 0 && !loading && (
+            <View style={{ alignItems: "center", paddingVertical: 24 }}>
+              <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_400Regular" }}>
+                {language === "pt" ? "Seja o primeiro a comentar" : "Be the first to comment"}
               </Text>
             </View>
           )}

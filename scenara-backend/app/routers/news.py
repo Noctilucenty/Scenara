@@ -316,6 +316,19 @@ async def get_summary(payload: SummaryRequest):
         except Exception:
             pass
 
-    # Fallback: return cleaned description as summary
-    fallback = desc if len(desc) > 30 else ""
+    # Fallback: generate a template-based summary from the headline
+    title_text = payload.title.strip().rstrip(".")
+    if payload.language == "pt":
+        fallback = (
+            f"{title_text}. "
+            f"Esta notícia pode impactar mercados de previsão relacionados ao tema. "
+            f"Traders estão acompanhando de perto os desdobramentos para ajustar suas posições."
+        )
+    else:
+        fallback = (
+            f"{title_text}. "
+            f"This development may impact prediction markets tied to this topic. "
+            f"Traders are watching closely as the situation develops and adjusting positions accordingly."
+        )
+    _summary_cache[payload.url] = fallback
     return {"summary": fallback}

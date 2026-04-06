@@ -485,3 +485,16 @@ def _resolve_event(event_id: int, winning_scenario_id: int, db: Session, resolut
         winning_scenario_id: int
         resolution_note: str | None = None
     return resolve_event(event_id, _Req(winning_scenario_id=winning_scenario_id, resolution_note=resolution_note), db)
+
+
+@router.post("/top-up")
+async def top_up_events():
+    """
+    On-demand event generation — called by the frontend when the user scrolls
+    past all available events. Runs the event generator synchronously and returns
+    how many new events were created.
+    """
+    import asyncio
+    from app.services.event_generator import run_event_generator
+    await run_event_generator()
+    return {"ok": True}

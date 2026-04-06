@@ -2204,16 +2204,17 @@ async def run_snapshot() -> None:
         db.close()
 
 
-MAX_OPEN_EVENTS = 40        # hard cap on open markets at any time
-MAX_STATIC_PER_RUN = 10    # add up to 10 new static events per hour
-MIN_OPEN_EVENTS = 20       # if below this, fill aggressively
+MAX_OPEN_EVENTS = 500       # effectively unlimited open markets
+MAX_STATIC_PER_RUN = 40    # add up to 40 new static events per run
+MIN_OPEN_EVENTS = 60       # if below this, fill aggressively
 
 
-def _make_slug(key: str) -> str:
-    """Stable slug based on key only — no timestamp so same event isn't duplicated."""
+def _make_slug(key: str, wave: int = 0) -> str:
+    """Slug based on key + wave so templates can recycle once all are inserted."""
     import hashlib
-    short_hash = hashlib.md5(key.encode()).hexdigest()[:6]
-    return f"{key[:100]}-{short_hash}"
+    suffix = f"-v{wave}" if wave > 0 else ""
+    short_hash = hashlib.md5(f"{key}{suffix}".encode()).hexdigest()[:6]
+    return f"{key[:80]}{suffix}-{short_hash}"
 
 
 def _expire_old_events(db: Session) -> int:
@@ -2271,14 +2272,13 @@ async def run_event_generator() -> None:
             # Fill aggressively if below minimum, otherwise add slowly
             to_add = slots_available if open_count < MIN_OPEN_EVENTS else min(slots_available, MAX_STATIC_PER_RUN)
             to_add = min(to_add, MAX_STATIC_PER_RUN * 2)  # safety cap
-            selected = random.sample(STATIC_EVENTS, min(len(STATIC_EVENTS), len(STATIC_EVENTS)))
+            selected = list(STATIC_EVENTS)
             random.shuffle(selected)
             static_count = 0
             for template in selected:
                 if static_count >= to_add:
                     break
-                event_data = {
-                    "slug": _make_slug(template["slug_key"]),
+                base_event_data = {
                     "title": template["title"],
                     "title_pt": template.get("title_pt"),
                     "description": template.get("description"),
@@ -2286,12 +2286,16 @@ async def run_event_generator() -> None:
                     "category": template["category"],
                     "source": "Scenara",
                     "is_featured": False,
-                    "closes_hours": random.choice([48, 72, 96]),  # longer lifetime
+                    "closes_hours": random.choice([48, 72, 96]),
                     "scenarios": template["scenarios"],
                     "scenarios_pt": template.get("scenarios_pt", template["scenarios"]),
                 }
-                if _insert_event(event_data, db):
-                    static_count += 1
+                # Try wave 0 first, then recycle waves 1-4 if slug already exists
+                for wave in range(5):
+                    event_data = {**base_event_data, "slug": _make_slug(template["slug_key"], wave)}
+                    if _insert_event(event_data, db):
+                        static_count += 1
+                        break
             db.commit()
             logger.info(f"[EventGenerator] Inserted {static_count} static events.")
         else:

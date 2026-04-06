@@ -69,6 +69,7 @@ export const CATEGORY_META: Record<string, { icon: string; color: string; label:
   tv:            { icon: "📺", color: "#22D3EE",   label: "TV",            label_pt: "TV"            },
   science:       { icon: "🔬", color: "#86EFAC",   label: "Science",       label_pt: "Ciência"       },
   weather:       { icon: "🌦",  color: "#7DD3FC",   label: "Weather",       label_pt: "Clima"         },
+  brazil:        { icon: "🇧🇷", color: "#009C3B",   label: "Brazil",        label_pt: "Brasil"        },
 };
 
 export function catMeta(c: string) {
