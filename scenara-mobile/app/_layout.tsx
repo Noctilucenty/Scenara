@@ -18,7 +18,6 @@ function AuthGuard() {
     const onLogin      = segments[0] === "login";
     const onRegister   = segments[0] === "register";
     const onOnboarding = segments[0] === "onboarding";
-
     // Authenticated users on login/register → redirect to app
     if (isAuthenticated && (onLogin || onRegister)) {
       if (!hasSeenOnboarding()) {
@@ -52,6 +51,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="login"          options={{ animation: "fade" }} />
           <Stack.Screen name="register"       options={{ animation: "fade" }} />
+          <Stack.Screen name="language-select" options={{ animation: "fade" }} />
           <Stack.Screen name="onboarding"     options={{ animation: "fade" }} />
           <Stack.Screen name="news-detail"    options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="market-detail"  options={{ animation: "slide_from_right" }} />

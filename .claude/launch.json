@@ -4,7 +4,7 @@
     {
       "name": "scenara-web",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["expo", "start", "--web", "--port", "8082", "--clear"],
+      "runtimeArgs": ["expo", "start", "--web", "--port", "8082"],
       "cwd": "scenara-mobile",
       "port": 8082,
       "autoPort": false

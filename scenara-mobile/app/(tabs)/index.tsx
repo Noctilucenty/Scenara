@@ -9,6 +9,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView,
   StatusBar, TextInput, ActivityIndicator, RefreshControl,
   Platform, Dimensions, Animated, KeyboardAvoidingView, Image,
+  useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
@@ -56,6 +57,33 @@ function eventTitle(e: EventItem, lang: string) {
 }
 function scenarioTitle(s: Scenario, lang: string) {
   return lang === "pt" && s.title_pt ? s.title_pt : s.title;
+}
+
+// Extract meaningful search keywords from an event title for targeted news fetch
+const NEWS_STOP = new Set([
+  "will","the","a","an","in","at","by","on","for","this","next","week",
+  "month","year","day","stay","reach","hit","above","below","between",
+  "before","after","can","could","would","should","might","have","has",
+  "had","be","is","are","was","were","do","does","did","get","got",
+  "make","take","give","go","see","to","of","and","or","not","but",
+  "so","yet","even","just","than","more","most","first","last","new",
+  "old","big","small","high","low","from","with","that","which","who",
+  "what","when","where","how","its","it","he","she","we","they","his",
+  "her","their","our","over","under","end","end","out","up","down",
+  "into","onto","than","then","else","ever","hour","hours","week","weeks",
+  "next","past","remain","hold","keep","drop","rise","fall","move",
+]);
+function extractNewsQuery(event: EventItem, lang: string): string {
+  const title = (lang === "pt" && event.title_pt ? event.title_pt : event.title);
+  const words = title
+    .replace(/[%$€£@#&*()+=\[\]{}<>?!,.:;'"\/\\|-]/g, " ")
+    .split(/\s+/)
+    .filter(w => {
+      const lw = w.toLowerCase();
+      return w.length >= 3 && !NEWS_STOP.has(lw) && !/^\d+$/.test(w);
+    });
+  // Prefer short unique terms; cap at 3 to keep the query tight
+  return words.slice(0, 3).join(" ") || event.category;
 }
 
 // ── Mini arc gauge ─────────────────────────────────────────────────────────────
@@ -178,8 +206,8 @@ function MarketLiveDot({ language }: { language: string }) {
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1300, useNativeDriver: false }),
-        Animated.timing(pulse, { toValue: 0, duration: 0,    useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 1, duration: 1300, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 0,    useNativeDriver: true }),
       ])
     );
     anim.start();
@@ -206,7 +234,7 @@ function MarketLiveDot({ language }: { language: string }) {
 }
 
 // ── Market card (list row) ────────────────────────────────────────────────────
-function MarketCard({ event, onPress, onBetPress, language, sentiment, t, history }: {
+const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, language, sentiment, t, history }: {
   event: EventItem; onPress(): void; onBetPress(): void;
   language: string; sentiment: { total: number; scenarios: SentimentItem[] } | null; t: any;
   history?: ScenarioHistory[];
@@ -224,8 +252,12 @@ function MarketCard({ event, onPress, onBetPress, language, sentiment, t, histor
       style={{
         backgroundColor: CARD, borderRadius: 16, marginBottom: 8, borderWidth: 1,
         borderColor: BORDER, overflow: "hidden",
+        flexDirection: "row",
       }}
     >
+      {/* Category accent left border */}
+      <View style={{ width: 3, backgroundColor: cm.color, opacity: 0.7 }} />
+      <View style={{ flex: 1, flexDirection: "column" }}>
       <View onLayout={e => setCardWidth(e.nativeEvent.layout.width)} style={{ padding: 14 }}>
         {/* Top row: category + urgency + probability */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -238,11 +270,11 @@ function MarketCard({ event, onPress, onBetPress, language, sentiment, t, histor
             <UrgencyBadge closesAt={event.closes_at} language={language} />
             {sentiment && <HotBadge total={sentiment.total} language={language} />}
           </View>
-          <ArcGauge probability={prob} size={46} />
+          <ArcGauge probability={prob} size={IS_WEB ? 54 : 46} />
         </View>
 
         {/* Title */}
-        <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", lineHeight: 19, marginBottom: 8 }} numberOfLines={2}>
+        <Text style={{ color: TEXT, fontSize: IS_WEB ? 15 : 13, fontFamily: "DMSans_700Bold", lineHeight: IS_WEB ? 22 : 19, marginBottom: 8 }} numberOfLines={2}>
           {eventTitle(event, language)}
         </Text>
 
@@ -252,9 +284,9 @@ function MarketCard({ event, onPress, onBetPress, language, sentiment, t, histor
             <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                 <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: SCENARIO_COLORS[i] }} />
-                <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_500Medium" }}>{scenarioTitle(s, language)}</Text>
+                <Text style={{ color: TEXT_SUB, fontSize: IS_WEB ? 13 : 11, fontFamily: "DMSans_500Medium" }}>{scenarioTitle(s, language)}</Text>
               </View>
-              <Text style={{ color: SCENARIO_COLORS[i], fontSize: 12, fontFamily: "DMSans_700Bold" }}>{s.probability.toFixed(0)}%</Text>
+              <Text style={{ color: SCENARIO_COLORS[i], fontSize: IS_WEB ? 13 : 12, fontFamily: "DMSans_700Bold" }}>{s.probability.toFixed(0)}%</Text>
             </View>
             <View style={{ height: 2, borderRadius: 1, backgroundColor: "rgba(255,255,255,0.06)" }}>
               <View style={{ width: `${s.probability}%` as any, height: 2, borderRadius: 1, backgroundColor: SCENARIO_COLORS[i] }} />
@@ -286,25 +318,26 @@ function MarketCard({ event, onPress, onBetPress, language, sentiment, t, histor
         <View style={{ flexDirection: "row", gap: 6 }}>
           <TouchableOpacity
             onPress={onPress}
-            style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER }}
+            style={{ paddingHorizontal: IS_WEB ? 14 : 10, paddingVertical: IS_WEB ? 6 : 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER }}
           >
-            <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_500Medium" }}>
+            <Text style={{ color: TEXT_MID, fontSize: IS_WEB ? 11 : 9, fontFamily: "DMSans_500Medium" }}>
               {language === "pt" ? "Detalhes" : "Details"}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={e => { (e as any).stopPropagation?.(); onBetPress(); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.1)" }}
+            style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: IS_WEB ? 14 : 10, paddingVertical: IS_WEB ? 6 : 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.1)" }}
           >
-            <Text style={{ color: PURPLE, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
+            <Text style={{ color: PURPLE, fontSize: IS_WEB ? 12 : 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
               {language === "pt" ? "⚡ Apostar" : "⚡ Trade"}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
+      </View>
     </TouchableOpacity>
   );
-}
+});
 
 // ── Inline bet panel ──────────────────────────────────────────────────────────
 function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placePrediction, refreshPortfolio }: {
@@ -571,8 +604,8 @@ function LiveBadge() {
       return Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
-          Animated.timing(anim, { toValue: 1, duration: 1300, useNativeDriver: false }),
-          Animated.timing(anim, { toValue: 0, duration: 0,    useNativeDriver: false }),
+          Animated.timing(anim, { toValue: 1, duration: 1300, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration: 0,    useNativeDriver: true }),
         ])
       );
     }
@@ -659,7 +692,7 @@ function SidebarLiveComments({ featuredEventId, language }: { featuredEventId?: 
     const half = contentH / 2;
     translateY.setValue(0);
     animRef.current = Animated.loop(
-      Animated.timing(translateY, { toValue: -half, duration: half * 60, useNativeDriver: false })
+      Animated.timing(translateY, { toValue: -half, duration: half * 60, useNativeDriver: true })
     );
     animRef.current.start();
     return () => animRef.current?.stop();
@@ -671,12 +704,19 @@ function SidebarLiveComments({ featuredEventId, language }: { featuredEventId?: 
   return (
     <View style={{ backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: "hidden" }}>
       {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, padding: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" }}>
+      <LinearGradient
+        colors={["rgba(124,92,252,0.08)", "transparent"]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={{ flexDirection: "row", alignItems: "center", gap: 6, padding: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" }}
+      >
         <MarketLiveDot language={language} />
-        <Text style={{ color: TEXT, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginLeft: 2 }}>
+        <Text style={{ color: TEXT, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1, flex: 1 }}>
           {language === "pt" ? "COMENTÁRIOS" : "LIVE COMMENTS"}
         </Text>
-      </View>
+        <View style={{ backgroundColor: "rgba(124,92,252,0.15)", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: BORDER_P }}>
+          <Text style={{ color: PURPLE_D, fontSize: 8, fontFamily: "DMSans_700Bold" }}>{liveComments.length}</Text>
+        </View>
+      </LinearGradient>
 
       {/* Scrolling body — fixed height with overflow hidden */}
       <View style={{ height: 260, overflow: "hidden" }}>
@@ -687,13 +727,13 @@ function SidebarLiveComments({ featuredEventId, language }: { featuredEventId?: 
           {doubled.map((item, i) => {
             const color = sidebarAvatarColor(item.uid);
             return (
-              <View key={i} style={{ flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.03)", alignItems: "flex-start" }}>
-                <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: color + "22", borderWidth: 1, borderColor: color + "44", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+              <View key={i} style={{ flexDirection: "row", gap: 9, paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.03)", alignItems: "flex-start" }}>
+                <View style={{ width: 28, height: 28, borderRadius: 9, backgroundColor: color + "1A", borderWidth: 1, borderColor: color + "40", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
                   <Text style={{ color, fontSize: 9, fontFamily: "DMSans_700Bold" }}>{sidebarInitials(item.name)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: TEXT_SUB, fontSize: 10, fontFamily: "DMSans_700Bold", marginBottom: 2 }}>{item.name}</Text>
-                  <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", lineHeight: 16 }}>{item.body}</Text>
+                  <Text style={{ color: TEXT_SUB, fontSize: 10, fontFamily: "DMSans_700Bold", marginBottom: 3 }}>{item.name}</Text>
+                  <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", lineHeight: 15 }}>{item.body}</Text>
                 </View>
               </View>
             );
@@ -705,11 +745,10 @@ function SidebarLiveComments({ featuredEventId, language }: { featuredEventId?: 
 }
 
 // ── Breaking News + Hot Topics sidebar ───────────────────────────────────────
-function BreakingNewsPanel({ articles, hotEvents, language, featuredEventId }: {
+function BreakingNewsPanel({ articles, hotEvents, language }: {
   articles: NewsArticle[];
   hotEvents: EventItem[];
   language: string;
-  featuredEventId?: number;
 }) {
   const router = useRouter();
 
@@ -860,7 +899,7 @@ function CategoryTabs({ events, active, onSelect, t, language }: {
                 flexDirection: "row", alignItems: "center", gap: 4,
               }}
             >
-              <Text style={{ color: isActive ? meta.color : TEXT_MID, fontSize: 11, fontFamily: isActive ? "DMSans_700Bold" : "DMSans_500Medium" }}>
+              <Text style={{ color: isActive ? meta.color : TEXT_MID, fontSize: IS_WEB ? 13 : 11, fontFamily: isActive ? "DMSans_700Bold" : "DMSans_500Medium" }}>
                 {meta.icon}  {label}
               </Text>
               {count > 0 && (
@@ -877,7 +916,7 @@ function CategoryTabs({ events, active, onSelect, t, language }: {
 }
 
 // ── Full-width news grid ──────────────────────────────────────────────────────
-function NewsGrid({ articles, language, onPress }: {
+const NewsGrid = React.memo(function NewsGrid({ articles, language, onPress }: {
   articles: NewsArticle[];
   language: string;
   onPress(a: NewsArticle): void;
@@ -923,6 +962,9 @@ function NewsGrid({ articles, language, onPress }: {
             ["#F7931A", PURPLE],
           ][i % 6] as [string, string];
 
+          const wordCount = (article.title + " " + (article.description ?? "")).split(/\s+/).length;
+          const readMin = Math.max(1, Math.ceil(wordCount / 200));
+
           return (
             <TouchableOpacity
               key={i}
@@ -941,22 +983,22 @@ function NewsGrid({ articles, language, onPress }: {
               <LinearGradient
                 colors={accentColors}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={{ height: 2 }}
+                style={{ height: 3 }}
               />
-              <View style={{ padding: 12 }}>
+              <View style={{ padding: 12, flex: 1 }}>
                 {/* Source + time row */}
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
                   {faviconUri ? (
-                    <View style={{ width: 18, height: 18, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
-                      <Image source={{ uri: faviconUri }} style={{ width: 13, height: 13, borderRadius: 2 }} resizeMode="contain" />
+                    <View style={{ width: 20, height: 20, borderRadius: 5, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+                      <Image source={{ uri: faviconUri }} style={{ width: 14, height: 14, borderRadius: 3 }} resizeMode="contain" />
                     </View>
                   ) : (
-                    <View style={{ width: 18, height: 18, borderRadius: 4, backgroundColor: "rgba(124,92,252,0.12)", alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ fontSize: 10 }}>📰</Text>
+                    <View style={{ width: 20, height: 20, borderRadius: 5, backgroundColor: `${accentColors[0]}18`, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 11 }}>📰</Text>
                     </View>
                   )}
-                  <Text style={{ color: accentColors[0], fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.4, flex: 1 }} numberOfLines={1}>
-                    {article.source.toUpperCase().slice(0, 18)}
+                  <Text style={{ color: accentColors[0], fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.5, flex: 1 }} numberOfLines={1}>
+                    {article.source.toUpperCase().slice(0, 16)}
                   </Text>
                   <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_400Regular" }}>
                     {timeAgo(article.published, language)}
@@ -965,8 +1007,8 @@ function NewsGrid({ articles, language, onPress }: {
 
                 {/* Title */}
                 <Text
-                  style={{ color: TEXT_SUB, fontSize: IS_WEB ? 12 : 11, fontFamily: "DMSans_500Medium", lineHeight: IS_WEB ? 18 : 16 }}
-                  numberOfLines={IS_WEB ? 3 : 3}
+                  style={{ color: TEXT, fontSize: IS_WEB ? 12 : 11, fontFamily: "DMSans_700Bold", lineHeight: IS_WEB ? 18 : 16, marginBottom: 6 }}
+                  numberOfLines={3}
                 >
                   {article.title}
                 </Text>
@@ -975,11 +1017,15 @@ function NewsGrid({ articles, language, onPress }: {
               {/* Card footer */}
               <View style={{
                 flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                paddingHorizontal: 12, paddingBottom: 10, paddingTop: 4,
+                paddingHorizontal: 12, paddingBottom: 10, paddingTop: 2,
+                borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)",
               }}>
-                <Text style={{ color: accentColors[0], fontSize: 9, fontFamily: "DMSans_700Bold" }}>
-                  {language === "pt" ? "Ler →" : "Read →"}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={{ color: accentColors[0], fontSize: 9, fontFamily: "DMSans_700Bold" }}>
+                    {language === "pt" ? "Ler →" : "Read →"}
+                  </Text>
+                  <Text style={{ color: TEXT_MID, fontSize: 8 }}>· {readMin} min</Text>
+                </View>
                 <TouchableOpacity
                   onPress={() => shareContent({ title: article.title, message: article.title, url: article.url })}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -993,7 +1039,7 @@ function NewsGrid({ articles, language, onPress }: {
       </View>
     </View>
   );
-}
+});
 
 // ── Live stats bar ────────────────────────────────────────────────────────────
 function LiveStatsBar({ eventCount, language }: { eventCount: number; language: string }) {
@@ -1001,8 +1047,8 @@ function LiveStatsBar({ eventCount, language }: { eventCount: number; language: 
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: false }),
-        Animated.timing(pulse, { toValue: 0, duration: 0, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 0, useNativeDriver: true }),
       ])
     );
     anim.start();
@@ -1014,42 +1060,34 @@ function LiveStatsBar({ eventCount, language }: { eventCount: number; language: 
   const traders = 140 + (base % 180);
   const volume  = 42 + (base % 90);
 
+  const stats = [
+    { value: String(traders), label: language === "pt" ? "traders" : "traders", color: BLUE },
+    { value: `$${volume}K`,   label: language === "pt" ? "volume hoje" : "vol. today",  color: GREEN },
+    { value: String(eventCount), label: language === "pt" ? "mercados" : "markets",  color: PURPLE },
+  ];
+
   return (
-    <View style={{
-      flexDirection: "row", alignItems: "center", justifyContent: "space-around",
-      paddingVertical: 7, paddingHorizontal: 16,
-      backgroundColor: "rgba(124,92,252,0.04)",
-      borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.08)",
-    }}>
-      {/* Live dot */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-        <Animated.View style={{
-          width: 6, height: 6, borderRadius: 3,
-          backgroundColor: GREEN,
-          opacity: pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.3, 1] }),
-        }} />
-        <Text style={{ color: GREEN, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>LIVE</Text>
-      </View>
-      <View style={{ width: 1, height: 12, backgroundColor: "rgba(255,255,255,0.07)" }} />
-      <View style={{ alignItems: "center" }}>
-        <Text style={{ color: TEXT, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{traders}</Text>
-        <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_400Regular" }}>
-          {language === "pt" ? "traders" : "traders"}
-        </Text>
-      </View>
-      <View style={{ width: 1, height: 12, backgroundColor: "rgba(255,255,255,0.07)" }} />
-      <View style={{ alignItems: "center" }}>
-        <Text style={{ color: TEXT, fontSize: 12, fontFamily: "DMSans_700Bold" }}>${volume}K</Text>
-        <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_400Regular" }}>
-          {language === "pt" ? "volume hoje" : "volume today"}
-        </Text>
-      </View>
-      <View style={{ width: 1, height: 12, backgroundColor: "rgba(255,255,255,0.07)" }} />
-      <View style={{ alignItems: "center" }}>
-        <Text style={{ color: TEXT, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{eventCount}</Text>
-        <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_400Regular" }}>
-          {language === "pt" ? "mercados" : "markets"}
-        </Text>
+    <View style={{ backgroundColor: "rgba(124,92,252,0.04)", borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.08)" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 16 }}>
+        {/* Live indicator */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginRight: 16 }}>
+          <Animated.View style={{
+            width: 7, height: 7, borderRadius: 3.5, backgroundColor: GREEN,
+            opacity: pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.25, 1] }),
+          }} />
+          <Text style={{ color: GREEN, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>LIVE</Text>
+        </View>
+
+        {/* Stats */}
+        {stats.map((s, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <View style={{ width: 1, height: 20, backgroundColor: "rgba(255,255,255,0.06)", marginHorizontal: 14 }} />}
+            <View style={{ alignItems: "center" }}>
+              <Text style={{ color: s.color, fontSize: IS_WEB ? 18 : 14, fontFamily: "DMSans_700Bold", lineHeight: IS_WEB ? 22 : 17 }}>{s.value}</Text>
+              <Text style={{ color: TEXT_MID, fontSize: IS_WEB ? 11 : 8, fontFamily: "DMSans_400Regular" }}>{s.label}</Text>
+            </View>
+          </React.Fragment>
+        ))}
       </View>
     </View>
   );
@@ -1124,11 +1162,11 @@ function TrendingPicks({ events, language, onBetPress, onCardPress }: {
 // ── Brazil section ────────────────────────────────────────────────────────────
 const BR_KEYWORDS = ["brazil", "brazilian", "lula", "stf", "petrobras", "bolsonaro",
   "copa do brasil", "nordeste", "são paulo", "rio de janeiro", "brasil",
-  "ibovespa", "selic", "ipca", "nubank", "vale ", "fluminense", "palmeiras",
-  "corinthians", "vasco", "seleção", "selecao", "embraer", "pix", "amazon deforestation",
+  "ibovespa", "selic", "ipca", "nubank", "vale iron", "fluminense", "palmeiras",
+  "corinthians", "vasco", "seleção", "selecao", "embraer", "pix ", "amazon deforestation",
   "itau", "mercadolibre"];
 
-function BrazilSection({ events, language, sentimentCache, historyCache, onCardPress, onBetPress, onBetPanelId, setBetPanelId, isAuthenticated, userId, placePrediction, refreshPortfolio, t }: {
+function BrazilSection({ events, language, sentimentCache, historyCache, onCardPress, onBetPress, onBetPanelId, setBetPanelId, isAuthenticated, userId, placePrediction, refreshPortfolio, t, gridCols, cardPct }: {
   events: EventItem[]; language: string;
   sentimentCache: Record<number, { total: number; scenarios: SentimentItem[] }>;
   historyCache: Record<number, ScenarioHistory[]>;
@@ -1136,11 +1174,12 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
   onBetPanelId: number | null; setBetPanelId: (id: number | null) => void;
   isAuthenticated: boolean; userId: number | null;
   placePrediction: any; refreshPortfolio: any; t: any;
+  gridCols: number; cardPct: string;
 }) {
   const brazilEvents = events.filter(e => {
     const text = (e.title + " " + (e.title_pt ?? "")).toLowerCase();
     return BR_KEYWORDS.some(k => text.includes(k));
-  }).slice(0, IS_WEB ? 6 : 4);
+  }).slice(0, gridCols * 3);
 
   if (brazilEvents.length === 0) return null;
 
@@ -1150,7 +1189,7 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: "#009C3B" }} />
         <Text style={{ fontSize: 16 }}>🇧🇷</Text>
-        <Text style={{ color: TEXT, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
+        <Text style={{ color: TEXT, fontSize: IS_WEB ? 14 : 11, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
           {language === "pt" ? "MERCADOS BRASIL" : "BRAZIL MARKETS"}
         </Text>
         <View style={{ backgroundColor: "rgba(0,156,59,0.15)", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "rgba(0,156,59,0.3)" }}>
@@ -1171,10 +1210,10 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
       </View>
 
       {/* Events grid */}
-      {IS_WEB ? (
+      {gridCols > 1 ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
           {brazilEvents.map(event => (
-            <View key={event.id} style={{ width: "49%" as any }}>
+            <View key={event.id} style={{ width: cardPct as any }}>
               <MarketCard
                 event={event}
                 onPress={() => onCardPress(event.id)}
@@ -1197,7 +1236,7 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
         </View>
       ) : (
         brazilEvents.map(event => (
-          <View key={event.id}>
+          <View key={event.id} style={{ marginBottom: 8 }}>
             <MarketCard
               event={event}
               onPress={() => onCardPress(event.id)}
@@ -1229,6 +1268,10 @@ export default function MarketsScreen() {
   const { isAuthenticated, userId, account, placePrediction, refreshPortfolio } = useTrading();
   const { open: openSidebar } = React.useContext(SidebarContext);
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
+  const { width: winW } = useWindowDimensions();
+  // Responsive grid: 4 cols on desktop, 2 on tablet/large phone, 1 on phone
+  const gridCols = IS_WEB ? (winW >= 1100 ? 4 : 2) : (winW >= 600 ? 2 : 1);
+  const cardPct  = gridCols === 4 ? "24%" : gridCols === 3 ? "32%" : gridCols === 2 ? "49%" : "100%";
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1248,9 +1291,11 @@ export default function MarketsScreen() {
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scrollRef = useRef<any>(null);
-  const PAGE_SIZE = 20;
-const MAX_EVENTS = 300;
-const GUEST_CAP  = 6;
+  const PAGE_SIZE = 100;
+  const GUEST_CAP = 100;
+  // Refs that let loadMore read current state without stale closure
+  const eventsRef = useRef<EventItem[]>([]);
+  const scrollStateRef = useRef({ loadingMore: false, hasMore: true });
 
   const fetchSentiment = useCallback((items: EventItem[]) => {
     const toFetch = items.slice(0, 8);
@@ -1297,7 +1342,9 @@ const GUEST_CAP  = 6;
       const res = await api.get("/events/", { params });
       const all: EventItem[] = res.data ?? [];
       setEvents(all);
-      setHasMore(all.length === PAGE_SIZE);
+      const initialHasMore = all.length === PAGE_SIZE;
+      scrollStateRef.current.hasMore = initialHasMore;
+      setHasMore(initialHasMore);
       // Only fetch history on first load (not silent auto-refresh)
       if (!silent) fetchHistory(all);
 
@@ -1317,11 +1364,16 @@ const GUEST_CAP  = 6;
     finally { setLoading(false); setRefreshing(false); }
   }, [fetchSentiment, fetchHistory, activeCategory]);
 
+  // Keep eventsRef in sync so loadMore always reads current length
+  useEffect(() => { eventsRef.current = events; }, [events]);
+
   const loadMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+    const st = scrollStateRef.current;
+    if (st.loadingMore || !st.hasMore) return;
+    st.loadingMore = true;
     setLoadingMore(true);
     try {
-      const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: events.length };
+      const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: eventsRef.current.length };
       if (activeCategory !== "all") params.category = activeCategory;
       let res = await api.get("/events/", { params });
       let page: EventItem[] = res.data ?? [];
@@ -1333,7 +1385,11 @@ const GUEST_CAP  = 6;
         page = res.data ?? [];
       }
 
-      if (page.length === 0) { setHasMore(false); return; }
+      if (page.length === 0) {
+        st.hasMore = false;
+        setHasMore(false);
+        return;
+      }
       setEvents(prev => {
         const ids = new Set(prev.map(e => e.id));
         const newItems = page.filter(e => !ids.has(e.id));
@@ -1341,10 +1397,11 @@ const GUEST_CAP  = 6;
         fetchHistory(newItems);
         return [...prev, ...newItems];
       });
-      setHasMore(true); // Infinite scroll — always keep going
+      st.hasMore = true;
+      setHasMore(true);
     } catch {}
-    finally { setLoadingMore(false); }
-  }, [loadingMore, hasMore, events.length, fetchSentiment, activeCategory]);
+    finally { st.loadingMore = false; setLoadingMore(false); }
+  }, [fetchSentiment, fetchHistory, activeCategory]); // stable — no stale closures
 
   // Keep a stable ref so useFocusEffect never recreates its callback
   const fetchEventsRef = useRef(fetchEvents);
@@ -1376,7 +1433,8 @@ const GUEST_CAP  = 6;
       .then(r => setFeaturedComments((r.data ?? []).slice(0, 3)))
       .catch(() => {});
     if (featuredEvent) {
-      api.get("/news/single", { params: { category: featuredEvent.category, lang: "en", max_results: 3 } })
+      const newsQuery = extractNewsQuery(featuredEvent, language);
+      api.get("/news/single", { params: { query: newsQuery, lang: language, max_results: 3 } })
         .then(r => setFeaturedNews(r.data?.articles ?? []))
         .catch(() => {});
     }
@@ -1395,6 +1453,7 @@ const GUEST_CAP  = 6;
     setActiveCategory(key);
     setBetPanelId(null);
     setEvents([]);
+    scrollStateRef.current = { loadingMore: false, hasMore: true };
     setHasMore(true);
     fetchEvents(false, key);
     try { if (Platform.OS === "web") localStorage.setItem("scenara_cat", key); } catch {}
@@ -1440,11 +1499,11 @@ const GUEST_CAP  = 6;
               </View>
             </TouchableOpacity>
             <View>
-              <Text style={{ color: TEXT, fontSize: 20, fontFamily: "DMSans_700Bold", letterSpacing: -0.5 }}>
+              <Text style={{ color: TEXT, fontSize: IS_WEB ? 26 : 20, fontFamily: "DMSans_700Bold", letterSpacing: -0.5 }}>
                 {language === "pt" ? "Mercados" : "Markets"}
               </Text>
               {events.length > 0 && (
-                <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
+                <Text style={{ color: TEXT_MID, fontSize: IS_WEB ? 12 : 10, fontFamily: "DMSans_400Regular" }}>
                   {events.length} {language === "pt" ? "abertos" : "open"}
                 </Text>
               )}
@@ -1538,7 +1597,10 @@ const GUEST_CAP  = 6;
               if (distFromBottom < 300 && !loadingMore && hasMore) loadMore();
             }}
             scrollEventThrottle={150}
-            contentContainerStyle={{ padding: 14, paddingBottom: 80 }}
+            contentContainerStyle={IS_WEB
+              ? { padding: 20, paddingBottom: 60, maxWidth: 1400, alignSelf: "center" as const, width: "100%" }
+              : { padding: 12, paddingBottom: 120 }
+            }
           >
             {events.length === 0 ? (
               <View style={{ alignItems: "center", paddingTop: 80 }}>
@@ -1549,6 +1611,25 @@ const GUEST_CAP  = 6;
               </View>
             ) : (
               <>
+                {/* ── Brazil Markets section (top) ────────────────────────── */}
+                <BrazilSection
+                  events={events}
+                  language={language}
+                  sentimentCache={sentimentCache}
+                  historyCache={historyCache}
+                  onCardPress={handleCardPress}
+                  onBetPress={handleBetPress}
+                  onBetPanelId={betPanelId}
+                  setBetPanelId={setBetPanelId}
+                  isAuthenticated={isAuthenticated}
+                  userId={userId}
+                  placePrediction={placePrediction}
+                  refreshPortfolio={refreshPortfolio}
+                  t={t}
+                  gridCols={gridCols}
+                  cardPct={cardPct}
+                />
+
                 {/* ── Hero row: Featured card + Breaking news sidebar ─────── */}
                 <View style={IS_WEB ? { flexDirection: "row", gap: 12, marginBottom: 6 } : { marginBottom: 6 }}>
 
@@ -1594,7 +1675,7 @@ const GUEST_CAP  = 6;
                                   <HotBadge total={sentimentCache[featured.id].total} language={language} />
                                 )}
                               </View>
-                              <Text style={{ color: TEXT, fontSize: IS_WEB ? 17 : 18, fontFamily: "DMSans_700Bold", lineHeight: 25, letterSpacing: -0.3 }}>
+                              <Text style={{ color: TEXT, fontSize: IS_WEB ? 21 : 18, fontFamily: "DMSans_700Bold", lineHeight: IS_WEB ? 30 : 25, letterSpacing: -0.3 }}>
                                 {eventTitle(featured, language)}
                               </Text>
                             </View>
@@ -1610,9 +1691,9 @@ const GUEST_CAP  = 6;
                                 <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
                                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
-                                    <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium" }}>{scenarioTitle(s, language)}</Text>
+                                    <Text style={{ color: TEXT_SUB, fontSize: IS_WEB ? 15 : 13, fontFamily: "DMSans_500Medium" }}>{scenarioTitle(s, language)}</Text>
                                   </View>
-                                  <Text style={{ color, fontSize: 14, fontFamily: "DMSans_700Bold" }}>{prob.toFixed(0)}%</Text>
+                                  <Text style={{ color, fontSize: IS_WEB ? 16 : 14, fontFamily: "DMSans_700Bold" }}>{prob.toFixed(0)}%</Text>
                                 </View>
                                 <View style={{ height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.06)" }}>
                                   <View style={{ width: `${prob}%` as any, height: 3, borderRadius: 2, backgroundColor: color }} />
@@ -1736,87 +1817,51 @@ const GUEST_CAP  = 6;
                     </View>
                   )}
 
-                  {/* Right: Breaking news + hot topics sidebar (web only) */}
+                  {/* Right: Breaking news + hot topics + live comments sidebar (web only) */}
                   {IS_WEB && (
-                    <View style={{ flex: 0.42 }}>
+                    <View style={{ flex: 0.42, gap: 10 }}>
                       <BreakingNewsPanel
                         articles={newsArticles}
                         hotEvents={rest.slice(0, 6)}
                         language={language}
-                        featuredEventId={featuredEvent?.id}
                       />
-                    </View>
-                  )}
-                </View>
-
-                {/* ── News + Live Comments row (web) / News strip (mobile) ─── */}
-                {IS_WEB ? (
-                  <View style={{ flexDirection: "row", gap: 12, marginTop: 6, marginBottom: 16 }}>
-                    {/* Left: Latest news grid */}
-                    <View style={{ flex: 0.62 }}>
-                      {newsArticles.length > 0 && (
-                        <NewsGrid
-                          articles={newsArticles}
-                          language={language}
-                          onPress={handleNewsPress}
-                        />
-                      )}
-                    </View>
-                    {/* Right: Live comments */}
-                    <View style={{ flex: 0.38 }}>
                       <SidebarLiveComments
                         featuredEventId={featuredEvent?.id}
                         language={language}
                       />
                     </View>
+                  )}
+                </View>
+
+                {/* ── News grid ────────────────────────────────────────────── */}
+                {newsArticles.length > 0 && (
+                  <View style={{ marginBottom: IS_WEB ? 16 : 10 }}>
+                    <NewsGrid
+                      articles={newsArticles}
+                      language={language}
+                      onPress={handleNewsPress}
+                    />
                   </View>
-                ) : (
-                  <>
-                    {newsArticles.length > 0 && (
-                      <View style={{ marginBottom: 10 }}>
-                        <NewsGrid
-                          articles={newsArticles}
-                          language={language}
-                          onPress={handleNewsPress}
-                        />
-                      </View>
-                    )}
-                    {/* Trending picks strip — mobile only */}
-                    {rest.length > 3 && (
-                      <TrendingPicks
-                        events={rest.slice(0, 6)}
-                        language={language}
-                        onBetPress={handleBetPress}
-                        onCardPress={handleCardPress}
-                      />
-                    )}
-                  </>
+                )}
+                {/* Trending picks strip — mobile only */}
+                {!IS_WEB && rest.length > 3 && (
+                  <TrendingPicks
+                    events={rest.slice(0, 6)}
+                    language={language}
+                    onBetPress={handleBetPress}
+                    onCardPress={handleCardPress}
+                  />
                 )}
 
-                {/* ── Brazil Markets section ───────────────────────────────── */}
-                <BrazilSection
-                  events={events}
-                  language={language}
-                  sentimentCache={sentimentCache}
-                  historyCache={historyCache}
-                  onCardPress={handleCardPress}
-                  onBetPress={handleBetPress}
-                  onBetPanelId={betPanelId}
-                  setBetPanelId={setBetPanelId}
-                  isAuthenticated={isAuthenticated}
-                  userId={userId}
-                  placePrediction={placePrediction}
-                  refreshPortfolio={refreshPortfolio}
-                  t={t}
-                />
+                {/* BrazilSection is rendered at the top, above the hero row */}
 
                 {/* ── All markets section ──────────────────────────────────── */}
                 {rest.length > 0 && (
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10, marginTop: 4 }}>
-                    <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>
+                    <Text style={{ color: PURPLE_D, fontSize: IS_WEB ? 13 : 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>
                       {language === "pt" ? "TODOS OS MERCADOS" : "ALL MARKETS"}
                     </Text>
-                    <Text style={{ color: TEXT_MID, fontSize: 10 }}>{events.length} {language === "pt" ? "ativos" : "active"}</Text>
+                    <Text style={{ color: TEXT_MID, fontSize: IS_WEB ? 12 : 10 }}>{events.length} {language === "pt" ? "ativos" : "active"}</Text>
                   </View>
                 )}
 
@@ -1829,33 +1874,9 @@ const GUEST_CAP  = 6;
 
                   return (
                     <>
-                      {IS_WEB ? (
-                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                          {visibleRest.map(event => (
-                            <View key={event.id} style={{ width: "49%" as any }}>
-                              <MarketCard
-                                event={event}
-                                onPress={() => handleCardPress(event.id)}
-                                onBetPress={() => handleBetPress(event.id)}
-                                language={language}
-                                sentiment={sentimentCache[event.id] ?? null}
-                                history={historyCache[event.id]}
-                                t={t}
-                              />
-                              {betPanelId === event.id && (
-                                <BetPanel
-                                  event={event} language={language} t={t}
-                                  onClose={() => setBetPanelId(null)}
-                                  isAuthenticated={isAuthenticated} userId={userId}
-                                  placePrediction={placePrediction} refreshPortfolio={refreshPortfolio}
-                                />
-                              )}
-                            </View>
-                          ))}
-                        </View>
-                      ) : (
-                        visibleRest.map(event => (
-                          <View key={event.id}>
+                      <View style={gridCols > 1 ? { flexDirection: "row", flexWrap: "wrap", gap: 8 } : undefined}>
+                        {visibleRest.map(event => (
+                          <View key={event.id} style={gridCols > 1 ? { width: cardPct as any } : { marginBottom: 8 }}>
                             <MarketCard
                               event={event}
                               onPress={() => handleCardPress(event.id)}
@@ -1874,8 +1895,8 @@ const GUEST_CAP  = 6;
                               />
                             )}
                           </View>
-                        ))
-                      )}
+                        ))}
+                      </View>
 
                       {/* Guest gate — fade + CTA */}
                       {showGate && (

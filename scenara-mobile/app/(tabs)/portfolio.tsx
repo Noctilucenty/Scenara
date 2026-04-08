@@ -400,7 +400,7 @@ export default function PortfolioScreen() {
           )}
         </View>
 
-        <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
           {/* Streak banner */}
           {cs >= 1 && (

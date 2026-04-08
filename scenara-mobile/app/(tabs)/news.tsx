@@ -60,6 +60,7 @@ type Article = {
   image: string;
   published: string;
   source: string;
+  source_url?: string;
 };
 
 const CATEGORIES = [
@@ -396,6 +397,7 @@ export default function NewsScreen() {
         image:       article.image ?? "",
         published:   article.published ?? "",
         source:      article.source ?? "",
+        source_url:  article.source_url ?? "",
       },
     });
   };
@@ -532,7 +534,7 @@ export default function NewsScreen() {
                 </View>
               )}
 
-              <View style={{ height: 60 }} />
+              <View style={{ height: 100 }} />
             </View>
           </ScrollView>
         )}

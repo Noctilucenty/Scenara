@@ -10,8 +10,9 @@
  *   <Text>{t("markets.title")}</Text>
  */
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { Platform } from "react-native";
+import React, { createContext, useContext, useState, useCallback } from "react";
+import { Platform, View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -413,21 +414,126 @@ const translations: Record<Language, typeof en> = { en, pt };
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 
-const LANG_KEY = "scenara_language";
+const LANG_KEY      = "scenara_language";
+const CHOSEN_KEY    = "scenara_lang_chosen";
 
 function saveLanguage(lang: Language) {
-  if (Platform.OS === "web") {
-    localStorage.setItem(LANG_KEY, lang);
-  }
+  try {
+    if (Platform.OS === "web") {
+      localStorage.setItem(LANG_KEY, lang);
+      localStorage.setItem(CHOSEN_KEY, "1");
+    }
+  } catch {}
 }
 
 function loadLanguage(): Language {
-  if (Platform.OS === "web") {
-    const saved = localStorage.getItem(LANG_KEY);
-    if (saved === "en" || saved === "pt") return saved;
-  }
-  return "en";
+  try {
+    if (Platform.OS === "web") {
+      const saved = localStorage.getItem(LANG_KEY);
+      if (saved === "en" || saved === "pt") return saved;
+    }
+  } catch {}
+  return "pt";
 }
+
+function checkChosen(): boolean {
+  try {
+    if (Platform.OS === "web") {
+      return localStorage.getItem(CHOSEN_KEY) === "1";
+    }
+  } catch {}
+  return false;
+}
+
+// ── Language picker overlay ───────────────────────────────────────────────────
+
+const P  = "#7C5CFC";
+const BL = "#4F8EF7";
+const PK = "#F050AE";
+
+function LanguagePicker({ onSelect }: { onSelect: (lang: Language) => void }) {
+  const [selected, setSelected] = useState<Language | null>(null);
+
+  const options: Array<{ lang: Language; flagUri: string; label: string; sub: string }> = [
+    { lang: "pt", flagUri: "https://flagcdn.com/w80/br.png", label: "Português", sub: "Brasil" },
+    { lang: "en", flagUri: "https://flagcdn.com/w80/us.png", label: "English",   sub: "United States" },
+  ];
+
+  return (
+    <View style={ls.overlay}>
+      <View style={ls.inner}>
+        {/* Logo box */}
+        <View style={ls.logoBox}>
+          <Text style={ls.logoText}>▽</Text>
+        </View>
+        <Text style={ls.title}>scenara</Text>
+        <Text style={ls.subtitle}>Choose your language · Escolha seu idioma</Text>
+
+        {/* Options */}
+        <View style={ls.optionsWrap}>
+          {options.map((opt) => {
+            const active = selected === opt.lang;
+            return (
+              <TouchableOpacity
+                key={opt.lang}
+                onPress={() => setSelected(opt.lang)}
+                style={[ls.option, active && ls.optionActive]}
+                activeOpacity={0.75}
+              >
+                <Image source={{ uri: opt.flagUri }} style={ls.flag} resizeMode="cover" />
+                <View style={{ flex: 1 }}>
+                  <Text style={ls.optLabel}>{opt.label}</Text>
+                  <Text style={ls.optSub}>{opt.sub}</Text>
+                </View>
+                {active && (
+                  <View style={ls.check}>
+                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>✓</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Confirm */}
+        <TouchableOpacity
+          onPress={() => selected && onSelect(selected)}
+          disabled={!selected}
+          style={{ width: "100%", borderRadius: 16, overflow: "hidden", opacity: selected ? 1 : 0.4 }}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={[BL, P, PK]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={ls.btn}
+          >
+            <Text style={ls.btnText}>
+              {selected === "pt" ? "Continuar →" : selected === "en" ? "Continue →" : "Continue · Continuar"}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const ls = StyleSheet.create({
+  overlay:     { flex: 1, backgroundColor: "#08090C", alignItems: "center", justifyContent: "center", padding: 28 },
+  inner:       { width: "100%", maxWidth: 380, alignItems: "center" },
+  logoBox:     { width: 72, height: 72, borderRadius: 22, backgroundColor: "rgba(124,92,252,0.12)", borderWidth: 1, borderColor: "rgba(124,92,252,0.3)", alignItems: "center", justifyContent: "center", marginBottom: 18 },
+  logoText:    { fontSize: 28, color: "#7C5CFC" },
+  title:       { color: "#F1F5F9", fontSize: 28, fontWeight: "700", letterSpacing: -0.5, marginBottom: 8 },
+  subtitle:    { color: "#64748B", fontSize: 14, marginBottom: 44, textAlign: "center" },
+  optionsWrap: { width: "100%", gap: 14, marginBottom: 28 },
+  option:      { flexDirection: "row", alignItems: "center", gap: 16, backgroundColor: "#0D1117", borderRadius: 16, padding: 18, borderWidth: 2, borderColor: "rgba(255,255,255,0.08)" },
+  optionActive:{ backgroundColor: "rgba(124,92,252,0.1)", borderColor: "#7C5CFC" },
+  flag:        { width: 48, height: 32, borderRadius: 6 },
+  optLabel:    { color: "#F1F5F9", fontSize: 18, fontWeight: "700" },
+  optSub:      { color: "#64748B", fontSize: 13, marginTop: 2 },
+  check:       { width: 22, height: 22, borderRadius: 11, backgroundColor: "#7C5CFC", alignItems: "center", justifyContent: "center" },
+  btn:         { paddingVertical: 16, alignItems: "center", justifyContent: "center" },
+  btnText:     { color: "#fff", fontSize: 16, fontWeight: "700" },
+});
 
 // ── Context ───────────────────────────────────────────────────────────────────
 
@@ -441,13 +547,27 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(loadLanguage);
+  const [chosen, setChosen]          = useState<boolean>(checkChosen);
 
   const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
     saveLanguage(lang);
   }, []);
 
+  const handlePick = useCallback((lang: Language) => {
+    setLanguage(lang);
+    setChosen(true);
+  }, [setLanguage]);
+
   const t = translations[language];
+
+  if (!chosen) {
+    return (
+      <LanguageContext.Provider value={{ language, setLanguage, t }}>
+        <LanguagePicker onSelect={handlePick} />
+      </LanguageContext.Provider>
+    );
+  }
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, t }}>

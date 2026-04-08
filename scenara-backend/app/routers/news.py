@@ -222,11 +222,19 @@ async def get_news_single(
     category: str = Query("all"),
     lang: str = Query("pt"),
     max_results: int = Query(10, le=20),
+    query: str = Query(""),  # custom search query — overrides category when provided
 ):
-    cat_cfg = CATEGORY_QUERIES.get(category, CATEGORY_QUERIES["all"])
-    lang_key = "pt" if lang == "pt" else "en"
-    cfg = cat_cfg.get(lang_key, _DEFAULT_QUERY)
-    articles = await _fetch_rss(*cfg, n=max_results)
+    if query.strip():
+        # Specific query (e.g. extracted from an event title) — use directly
+        hl   = "pt-419" if lang == "pt" else "en-US"
+        gl   = "BR"     if lang == "pt" else "US"
+        ceid = "BR:pt-419" if lang == "pt" else "US:en"
+        articles = await _fetch_rss(query.strip(), hl, gl, ceid, n=max_results)
+    else:
+        cat_cfg  = CATEGORY_QUERIES.get(category, CATEGORY_QUERIES["all"])
+        lang_key = "pt" if lang == "pt" else "en"
+        cfg      = cat_cfg.get(lang_key, _DEFAULT_QUERY)
+        articles = await _fetch_rss(*cfg, n=max_results)
     return {"articles": articles[:max_results]}
 
 

@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
   StatusBar, KeyboardAvoidingView, Platform,
   ScrollView, ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
+import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop, Circle } from "react-native-svg";
 import { router } from "expo-router";
 import {
   useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
@@ -14,6 +14,7 @@ import {
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
 
+const IS_WEB   = Platform.OS === "web";
 const BG       = "#08090C";
 const CARD     = "#0D1117";
 const SURFACE  = "#111620";
@@ -24,23 +25,60 @@ const TEXT     = "#F1F5F9";
 const TEXT_MID = "#64748B";
 const TEXT_SUB = "#94A3B8";
 const BORDER   = "rgba(255,255,255,0.08)";
-const BORDER_P = "rgba(124,92,252,0.2)";
+const BORDER_P = "rgba(124,92,252,0.25)";
 const RED      = "#EF4444";
+
+function EyeIcon({ visible }: { visible: boolean }) {
+  return visible ? (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke={TEXT_MID} strokeWidth={1.8} />
+      <Circle cx="12" cy="12" r="3" stroke={TEXT_MID} strokeWidth={1.8} />
+    </Svg>
+  ) : (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" stroke={TEXT_MID} strokeWidth={1.8} strokeLinecap="round" />
+      <Path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" stroke={TEXT_MID} strokeWidth={1.8} strokeLinecap="round" />
+      <Path d="M1 1l22 22" stroke={TEXT_MID} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function ScenaraLogo({ size = 52 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size * 1.15} viewBox="0 0 40 48">
+      <Defs>
+        <SvgGrad id="lg2" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor={BLUE} />
+          <Stop offset="0.5" stopColor={PURPLE} />
+          <Stop offset="1" stopColor={PINK} />
+        </SvgGrad>
+      </Defs>
+      <Path d="M4 4 L20 36 L36 4" stroke="url(#lg2)" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M8 10 L20 30 L32 10" stroke="url(#lg2)" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.7" />
+      <Path d="M12 16 L20 28 L28 16" stroke="url(#lg2)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.4" />
+    </Svg>
+  );
+}
 
 export default function LoginScreen() {
   const { login } = useTrading();
-  const { t } = useLanguage();
+  const { language } = useLanguage();
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [focused, setFocused]   = useState<string | null>(null);
+  const passRef = useRef<TextInput>(null);
 
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   if (!fontsLoaded) return null;
 
+  const isPt = language === "pt";
+
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      setError(t.auth.email + " / " + t.auth.password);
+      setError(isPt ? "Preencha e-mail e senha." : "Please enter your email and password.");
       return;
     }
     setLoading(true);
@@ -48,97 +86,277 @@ export default function LoginScreen() {
     const result = await login(email.trim().toLowerCase(), password);
     setLoading(false);
     if (!result.ok) {
-      setError(result.error ?? "Login failed");
+      setError(result.error ?? (isPt ? "Credenciais inválidas." : "Invalid credentials."));
       return;
     }
     router.replace("/(tabs)");
   };
 
+  const inputStyle = (name: string) => ({
+    backgroundColor: SURFACE,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: focused === name ? PURPLE : error ? "rgba(239,68,68,0.25)" : BORDER,
+    paddingHorizontal: 16,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    marginBottom: 14,
+  });
+
+  // ── FORM CONTENT (shared between web and mobile) ───────────────────────────
+  const formContent = (
+    <View style={{
+      backgroundColor: CARD, borderRadius: 22, padding: 24,
+      borderWidth: 1, borderColor: BORDER_P,
+      ...(IS_WEB ? { maxWidth: 480, width: "100%", alignSelf: "center" as const } : {}),
+      shadowColor: PURPLE, shadowOpacity: 0.12, shadowRadius: 28, shadowOffset: { width: 0, height: 8 },
+    }}>
+      {/* Top gradient line */}
+      <LinearGradient
+        colors={[BLUE, PURPLE, PINK]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={{ height: 2, borderRadius: 1, marginBottom: 20, marginHorizontal: -24, marginTop: -24, borderTopLeftRadius: 22, borderTopRightRadius: 22 }}
+      />
+
+      <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", marginBottom: 4 }}>
+        {isPt ? "Entrar" : "Sign in"}
+      </Text>
+      <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_400Regular", marginBottom: 22 }}>
+        {isPt ? "Acesse sua conta Scenara" : "Access your Scenara account"}
+      </Text>
+
+      {/* Error */}
+      {!!error && (
+        <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 10, padding: 12, marginBottom: 16, flexDirection: "row", gap: 8, alignItems: "center" }}>
+          <Text style={{ fontSize: 14 }}>⚠️</Text>
+          <Text style={{ color: RED, fontFamily: "DMSans_500Medium", fontSize: 13, flex: 1 }}>{error}</Text>
+        </View>
+      )}
+
+      {/* Email */}
+      <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 7 }}>
+        {isPt ? "E-MAIL" : "EMAIL"}
+      </Text>
+      <View style={inputStyle("email")}>
+        <TextInput
+          value={email} onChangeText={v => { setEmail(v); setError(""); }}
+          placeholder="you@example.com" placeholderTextColor={TEXT_MID}
+          keyboardType="email-address" autoCapitalize="none" autoCorrect={false}
+          returnKeyType="next" onSubmitEditing={() => passRef.current?.focus()}
+          onFocus={() => setFocused("email")} onBlur={() => setFocused(null)}
+          style={{ color: TEXT, fontSize: 15, fontFamily: "DMSans_400Regular", flex: 1, paddingVertical: 14 }}
+        />
+      </View>
+
+      {/* Password */}
+      <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 7 }}>
+        {isPt ? "SENHA" : "PASSWORD"}
+      </Text>
+      <View style={inputStyle("password")}>
+        <TextInput
+          ref={passRef}
+          value={password} onChangeText={v => { setPassword(v); setError(""); }}
+          placeholder="••••••••" placeholderTextColor={TEXT_MID}
+          secureTextEntry={!showPass} returnKeyType="done"
+          onFocus={() => setFocused("password")} onBlur={() => setFocused(null)}
+          onSubmitEditing={handleLogin}
+          style={{ color: TEXT, fontSize: 15, fontFamily: "DMSans_400Regular", flex: 1, paddingVertical: 14 }}
+        />
+        <TouchableOpacity onPress={() => setShowPass(v => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <EyeIcon visible={showPass} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Forgot password */}
+      <TouchableOpacity style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4 }}>
+        <Text style={{ color: PURPLE, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
+          {isPt ? "Esqueceu a senha?" : "Forgot password?"}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Submit */}
+      <TouchableOpacity onPress={handleLogin} disabled={loading} style={{ borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
+        <LinearGradient
+          colors={loading ? ["#111", "#111"] : [BLUE, PURPLE, PINK]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={{ paddingVertical: 16, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}
+        >
+          {loading
+            ? <ActivityIndicator color="white" />
+            : <>
+                <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
+                  {isPt ? "Entrar" : "Sign in"}
+                </Text>
+                <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}>→</Text>
+              </>
+          }
+        </LinearGradient>
+      </TouchableOpacity>
+
+      {/* Divider */}
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+        <Text style={{ color: TEXT_MID, fontSize: 11 }}>{isPt ? "ou" : "or"}</Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+      </View>
+
+      {/* Sign up link */}
+      <TouchableOpacity
+        onPress={() => router.push("/register")}
+        style={{ alignItems: "center", paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: BORDER }}
+      >
+        <Text style={{ color: TEXT_SUB, fontSize: 14, fontFamily: "DMSans_400Regular" }}>
+          {isPt ? "Não tem conta? " : "No account? "}
+          <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold" }}>
+            {isPt ? "Criar grátis →" : "Create free →"}
+          </Text>
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // ── DESKTOP / WEB LAYOUT ──────────────────────────────────────────────────
+  if (IS_WEB) {
+    return (
+      <View style={{ flex: 1, backgroundColor: BG, flexDirection: "row" }}>
+        <StatusBar barStyle="light-content" />
+
+        {/* Left branding panel */}
+        <View style={{
+          width: 420, backgroundColor: "#090B10",
+          borderRightWidth: 1, borderColor: BORDER,
+          justifyContent: "center", alignItems: "flex-start",
+          padding: 56,
+        }}>
+          {/* Logo */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 48 }}>
+            <ScenaraLogo size={36} />
+            <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", letterSpacing: -0.5 }}>scenara</Text>
+          </View>
+
+          <Text style={{ color: TEXT, fontSize: 32, fontFamily: "DMSans_700Bold", letterSpacing: -0.8, lineHeight: 40, marginBottom: 14 }}>
+            {isPt ? "Bem-vindo de\nvolta." : "Welcome\nback."}
+          </Text>
+          <Text style={{ color: TEXT_MID, fontSize: 15, fontFamily: "DMSans_400Regular", lineHeight: 24, marginBottom: 48 }}>
+            {isPt
+              ? "Continue prevendo. Acompanhe seu desempenho e suba no ranking."
+              : "Keep predicting. Track your edge and climb the leaderboard."}
+          </Text>
+
+          {/* Feature list */}
+          {[
+            { icon: "📊", title: isPt ? "Mercados ao vivo" : "Live markets", desc: isPt ? "Eventos acontecendo agora" : "Events happening right now" },
+            { icon: "💼", title: isPt ? "Seu portfólio" : "Your portfolio", desc: isPt ? "Acompanhe todas as posições" : "Track all your positions" },
+            { icon: "🏆", title: isPt ? "Ranking global" : "Global leaderboard", desc: isPt ? "Veja onde você está" : "See where you stand" },
+            { icon: "📰", title: isPt ? "Notícias em tempo real" : "Real-time news", desc: isPt ? "Contexto para cada mercado" : "Context for every market" },
+          ].map((f, i) => (
+            <View key={i} style={{ flexDirection: "row", gap: 14, marginBottom: 20, alignItems: "flex-start" }}>
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(124,92,252,0.12)", borderWidth: 1, borderColor: BORDER_P, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: 16 }}>{f.icon}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", marginBottom: 2 }}>{f.title}</Text>
+                <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular" }}>{f.desc}</Text>
+              </View>
+            </View>
+          ))}
+
+          {/* Stats row */}
+          <View style={{ flexDirection: "row", gap: 24, marginTop: 16, paddingTop: 24, borderTopWidth: 1, borderColor: BORDER }}>
+            {[
+              { value: "10K+", label: isPt ? "Jogadores" : "Players" },
+              { value: "$10K", label: isPt ? "Saldo inicial" : "Start balance" },
+              { value: "100%", label: isPt ? "Grátis" : "Free" },
+            ].map((s, i) => (
+              <View key={i}>
+                <Text style={{ color: PURPLE, fontSize: 18, fontFamily: "DMSans_700Bold" }}>{s.value}</Text>
+                <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular" }}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Right form panel */}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 48 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Back link */}
+          <TouchableOpacity
+            onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 28 }}
+          >
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <Path d="M19 12H5M12 5l-7 7 7 7" stroke={TEXT_SUB} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+            <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium" }}>
+              {isPt ? "Voltar ao app" : "Back to app"}
+            </Text>
+          </TouchableOpacity>
+
+          {formContent}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── MOBILE LAYOUT ─────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <StatusBar barStyle="light-content" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24 }} keyboardShouldPersistTaps="handled">
 
-          {/* Logo */}
-          <View style={{ alignItems: "center", marginBottom: 48 }}>
-            <Svg width={48} height={56} viewBox="0 0 40 48" style={{ marginBottom: 16 }}>
-              <Defs>
-                <SvgGrad id="lg" x1="0" y1="0" x2="1" y2="0">
-                  <Stop offset="0" stopColor={BLUE} />
-                  <Stop offset="0.5" stopColor={PURPLE} />
-                  <Stop offset="1" stopColor={PINK} />
-                </SvgGrad>
-              </Defs>
-              <Path d="M4 4 L20 36 L36 4" stroke="url(#lg)" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-              <Path d="M8 10 L20 30 L32 10" stroke="url(#lg)" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.75" />
-              <Path d="M12 16 L20 28 L28 16" stroke="url(#lg)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
-            </Svg>
-            <Text style={{ color: TEXT, fontSize: 28, fontFamily: "DMSans_700Bold", letterSpacing: -0.5 }}>scenara</Text>
-            <Text style={{ color: TEXT_MID, fontSize: 14, fontFamily: "DMSans_400Regular", marginTop: 6 }}>{t.auth.tagline}</Text>
+      {/* Back button */}
+      <TouchableOpacity
+        onPress={() => router.canGoBack() ? router.back() : router.replace("/(tabs)")}
+        style={{ position: "absolute", top: Platform.OS === "ios" ? 56 : 20, left: 20, zIndex: 10, flexDirection: "row", alignItems: "center", gap: 6 }}
+      >
+        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+          <Path d="M19 12H5M12 5l-7 7 7 7" stroke={TEXT_SUB} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+        <Text style={{ color: TEXT_SUB, fontSize: 14, fontFamily: "DMSans_500Medium" }}>
+          {isPt ? "Voltar" : "Back"}
+        </Text>
+      </TouchableOpacity>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 24, paddingTop: 80 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Logo + headline */}
+          <View style={{ alignItems: "center", marginBottom: 36 }}>
+            <View style={{ marginBottom: 16 }}>
+              <ScenaraLogo size={52} />
+            </View>
+            <Text style={{ color: TEXT, fontSize: 30, fontFamily: "DMSans_700Bold", letterSpacing: -0.8 }}>scenara</Text>
+            <Text style={{ color: TEXT_MID, fontSize: 14, fontFamily: "DMSans_400Regular", marginTop: 6 }}>
+              {isPt ? "Bem-vindo de volta" : "Welcome back"}
+            </Text>
           </View>
 
-          {/* Social proof strip */}
-          <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, marginBottom: 28 }}>
+          {/* Stats strip */}
+          <View style={{ flexDirection: "row", justifyContent: "center", gap: 0, marginBottom: 32 }}>
             {[
-              { value: "10K+", label: "Players" },
-              { value: "Free", label: "Always" },
-              { value: "$10K", label: "Start Balance" },
-            ].map(s => (
-              <View key={s.value} style={{ alignItems: "center" }}>
-                <Text style={{ color: TEXT, fontSize: 16, fontFamily: "DMSans_700Bold" }}>{s.value}</Text>
+              { value: "10K+", label: isPt ? "Jogadores" : "Players" },
+              { value: isPt ? "Grátis" : "Free", label: isPt ? "Sempre" : "Always" },
+              { value: "$10K", label: isPt ? "Saldo Inicial" : "Start Balance" },
+            ].map((s, i) => (
+              <View key={i} style={{ flex: 1, alignItems: "center", paddingVertical: 2 }}>
+                {i > 0 && (
+                  <View style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 1, backgroundColor: "rgba(255,255,255,0.07)" }} />
+                )}
+                <Text style={{ color: PURPLE, fontSize: 16, fontFamily: "DMSans_700Bold" }}>{s.value}</Text>
                 <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>{s.label}</Text>
               </View>
             ))}
           </View>
 
-          {/* Card */}
-          <View style={{ backgroundColor: CARD, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: BORDER_P, maxWidth: 440, width: "100%", alignSelf: "center" }}>
-            <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", marginBottom: 6 }}>{t.auth.welcomeBack}</Text>
-            <Text style={{ color: TEXT_MID, fontSize: 14, fontFamily: "DMSans_400Regular", marginBottom: 24 }}>{t.auth.signIn}</Text>
+          {formContent}
 
-            {error ? (
-              <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 10, padding: 12, marginBottom: 16 }}>
-                <Text style={{ color: RED, fontFamily: "DMSans_500Medium", fontSize: 13 }}>{error}</Text>
-              </View>
-            ) : null}
-
-            <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 8 }}>{t.auth.email}</Text>
-            <View style={{ backgroundColor: SURFACE, borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, marginBottom: 16 }}>
-              <TextInput
-                value={email} onChangeText={setEmail}
-                placeholder="you@example.com" placeholderTextColor={TEXT_MID}
-                keyboardType="email-address" autoCapitalize="none" autoCorrect={false}
-                returnKeyType="next"
-                style={{ color: TEXT, fontSize: 15, fontFamily: "DMSans_400Regular", paddingVertical: 14 }}
-              />
-            </View>
-
-            <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 8 }}>{t.auth.password}</Text>
-            <View style={{ backgroundColor: SURFACE, borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, marginBottom: 24 }}>
-              <TextInput
-                value={password} onChangeText={setPassword}
-                placeholder="••••••••" placeholderTextColor={TEXT_MID}
-                secureTextEntry returnKeyType="done"
-                style={{ color: TEXT, fontSize: 15, fontFamily: "DMSans_400Regular", paddingVertical: 14 }}
-                onSubmitEditing={handleLogin}
-              />
-            </View>
-
-            <TouchableOpacity onPress={handleLogin} disabled={loading} style={{ borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
-              <LinearGradient colors={loading ? ["#1a1a2e", "#1a1a2e"] : [BLUE, PURPLE, PINK]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
-                {loading ? <ActivityIndicator color="white" /> : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>{t.auth.signInBtn}</Text>}
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 4 }}>
-              <Text style={{ color: TEXT_MID, fontFamily: "DMSans_400Regular", fontSize: 14 }}>{t.auth.noAccount}</Text>
-              <TouchableOpacity onPress={() => router.push("/register")}>
-                <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 14 }}>{t.auth.signUp}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
+          <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

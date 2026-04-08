@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView,
   StatusBar, TextInput, ActivityIndicator, Linking, Image,
   KeyboardAvoidingView, Platform,
 } from "react-native";
+
+const IS_WEB = Platform.OS === "web";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
@@ -196,11 +198,17 @@ export default function MarketDetailScreen() {
           )}
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={{ padding: 20 }}>
+        <ScrollView showsVerticalScrollIndicator={false}
+          contentContainerStyle={IS_WEB ? { maxWidth: 1200, alignSelf: "center" as const, width: "100%", padding: 32 } : undefined}
+        >
+          {/* Desktop: two-column wrapper */}
+          <View style={IS_WEB ? { flexDirection: "row", gap: 32, alignItems: "flex-start" } : undefined}>
+
+          {/* LEFT column (or full-width on mobile) */}
+          <View style={IS_WEB ? { flex: 0.6 } : { padding: 20 }}>
 
             {/* Title */}
-            <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", lineHeight: 30, letterSpacing: -0.4, marginBottom: 8 }}>
+            <Text style={{ color: TEXT, fontSize: IS_WEB ? 26 : 22, fontFamily: "DMSans_700Bold", lineHeight: IS_WEB ? 36 : 30, letterSpacing: -0.5, marginBottom: 8 }}>
               {title}
             </Text>
             {desc && (
@@ -474,7 +482,158 @@ export default function MarketDetailScreen() {
             <View style={{ paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(124,92,252,0.08)", marginBottom: 40 }}>
               <CommentSection eventId={event.id} language={language} />
             </View>
-          </View>
+          </View>{/* end left column */}
+
+          {/* RIGHT column — desktop only: outcomes + bet panel + sentiment */}
+          {IS_WEB && (
+            <View style={{ flex: 0.4, gap: 16 }}>
+
+              {/* Outcomes */}
+              <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER }}>
+                <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 12 }}>
+                  {language === "pt" ? "RESULTADOS" : "OUTCOMES"}
+                </Text>
+                {event.scenarios.map((s, idx) => {
+                  const won  = resolved && s.status === "won";
+                  const lost = resolved && s.status === "lost";
+                  const c    = SCENARIO_COLORS[idx % SCENARIO_COLORS.length];
+                  const sel  = selId === s.id;
+                  return (
+                    <TouchableOpacity
+                      key={s.id}
+                      onPress={() => !resolved && setSelId(s.id)}
+                      style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 8, borderWidth: 1, backgroundColor: sel ? c + "08" : "rgba(255,255,255,0.02)", borderColor: sel ? c + "30" : "rgba(255,255,255,0.06)" }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: won ? c : TEXT, fontFamily: "DMSans_700Bold", fontSize: 14 }}>
+                          {scenarioTitle(s, language)}{won ? "  ✓" : lost ? "  ✗" : ""}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end", gap: 3 }}>
+                        <Text style={{ color: won ? c : TEXT, fontFamily: "DMSans_700Bold", fontSize: 17 }}>{s.probability.toFixed(1)}%</Text>
+                        <View style={{ width: 70, height: 3, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+                          <View style={{ width: `${s.probability}%` as any, height: "100%", backgroundColor: c, borderRadius: 2 }} />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Bet panel */}
+              {!resolved && selScene && (
+                <View style={{ backgroundColor: SURFACE, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER_P }}>
+                  <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 14 }}>
+                    {language === "pt" ? "FAZER APOSTA" : "PLACE BET"}
+                  </Text>
+
+                  {event.scenarios.slice(0, 2).map((s, idx) => {
+                    const c = SCENARIO_COLORS[idx];
+                    const isSel = selId === s.id;
+                    return (
+                      <TouchableOpacity key={s.id} onPress={() => setSelId(s.id)} style={{ borderRadius: 10, overflow: "hidden", marginBottom: 8 }}>
+                        <LinearGradient
+                          colors={isSel ? (idx === 0 ? GRAD_GREEN : GRAD_RED) : [c + "18", c + "18"]}
+                          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                          style={{ paddingVertical: 10, alignItems: "center" }}
+                        >
+                          <Text style={{ color: isSel ? "white" : c, fontFamily: "DMSans_700Bold", fontSize: 13 }} numberOfLines={1}>
+                            {scenarioTitle(s, language)}  {s.probability.toFixed(0)}%
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginBottom: 8, marginTop: 6 }}>
+                    {language === "pt" ? "VALOR" : "AMOUNT"}
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, marginBottom: 10 }}>
+                    <Text style={{ color: PURPLE_D, fontSize: 16, marginRight: 4 }}>$</Text>
+                    <TextInput
+                      value={amount} onChangeText={setAmount} keyboardType="numeric"
+                      style={{ flex: 1, color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", paddingVertical: 10 }}
+                    />
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 6, marginBottom: 14 }}>
+                    {["10", "50", "100", "500"].map(v => (
+                      <TouchableOpacity key={v} onPress={() => setAmount(v)} style={{ flex: 1, paddingVertical: 6, borderRadius: 8, backgroundColor: "rgba(124,92,252,0.08)", alignItems: "center", borderWidth: 1, borderColor: BORDER_P }}>
+                        <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 12 }}>${v}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {selScene && parseFloat(amount) > 0 && (
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12, paddingHorizontal: 4 }}>
+                      <Text style={{ color: TEXT_MID, fontSize: 12 }}>{language === "pt" ? "Retorno estimado" : "Estimated return"}</Text>
+                      <Text style={{ color: GREEN, fontSize: 12, fontFamily: "DMSans_700Bold" }}>
+                        ${(parseFloat(amount || "0") / (selScene.probability / 100)).toFixed(2)}
+                        {" "}({(100 / selScene.probability).toFixed(2)}x)
+                      </Text>
+                    </View>
+                  )}
+
+                  {message ? (
+                    <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 10, padding: 12, alignItems: "center" }}>
+                      <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{message}</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 12, overflow: "hidden" }}>
+                      <LinearGradient colors={placing ? ["#111", "#111"] : GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
+                        <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
+                          {placing ? "..." : (language === "pt" ? `⚡ Apostar · $${amount}` : `⚡ Bet · $${amount}`)}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  )}
+                  {!isAuthenticated && (
+                    <Text style={{ color: TEXT_MID, fontSize: 11, textAlign: "center", marginTop: 10 }}>
+                      {language === "pt" ? "Faça login para apostar" : "Log in to place a bet"}
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {/* Crowd sentiment */}
+              {sentiment && sentiment.total > 0 && (
+                <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
+                      {language === "pt" ? "SENTIMENTO DA MULTIDÃO" : "CROWD SENTIMENT"}
+                    </Text>
+                    <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_700Bold" }}>👥 {sentiment.total}</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", height: 7, borderRadius: 4, overflow: "hidden", gap: 2, marginBottom: 12 }}>
+                    {sentiment.scenarios.slice(0, 4).map((s, i) => (
+                      <View key={s.scenario_id} style={{ flex: s.percentage / 100, backgroundColor: SCENARIO_COLORS[i], borderRadius: 4 }} />
+                    ))}
+                  </View>
+                  {sentiment.scenarios.slice(0, 4).map((s, i) => {
+                    const sc = event.scenarios.find(x => x.id === s.scenario_id);
+                    return (
+                      <View key={s.scenario_id} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+                          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: SCENARIO_COLORS[i] }} />
+                          <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_500Medium" }} numberOfLines={1}>{sc ? scenarioTitle(sc, language) : ""}</Text>
+                        </View>
+                        <Text style={{ color: SCENARIO_COLORS[i], fontFamily: "DMSans_700Bold", fontSize: 13 }}>{s.percentage.toFixed(0)}%</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Balance */}
+              {isAuthenticated && (
+                <View style={{ backgroundColor: "rgba(124,92,252,0.06)", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER_P, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_500Medium" }}>{language === "pt" ? "Seu saldo" : "Your balance"}</Text>
+                  <Text style={{ color: TEXT, fontSize: 18, fontFamily: "DMSans_700Bold" }}>${balanceText}</Text>
+                </View>
+              )}
+            </View>
+          )}{/* end right column */}
+
+          </View>{/* end two-column wrapper */}
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>

@@ -265,7 +265,7 @@ export default function LeaderboardScreen() {
             </View>
           </ScrollView>
         ) : (
-          <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+          <ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
             {data && <><LeaderboardSidebar data={data} userId={userId} t={t} /><View style={{ height: 12 }} /></>}
             {mainContent}
           </ScrollView>
