@@ -8,7 +8,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView,
   StatusBar, TextInput, ActivityIndicator, RefreshControl,
-  Platform, Dimensions, Animated, KeyboardAvoidingView, Image,
+  Platform, Dimensions, Animated, Easing, KeyboardAvoidingView, Image,
   useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -313,25 +313,48 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
       </View>
 
       {/* Footer */}
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)", backgroundColor: "rgba(0,0,0,0.12)" }}>
-        <MarketLiveDot language={language} />
-        <View style={{ flexDirection: "row", gap: 6 }}>
-          <TouchableOpacity
-            onPress={onPress}
-            style={{ paddingHorizontal: IS_WEB ? 14 : 10, paddingVertical: IS_WEB ? 6 : 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER }}
-          >
-            <Text style={{ color: TEXT_MID, fontSize: IS_WEB ? 11 : 9, fontFamily: "DMSans_500Medium" }}>
-              {language === "pt" ? "Detalhes" : "Details"}
+      <View style={{ borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)", backgroundColor: "rgba(0,0,0,0.12)" }}>
+        {/* Date + multiplier row */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingTop: 7, paddingBottom: 4 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Text style={{ color: TEXT_MID, fontSize: IS_WEB ? 10 : 8, fontFamily: "DMSans_400Regular" }}>
+              📅 {event.closes_at
+                ? (language === "pt" ? "Fecha " : "Ends ") + formatCloseDate(event.closes_at, language)
+                : (language === "pt" ? "Em aberto" : "Open-ended")}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={e => { (e as any).stopPropagation?.(); onBetPress(); }}
-            style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: IS_WEB ? 14 : 10, paddingVertical: IS_WEB ? 6 : 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.1)" }}
-          >
-            <Text style={{ color: PURPLE, fontSize: IS_WEB ? 12 : 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
-              {language === "pt" ? "⚡ Apostar" : "⚡ Trade"}
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <View style={{ backgroundColor: "rgba(34,197,94,0.08)", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: "rgba(34,197,94,0.18)" }}>
+              <Text style={{ color: GREEN, fontSize: IS_WEB ? 11 : 9, fontFamily: "DMSans_700Bold" }}>
+                {(100 / (topS?.probability ?? 50)).toFixed(2)}x
+              </Text>
+            </View>
+            <Text style={{ color: TEXT_MID, fontSize: IS_WEB ? 10 : 8, fontFamily: "DMSans_400Regular" }}>
+              {language === "pt" ? "retorno est." : "est. return"}
             </Text>
-          </TouchableOpacity>
+          </View>
+        </View>
+        {/* Action buttons */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingBottom: 8, paddingTop: 2 }}>
+          <MarketLiveDot language={language} />
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            <TouchableOpacity
+              onPress={onPress}
+              style={{ paddingHorizontal: IS_WEB ? 14 : 10, paddingVertical: IS_WEB ? 6 : 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER }}
+            >
+              <Text style={{ color: TEXT_MID, fontSize: IS_WEB ? 11 : 9, fontFamily: "DMSans_500Medium" }}>
+                {language === "pt" ? "Detalhes" : "Details"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={e => { (e as any).stopPropagation?.(); onBetPress(); }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: IS_WEB ? 14 : 10, paddingVertical: IS_WEB ? 6 : 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.1)" }}
+            >
+              <Text style={{ color: PURPLE, fontSize: IS_WEB ? 12 : 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
+                {language === "pt" ? "⚡ Apostar" : "⚡ Trade"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
       </View>
@@ -514,6 +537,172 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
   );
 }
 
+// ── Persistent sidebar trade panel ────────────────────────────────────────────
+function SidebarTradePanel({ event, language, isAuthenticated, userId, placePrediction, refreshPortfolio }: {
+  event: EventItem; language: string;
+  isAuthenticated: boolean; userId: number | null;
+  placePrediction(scenarioId: number, amount: number): Promise<{ ok: boolean; error?: string }>;
+  refreshPortfolio(): Promise<void>;
+}) {
+  const router = useRouter();
+  const [selId, setSelId] = useState<number>(event.scenarios[0]?.id ?? 0);
+  const [amount, setAmount] = useState("100");
+  const [placing, setPlacing] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  // Reset state when event switches
+  useEffect(() => {
+    setSelId(event.scenarios[0]?.id ?? 0);
+    setAmount("100");
+    setSuccess(false);
+    setError("");
+  }, [event.id]);
+
+  const selScene = event.scenarios.find(s => s.id === selId);
+  const amt = parseFloat(amount) || 0;
+  const payout = selScene && amt > 0 ? (amt * (100 / selScene.probability)).toFixed(2) : "0.00";
+  const profit = selScene && amt > 0 ? (amt * (100 / selScene.probability) - amt).toFixed(2) : "0.00";
+  const multiplier = selScene ? (100 / selScene.probability).toFixed(2) : "0.00";
+
+  const handleBet = async () => {
+    if (!isAuthenticated) { router.push("/login"); return; }
+    if (!selId || amt <= 0) return;
+    setPlacing(true); setError("");
+    const result = await placePrediction(selId, amt);
+    setPlacing(false);
+    if (result.ok) {
+      setSuccess(true);
+      refreshPortfolio();
+      setTimeout(() => setSuccess(false), 3000);
+    } else {
+      setError(result.error ?? (language === "pt" ? "Erro ao apostar" : "Failed to place bet"));
+    }
+  };
+
+  return (
+    <View style={{ backgroundColor: SURFACE, borderRadius: 16, borderWidth: 1, borderColor: BORDER_P, overflow: "hidden" }}>
+      {/* Header */}
+      <LinearGradient
+        colors={["rgba(124,92,252,0.12)", "rgba(124,92,252,0.04)"]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.12)" }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={{ fontSize: 12 }}>⚡</Text>
+          <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
+            {language === "pt" ? "APOSTAR" : "TRADE"}
+          </Text>
+        </View>
+        <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular", flex: 1, marginLeft: 8 }} numberOfLines={1}>
+          {eventTitle(event, language)}
+        </Text>
+      </LinearGradient>
+
+      <View style={{ padding: 14 }}>
+        {/* Scenario selector */}
+        <View style={{ flexDirection: "row", gap: 6, marginBottom: 10 }}>
+          {event.scenarios.slice(0, 2).map((s, idx) => {
+            const isSel = selId === s.id;
+            return (
+              <TouchableOpacity key={s.id} onPress={() => setSelId(s.id)} style={{ flex: 1, borderRadius: 10, overflow: "hidden" }}>
+                <LinearGradient
+                  colors={isSel ? (idx === 0 ? GRAD.GREEN : GRAD.RED) : [`${SCENARIO_COLORS[idx]}18`, `${SCENARIO_COLORS[idx]}18`]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={{ paddingVertical: 9, alignItems: "center" }}
+                >
+                  <Text style={{ color: isSel ? "white" : SCENARIO_COLORS[idx], fontFamily: "DMSans_700Bold", fontSize: 12 }} numberOfLines={1}>
+                    {scenarioTitle(s, language)}  {s.probability.toFixed(0)}%
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        {event.scenarios.length > 2 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+            {event.scenarios.map((s, idx) => {
+              const isSel = selId === s.id;
+              return (
+                <TouchableOpacity key={s.id} onPress={() => setSelId(s.id)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, marginRight: 6, borderWidth: 1, borderColor: isSel ? SCENARIO_COLORS[idx % SCENARIO_COLORS.length] : BORDER, backgroundColor: isSel ? `${SCENARIO_COLORS[idx % SCENARIO_COLORS.length]}18` : "transparent" }}>
+                  <Text style={{ color: isSel ? SCENARIO_COLORS[idx % SCENARIO_COLORS.length] : TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 11 }}>{scenarioTitle(s, language)}</Text>
+                  <Text style={{ color: isSel ? SCENARIO_COLORS[idx % SCENARIO_COLORS.length] : TEXT_MID, fontSize: 10, textAlign: "center" }}>{s.probability.toFixed(0)}%</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {/* Amount */}
+        <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, marginBottom: 8 }}>
+          <Text style={{ color: PURPLE_D, fontSize: 16, marginRight: 4 }}>$</Text>
+          <TextInput
+            value={amount} onChangeText={setAmount} keyboardType="numeric"
+            style={{ flex: 1, color: TEXT, fontSize: 20, fontFamily: "DMSans_700Bold", paddingVertical: 9 }}
+          />
+        </View>
+        <View style={{ flexDirection: "row", gap: 6, marginBottom: 10 }}>
+          {["10", "50", "100", "500"].map(v => (
+            <TouchableOpacity key={v} onPress={() => setAmount(v)} style={{ flex: 1, paddingVertical: 6, borderRadius: 7, alignItems: "center", backgroundColor: amount === v ? "rgba(124,92,252,0.18)" : "rgba(124,92,252,0.06)", borderWidth: 1, borderColor: amount === v ? BORDER_P : "rgba(124,92,252,0.15)" }}>
+              <Text style={{ color: amount === v ? PURPLE : PURPLE_D, fontFamily: "DMSans_700Bold", fontSize: 11 }}>${v}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Payout preview */}
+        {amt > 0 && selScene && (
+          <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "rgba(34,197,94,0.06)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(34,197,94,0.18)", paddingHorizontal: 12, paddingVertical: 9, marginBottom: 10 }}>
+            <View>
+              <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
+                {language === "pt" ? "RETORNO" : "PAYOUT"}
+              </Text>
+              <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 17 }}>${payout}</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
+                {language === "pt" ? "LUCRO" : "PROFIT"}
+              </Text>
+              <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 14 }}>+${profit} <Text style={{ color: TEXT_MID, fontSize: 10 }}>({multiplier}x)</Text></Text>
+            </View>
+          </View>
+        )}
+
+        {error ? (
+          <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 9, padding: 9, marginBottom: 9 }}>
+            <Text style={{ color: RED, fontSize: 11 }}>{error}</Text>
+          </View>
+        ) : null}
+
+        {success ? (
+          <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 11, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(34,197,94,0.25)" }}>
+            <Text style={{ fontSize: 24, marginBottom: 4 }}>🎉</Text>
+            <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
+              {language === "pt" ? `✓ Posição aberta · $${amount}` : `✓ Position opened · $${amount}`}
+            </Text>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 11, overflow: "hidden" }}>
+            <LinearGradient
+              colors={placing ? ["#111", "#111"] : GRAD.BRAND}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ paddingVertical: 13, alignItems: "center" }}
+            >
+              {placing
+                ? <ActivityIndicator color="white" />
+                : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>
+                    {isAuthenticated
+                      ? (language === "pt" ? `⚡ Apostar $${amount}` : `⚡ Bet $${amount}`)
+                      : (language === "pt" ? "Entrar para apostar" : "Log in to bet")}
+                  </Text>
+              }
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
 // ── Activity ticker — social proof strip ─────────────────────────────────────
 type ActivityItem = {
   player: string; event_title: string; scenario_title: string;
@@ -562,7 +751,7 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
             <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_500Medium" }}>
               <Text style={{ color: TEXT_SUB }}>{item.player}</Text>
               {" "}{language === "pt" ? "apostou" : "bet"}{" "}
-              <Text style={{ color: PURPLE_D }}>{item.amount_label}</Text>
+              <Text style={{ color: PURPLE_D }}>{parseAmount(item.amount_label)}</Text>
               {" "}{language === "pt" ? "em" : "on"}{" "}
               <Text style={{ color: TEXT_SUB }}>{item.scenario_title}</Text>
               {"  "}
@@ -574,6 +763,26 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
       </Animated.View>
     </View>
   );
+}
+
+// ── Close date formatter (Polymarket-style) ──────────────────────────────────
+function formatCloseDate(dateStr: string, lang = "en"): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const months = lang === "pt"
+    ? ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+    : ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+// ── Amount label: parse "$50-$100" range → single midpoint value ─────────────
+function parseAmount(label: string): string {
+  const m = label.match(/\$(\d[\d,]*)\s*[-–]\s*\$(\d[\d,]*)/);
+  if (!m) return label;
+  const lo = parseInt(m[1].replace(/,/g, ""));
+  const hi = parseInt(m[2].replace(/,/g, ""));
+  const mid = Math.round((lo + hi) / 2);
+  return `$${mid.toLocaleString("en-US")}`;
 }
 
 // ── Time ago helper ───────────────────────────────────────────────────────────
@@ -1270,9 +1479,10 @@ export default function MarketsScreen() {
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const { width: winW } = useWindowDimensions();
   // Responsive grid: 4 cols on desktop, 2 on tablet/large phone, 1 on phone
-  const gridCols = IS_WEB ? (winW >= 1100 ? 4 : 2) : (winW >= 600 ? 2 : 1);
-  const cardPct  = gridCols === 4 ? "24%" : gridCols === 3 ? "32%" : gridCols === 2 ? "49%" : "100%";
+  const gridCols = IS_WEB ? (winW >= 1100 ? 4 : winW >= 700 ? 2 : 1) : 1;
+  const cardPct  = gridCols === 4 ? "24%" : gridCols === 2 ? "49%" : "100%";
 
+  const [featuredChartWidth, setFeaturedChartWidth] = useState(0);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -1289,7 +1499,19 @@ export default function MarketsScreen() {
   const [featuredComments, setFeaturedComments] = useState<{ id: number; body: string; display_name: string | null; created_at: string }[]>([]);
   const [featuredNews, setFeaturedNews] = useState<NewsArticle[]>([]);
 
+  const [carouselIdx, setCarouselIdx] = useState(0);
+  const [marketPageIdx, setMarketPageIdx] = useState(0);
+  const [marketPageWidth, setMarketPageWidth] = useState(0);
+  const marketSlideAnim = useRef(new Animated.Value(0)).current;
+  const marketPageIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const marketPageCountRef = useRef(0);
+  const marketPageIdxRef = useRef(0);
+  const marketPageWidthRef = useRef(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const carouselRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const featuredSlideAnim = useRef(new Animated.Value(0)).current;
+  const featuredOpacityAnim = useRef(new Animated.Value(1)).current;
+  const carouselIdxRef = useRef(0);
   const scrollRef = useRef<any>(null);
   const PAGE_SIZE = 100;
   const GUEST_CAP = 100;
@@ -1423,8 +1645,75 @@ export default function MarketsScreen() {
     } catch {}
   }, []);
 
-  const featuredEvent = events.find(e => e.is_featured) ?? events[0];
+  // Carousel pool: featured events first, then top events
+  const carouselPool = events.length > 0
+    ? (events.filter(e => e.is_featured).length >= 2
+        ? events.filter(e => e.is_featured).slice(0, 6)
+        : events.slice(0, 6))
+    : [];
+  const featuredEvent = carouselPool[carouselIdx % Math.max(1, carouselPool.length)] ?? events[0];
   const featuredId = featuredEvent?.id;
+
+  // Keep carouselIdxRef in sync
+  useEffect(() => { carouselIdxRef.current = carouselIdx; }, [carouselIdx]);
+
+  // Auto-advance carousel every 5 seconds — swipe-right animation
+  useEffect(() => {
+    if (carouselPool.length <= 1) return;
+    carouselRef.current = setInterval(() => {
+      const next = (carouselIdxRef.current + 1) % carouselPool.length;
+      const easeOut = Easing.out(Easing.cubic);
+      const easeIn  = Easing.out(Easing.cubic);
+      // Phase 1: slide current card out to the right + fade
+      Animated.parallel([
+        Animated.timing(featuredSlideAnim, { toValue: 60, duration: 260, easing: easeOut, useNativeDriver: false }),
+        Animated.timing(featuredOpacityAnim, { toValue: 0, duration: 180, easing: easeOut, useNativeDriver: false }),
+      ]).start(() => {
+        setCarouselIdx(next);
+        carouselIdxRef.current = next;
+        featuredSlideAnim.setValue(-60);
+        // Phase 2: slide new card in from the left
+        Animated.parallel([
+          Animated.timing(featuredSlideAnim, { toValue: 0, duration: 320, easing: easeIn, useNativeDriver: false }),
+          Animated.timing(featuredOpacityAnim, { toValue: 1, duration: 320, easing: easeIn, useNativeDriver: false }),
+        ]).start();
+      });
+    }, 5000);
+    return () => { if (carouselRef.current) clearInterval(carouselRef.current); };
+  }, [carouselPool.length]);
+
+  // Reset carousel when events reload
+  useEffect(() => { setCarouselIdx(0); carouselIdxRef.current = 0; featuredSlideAnim.setValue(0); featuredOpacityAnim.setValue(1); }, [events.length === 0]);
+
+  // Keep refs in sync for stale-closure-safe access inside setInterval
+  useEffect(() => { marketPageIdxRef.current = marketPageIdx; }, [marketPageIdx]);
+  useEffect(() => { marketPageWidthRef.current = marketPageWidth; }, [marketPageWidth]);
+
+  // Auto-advance market grid pages every 5 seconds — swipe-right animation
+  useEffect(() => {
+    if (marketPageWidth === 0) return;
+    if (marketPageIntervalRef.current) clearInterval(marketPageIntervalRef.current);
+    marketPageIntervalRef.current = setInterval(() => {
+      const count = Math.max(1, marketPageCountRef.current);
+      const next = (marketPageIdxRef.current + 1) % count;
+      const w = marketPageWidthRef.current;
+      // Phase 1: slide current page out to the RIGHT
+      Animated.timing(marketSlideAnim, { toValue: w, duration: 380, useNativeDriver: false }).start(() => {
+        setMarketPageIdx(next);
+        marketPageIdxRef.current = next;
+        // Snap new page in from the LEFT (off-screen)
+        marketSlideAnim.setValue(-w);
+        // Phase 2: slide new page in from left to center
+        Animated.timing(marketSlideAnim, { toValue: 0, duration: 380, useNativeDriver: false }).start();
+      });
+    }, 5000);
+    return () => { if (marketPageIntervalRef.current) clearInterval(marketPageIntervalRef.current); };
+  }, [marketPageWidth, events.length]);
+
+  // Reset market page on fresh load
+  useEffect(() => {
+    if (!loading) { setMarketPageIdx(0); marketPageIdxRef.current = 0; marketSlideAnim.setValue(0); }
+  }, [loading]);
 
   // Fetch comments + related news whenever featured event changes
   useEffect(() => {
@@ -1520,13 +1809,23 @@ export default function MarketsScreen() {
               </View>
             )}
             {!isAuthenticated && (
-              <TouchableOpacity onPress={() => router.push("/login")} style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, overflow: "hidden" }}>
-                <LinearGradient colors={GRAD.BP} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, alignItems: "center" }}>
-                  <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 12 }}>
-                    {language === "pt" ? "Entrar" : "Sign In"}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => router.push("/register")}
+                  style={{ paddingHorizontal: IS_WEB ? 14 : 10, paddingVertical: IS_WEB ? 8 : 6, borderRadius: 10, borderWidth: 1, borderColor: BORDER_P }}
+                >
+                  <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: IS_WEB ? 13 : 11 }}>
+                    {language === "pt" ? "Criar conta" : "Sign Up"}
                   </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push("/login")} style={{ borderRadius: 10, overflow: "hidden" }}>
+                  <LinearGradient colors={GRAD.BP} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: IS_WEB ? 14 : 10, paddingVertical: IS_WEB ? 8 : 6, borderRadius: 10, alignItems: "center" }}>
+                    <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: IS_WEB ? 13 : 11 }}>
+                      {language === "pt" ? "Entrar" : "Sign In"}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         </View>
@@ -1611,31 +1910,12 @@ export default function MarketsScreen() {
               </View>
             ) : (
               <>
-                {/* ── Brazil Markets section (top) ────────────────────────── */}
-                <BrazilSection
-                  events={events}
-                  language={language}
-                  sentimentCache={sentimentCache}
-                  historyCache={historyCache}
-                  onCardPress={handleCardPress}
-                  onBetPress={handleBetPress}
-                  onBetPanelId={betPanelId}
-                  setBetPanelId={setBetPanelId}
-                  isAuthenticated={isAuthenticated}
-                  userId={userId}
-                  placePrediction={placePrediction}
-                  refreshPortfolio={refreshPortfolio}
-                  t={t}
-                  gridCols={gridCols}
-                  cardPct={cardPct}
-                />
-
                 {/* ── Hero row: Featured card + Breaking news sidebar ─────── */}
-                <View style={IS_WEB ? { flexDirection: "row", gap: 12, marginBottom: 6 } : { marginBottom: 6 }}>
+                <View style={IS_WEB && winW >= 700 ? { flexDirection: "row", gap: 12, marginBottom: 6 } : { marginBottom: 6 }}>
 
                   {/* Left: Featured hero card */}
                   {featured && (
-                    <View style={IS_WEB ? { flex: 0.58 } : {}}>
+                    <View style={IS_WEB && winW >= 700 ? { flex: 0.58 } : {}}>
                       {/* "Featured" badge */}
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
                         <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 5, padding: 1 }}>
@@ -1647,164 +1927,132 @@ export default function MarketsScreen() {
                         </LinearGradient>
                       </View>
 
-                      <TouchableOpacity
-                        activeOpacity={0.88}
-                        onPress={() => router.push({ pathname: "/market-detail", params: { eventId: String(featured.id) } })}
-                        style={{ backgroundColor: CARD, borderRadius: 18, borderWidth: 1.5, borderColor: BORDER_P, overflow: "hidden", marginBottom: 4 }}
-                      >
+                      <Animated.View style={{ transform: [{ translateX: featuredSlideAnim }], opacity: featuredOpacityAnim }}>
+                      <View style={{ backgroundColor: CARD, borderRadius: 18, borderWidth: 1.5, borderColor: BORDER_P, overflow: "hidden", marginBottom: 4 }}>
                         <LinearGradient
-                          colors={["rgba(79,142,247,0.07)", "rgba(124,92,252,0.05)", "rgba(240,80,174,0.05)"]}
+                          colors={["rgba(79,142,247,0.06)", "rgba(124,92,252,0.04)", "rgba(0,0,0,0)"]}
                           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                          style={{ padding: 18 }}
+                          style={{ paddingTop: 16, paddingHorizontal: 18, paddingBottom: 4 }}
                         >
-                          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
-                            <View style={{ flex: 1, paddingRight: 12 }}>
-                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                                {(() => {
-                                  const cm = catMeta(featured.category);
-                                  return (
-                                    <View style={{ backgroundColor: `${cm.color}12`, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, borderWidth: 1, borderColor: `${cm.color}22` }}>
-                                      <Text style={{ color: cm.color, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
-                                        {cm.icon}  {(language === "pt" ? cm.label_pt : cm.label).toUpperCase()}
-                                      </Text>
-                                    </View>
-                                  );
-                                })()}
-                                <UrgencyBadge closesAt={featured.closes_at} language={language} />
-                                {sentimentCache[featured.id] && (
-                                  <HotBadge total={sentimentCache[featured.id].total} language={language} />
-                                )}
+                          {/* Badges row */}
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+                            {(() => { const cm = catMeta(featured.category); return (
+                              <View style={{ backgroundColor: `${cm.color}12`, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, borderWidth: 1, borderColor: `${cm.color}22` }}>
+                                <Text style={{ color: cm.color, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
+                                  {cm.icon}  {(language === "pt" ? cm.label_pt : cm.label).toUpperCase()}
+                                </Text>
                               </View>
-                              <Text style={{ color: TEXT, fontSize: IS_WEB ? 21 : 18, fontFamily: "DMSans_700Bold", lineHeight: IS_WEB ? 30 : 25, letterSpacing: -0.3 }}>
-                                {eventTitle(featured, language)}
-                              </Text>
-                            </View>
-                            <ArcGauge probability={featured.scenarios[0]?.probability ?? 50} size={IS_WEB ? 56 : 64} />
+                            ); })()}
+                            <UrgencyBadge closesAt={featured.closes_at} language={language} />
+                            {sentimentCache[featured.id] && <HotBadge total={sentimentCache[featured.id].total} language={language} />}
                           </View>
 
-                          {/* Scenario probability bars */}
-                          {featured.scenarios.slice(0, 2).map((s, i) => {
-                            const prob = s.probability;
-                            const color = SCENARIO_COLORS[i % SCENARIO_COLORS.length];
-                            return (
-                              <View key={s.id} style={{ marginBottom: 8 }}>
-                                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-                                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
-                                    <Text style={{ color: TEXT_SUB, fontSize: IS_WEB ? 15 : 13, fontFamily: "DMSans_500Medium" }}>{scenarioTitle(s, language)}</Text>
-                                  </View>
-                                  <Text style={{ color, fontSize: IS_WEB ? 16 : 14, fontFamily: "DMSans_700Bold" }}>{prob.toFixed(0)}%</Text>
-                                </View>
-                                <View style={{ height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.06)" }}>
-                                  <View style={{ width: `${prob}%` as any, height: 3, borderRadius: 2, backgroundColor: color }} />
-                                </View>
-                              </View>
-                            );
-                          })}
-
-                          {sentimentCache[featured.id] && (
-                            <SentimentBar
-                              total={sentimentCache[featured.id].total}
-                              scenarios={sentimentCache[featured.id].scenarios}
-                              eventScenarios={featured.scenarios}
-                              language={language}
-                            />
-                          )}
-
-                          {/* Featured probability chart */}
-                          {historyCache[featured.id] && historyCache[featured.id].some(s => s.points?.length >= 2) && (
-                            <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(124,92,252,0.1)" }}>
-                              <Text style={{ color: PURPLE_D, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginBottom: 6 }}>
-                                {language === "pt" ? "HISTÓRICO" : "PROBABILITY HISTORY"}
-                              </Text>
-                              <ProbabilityChart scenarios={historyCache[featured.id]} height={100} compact={false} />
-                            </View>
-                          )}
-
-                          {/* Related news for this event */}
-                          {featuredNews.length > 0 && (
-                            <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(124,92,252,0.1)" }}>
-                              <Text style={{ color: PURPLE_D, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginBottom: 8 }}>
-                                {language === "pt" ? "NOTÍCIAS RELACIONADAS" : "RELATED NEWS"}
-                              </Text>
-                              {featuredNews.map((article, i) => (
-                                <View key={i} style={{ flexDirection: "row", gap: 8, paddingVertical: 7, borderBottomWidth: i < featuredNews.length - 1 ? 1 : 0, borderBottomColor: "rgba(255,255,255,0.04)" }}>
-                                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(124,92,252,0.15)", alignItems: "center", justifyContent: "center" }}>
-                                    <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold" }}>{i + 1}</Text>
-                                  </View>
-                                  <View style={{ flex: 1 }}>
-                                    <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_500Medium", lineHeight: 15 }} numberOfLines={2}>
-                                      {article.title}
-                                    </Text>
-                                    <Text style={{ color: TEXT_MID, fontSize: 8, marginTop: 2 }}>
-                                      {article.source} · {timeAgo(article.published, language)}
-                                    </Text>
-                                  </View>
-                                </View>
-                              ))}
-                            </View>
-                          )}
-
-                          {/* Community comments */}
-                          {featuredComments.length > 0 && (
-                            <View style={{ marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(124,92,252,0.1)" }}>
-                              <Text style={{ color: PURPLE_D, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginBottom: 8 }}>
-                                {language === "pt" ? "COMENTÁRIOS" : "COMMENTS"}
-                              </Text>
-                              {featuredComments.map((c, i) => {
-                                const initials = (c.display_name ?? "?").split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
-                                const avatarColors = [PURPLE, "#4F8EF7", "#F050AE", GREEN, "#F7931A"];
-                                const avatarColor = avatarColors[c.id % avatarColors.length];
-                                return (
-                                  <View key={c.id} style={{ flexDirection: "row", gap: 8, paddingVertical: 7, borderBottomWidth: i < featuredComments.length - 1 ? 1 : 0, borderBottomColor: "rgba(255,255,255,0.04)" }}>
-                                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: `${avatarColor}25`, borderWidth: 1, borderColor: `${avatarColor}40`, alignItems: "center", justifyContent: "center" }}>
-                                      <Text style={{ color: avatarColor, fontSize: 8, fontFamily: "DMSans_700Bold" }}>{initials}</Text>
-                                    </View>
-                                    <View style={{ flex: 1 }}>
-                                      <View style={{ flexDirection: "row", gap: 5, alignItems: "center", marginBottom: 2 }}>
-                                        <Text style={{ color: TEXT_SUB, fontSize: 10, fontFamily: "DMSans_700Bold" }}>{c.display_name ?? "Anonymous"}</Text>
-                                        <Text style={{ color: TEXT_MID, fontSize: 8 }}>{timeAgo(c.created_at, language)}</Text>
-                                      </View>
-                                      <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", lineHeight: 15 }} numberOfLines={2}>
-                                        {c.body}
-                                      </Text>
-                                    </View>
-                                  </View>
-                                );
-                              })}
-                              <TouchableOpacity
-                                onPress={() => router.push({ pathname: "/market-detail", params: { eventId: String(featured.id) } })}
-                                style={{ marginTop: 6 }}
-                              >
-                                <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_500Medium" }}>
-                                  {language === "pt" ? "Ver todos os comentários →" : "See all comments →"}
-                                </Text>
-                              </TouchableOpacity>
-                            </View>
-                          )}
-                        </LinearGradient>
-
-                        <View style={{ flexDirection: "row", gap: 8, padding: 14, paddingTop: 0, borderTopWidth: 1, borderTopColor: "rgba(124,92,252,0.1)" }}>
-                          <TouchableOpacity
-                            onPress={() => router.push({ pathname: "/market-detail", params: { eventId: String(featured.id) } })}
-                            style={{ flex: 1, paddingVertical: 11, borderRadius: 12, alignItems: "center", borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.06)" }}
-                          >
-                            <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 12 }}>
-                              {language === "pt" ? "Ver detalhes →" : "View details →"}
+                          {/* Title */}
+                          <TouchableOpacity activeOpacity={0.85} onPress={() => router.push({ pathname: "/market-detail", params: { eventId: String(featured.id) } })}>
+                            <Text style={{ color: TEXT, fontSize: IS_WEB ? 22 : 17, fontFamily: "DMSans_700Bold", lineHeight: IS_WEB ? 30 : 24, letterSpacing: -0.4, marginBottom: 16 }}>
+                              {eventTitle(featured, language)}
                             </Text>
                           </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => handleBetPress(featured.id)}
-                            style={{ flex: 1, borderRadius: 12, overflow: "hidden" }}
-                          >
-                            <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 11, alignItems: "center" }}>
-                              <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 12 }}>
-                                {language === "pt" ? "⚡ Apostar" : "⚡ Trade Now"}
-                              </Text>
-                            </LinearGradient>
-                          </TouchableOpacity>
+                        </LinearGradient>
+
+                        {/* Scenarios (left) + Chart (right) */}
+                        <View style={{ flexDirection: IS_WEB ? "row" : "column", gap: IS_WEB ? 0 : 12, paddingHorizontal: 18, paddingBottom: 14 }}>
+                          {/* Scenario list */}
+                          <View style={{ width: IS_WEB ? 160 : "100%" as any, paddingRight: IS_WEB ? 16 : 0 }}>
+                            {featured.scenarios.slice(0, 4).map((s, i) => {
+                              const color = SCENARIO_COLORS[i % SCENARIO_COLORS.length];
+                              return (
+                                <View key={s.id} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
+                                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                                    <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: color }} />
+                                    <Text style={{ color: TEXT_SUB, fontSize: IS_WEB ? 14 : 13, fontFamily: "DMSans_500Medium", flex: 1 }} numberOfLines={1}>
+                                      {scenarioTitle(s, language)}
+                                    </Text>
+                                  </View>
+                                  <Text style={{ color, fontSize: IS_WEB ? 17 : 15, fontFamily: "DMSans_700Bold", marginLeft: 10 }}>
+                                    {s.probability.toFixed(0)}%
+                                  </Text>
+                                </View>
+                              );
+                            })}
+                            {sentimentCache[featured.id] && (
+                              <View style={{ marginTop: 10 }}>
+                                <SentimentBar total={sentimentCache[featured.id].total} scenarios={sentimentCache[featured.id].scenarios} eventScenarios={featured.scenarios} language={language} />
+                              </View>
+                            )}
+                          </View>
+
+                          {/* Probability chart */}
+                          {historyCache[featured.id]?.some(s => s.points?.length >= 2) && (
+                            <View
+                              style={{ flex: 1, borderLeftWidth: IS_WEB ? 1 : 0, borderLeftColor: "rgba(255,255,255,0.05)", paddingLeft: IS_WEB ? 16 : 0 }}
+                              onLayout={e => setFeaturedChartWidth(e.nativeEvent.layout.width)}
+                            >
+                              <ProbabilityChart
+                                scenarios={historyCache[featured.id]}
+                                height={IS_WEB ? 150 : 110}
+                                compact={false}
+                                width={featuredChartWidth > 0 ? featuredChartWidth : undefined}
+                              />
+                            </View>
+                          )}
                         </View>
-                      </TouchableOpacity>
+
+                        {/* News flowing below */}
+                        {featuredNews.length > 0 && (
+                          <View style={{ borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)", paddingHorizontal: 18 }}>
+                            {featuredNews.map((article, i) => (
+                              <TouchableOpacity
+                                key={i}
+                                onPress={() => handleNewsPress(article)}
+                                activeOpacity={0.75}
+                                style={{ paddingVertical: 10, borderBottomWidth: i < featuredNews.length - 1 ? 1 : 0, borderBottomColor: "rgba(255,255,255,0.04)" }}
+                              >
+                                <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.3, marginBottom: 3 }}>
+                                  {article.source}  ·  {timeAgo(article.published, language)}
+                                </Text>
+                                <Text style={{ color: TEXT_SUB, fontSize: IS_WEB ? 13 : 12, fontFamily: "DMSans_500Medium", lineHeight: IS_WEB ? 18 : 17 }} numberOfLines={2}>
+                                  {article.title}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Footer: volume + close date + actions */}
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "rgba(124,92,252,0.1)", backgroundColor: "rgba(0,0,0,0.18)" }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                            {sentimentCache[featured.id] && (
+                              <Text style={{ color: TEXT_MID, fontSize: IS_WEB ? 11 : 10, fontFamily: "DMSans_500Medium" }}>
+                                👥 {sentimentCache[featured.id].total}
+                              </Text>
+                            )}
+                            {featured.closes_at && (
+                              <Text style={{ color: TEXT_MID, fontSize: IS_WEB ? 11 : 10 }}>
+                                · {language === "pt" ? "Fecha" : "Ends"} {formatCloseDate(featured.closes_at, language)}
+                              </Text>
+                            )}
+                          </View>
+                          <View style={{ flexDirection: "row", gap: 7 }}>
+                            <TouchableOpacity
+                              onPress={() => router.push({ pathname: "/market-detail", params: { eventId: String(featured.id) } })}
+                              style={{ paddingHorizontal: IS_WEB ? 14 : 11, paddingVertical: IS_WEB ? 8 : 7, borderRadius: 10, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.07)" }}
+                            >
+                              <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: IS_WEB ? 12 : 11 }}>
+                                {language === "pt" ? "Ver →" : "View →"}
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleBetPress(featured.id)} style={{ borderRadius: 10, overflow: "hidden" }}>
+                              <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: IS_WEB ? 14 : 11, paddingVertical: IS_WEB ? 8 : 7, alignItems: "center" }}>
+                                <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: IS_WEB ? 12 : 11 }}>
+                                  {language === "pt" ? "⚡ Apostar" : "⚡ Trade"}
+                                </Text>
+                              </LinearGradient>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                      </Animated.View>
 
                       {betPanelId === featured.id && (
                         <BetPanel
@@ -1814,19 +2062,59 @@ export default function MarketsScreen() {
                           placePrediction={placePrediction} refreshPortfolio={refreshPortfolio}
                         />
                       )}
+
+                      {/* Carousel dot indicators */}
+                      {carouselPool.length > 1 && (
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 10 }}>
+                          {carouselPool.map((_, i) => (
+                            <TouchableOpacity key={i} onPress={() => {
+                              const easeOut = Easing.out(Easing.cubic);
+                              Animated.parallel([
+                                Animated.timing(featuredSlideAnim, { toValue: 60, duration: 260, easing: easeOut, useNativeDriver: false }),
+                                Animated.timing(featuredOpacityAnim, { toValue: 0, duration: 180, easing: easeOut, useNativeDriver: false }),
+                              ]).start(() => {
+                                setCarouselIdx(i); carouselIdxRef.current = i;
+                                featuredSlideAnim.setValue(-60);
+                                Animated.parallel([
+                                  Animated.timing(featuredSlideAnim, { toValue: 0, duration: 320, easing: easeOut, useNativeDriver: false }),
+                                  Animated.timing(featuredOpacityAnim, { toValue: 1, duration: 320, easing: easeOut, useNativeDriver: false }),
+                                ]).start();
+                              });
+                            }}>
+                              <View style={{
+                                width: i === carouselIdx ? 20 : 6,
+                                height: 6, borderRadius: 3,
+                                backgroundColor: i === carouselIdx ? PURPLE : "rgba(124,92,252,0.25)",
+                              }} />
+                            </TouchableOpacity>
+                          ))}
+                          <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular", marginLeft: 6 }}>
+                            {carouselIdx + 1}/{carouselPool.length}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Trade panel — always visible below featured card */}
+                      {featured && (
+                        <SidebarTradePanel
+                          key={featured.id}
+                          event={featured}
+                          language={language}
+                          isAuthenticated={isAuthenticated}
+                          userId={userId}
+                          placePrediction={placePrediction}
+                          refreshPortfolio={refreshPortfolio}
+                        />
+                      )}
                     </View>
                   )}
 
-                  {/* Right: Breaking news + hot topics + live comments sidebar (web only) */}
-                  {IS_WEB && (
+                  {/* Right: Breaking news + hot topics sidebar (wide desktop only) */}
+                  {IS_WEB && winW >= 700 && (
                     <View style={{ flex: 0.42, gap: 10 }}>
                       <BreakingNewsPanel
                         articles={newsArticles}
                         hotEvents={rest.slice(0, 6)}
-                        language={language}
-                      />
-                      <SidebarLiveComments
-                        featuredEventId={featuredEvent?.id}
                         language={language}
                       />
                     </View>
@@ -1853,7 +2141,24 @@ export default function MarketsScreen() {
                   />
                 )}
 
-                {/* BrazilSection is rendered at the top, above the hero row */}
+                {/* ── Brazil Markets section ───────────────────────────────── */}
+                <BrazilSection
+                  events={events}
+                  language={language}
+                  sentimentCache={sentimentCache}
+                  historyCache={historyCache}
+                  onCardPress={handleCardPress}
+                  onBetPress={handleBetPress}
+                  onBetPanelId={betPanelId}
+                  setBetPanelId={setBetPanelId}
+                  isAuthenticated={isAuthenticated}
+                  userId={userId}
+                  placePrediction={placePrediction}
+                  refreshPortfolio={refreshPortfolio}
+                  t={t}
+                  gridCols={gridCols}
+                  cardPct={cardPct}
+                />
 
                 {/* ── All markets section ──────────────────────────────────── */}
                 {rest.length > 0 && (
@@ -1865,18 +2170,89 @@ export default function MarketsScreen() {
                   </View>
                 )}
 
-                {/* Market grid — guest sees 6, logged-in sees up to 300 */}
+                {/* Market grid — paginated carousel, auto-advances every 5s */}
                 {(() => {
                   const visibleRest = (!isAuthenticated && rest.length > GUEST_CAP)
                     ? rest.slice(0, GUEST_CAP)
                     : rest;
                   const showGate = !isAuthenticated && rest.length > GUEST_CAP;
+                  const CARDS_PER_PAGE = gridCols * 2;
+                  const pages: EventItem[][] = [];
+                  for (let i = 0; i < visibleRest.length; i += CARDS_PER_PAGE) {
+                    pages.push(visibleRest.slice(i, i + CARDS_PER_PAGE));
+                  }
+                  marketPageCountRef.current = pages.length;
+
+                  const goToPage = (i: number) => {
+                    const w = marketPageWidthRef.current;
+                    if (w === 0) return;
+                    // Phase 1: slide current page out to the right
+                    Animated.timing(marketSlideAnim, { toValue: w, duration: 380, useNativeDriver: false }).start(() => {
+                      setMarketPageIdx(i);
+                      marketPageIdxRef.current = i;
+                      // Snap new page in from the left
+                      marketSlideAnim.setValue(-w);
+                      // Phase 2: slide in from left to center
+                      Animated.timing(marketSlideAnim, { toValue: 0, duration: 380, useNativeDriver: false }).start();
+                    });
+                  };
 
                   return (
                     <>
-                      <View style={gridCols > 1 ? { flexDirection: "row", flexWrap: "wrap", gap: 8 } : undefined}>
-                        {visibleRest.map(event => (
-                          <View key={event.id} style={gridCols > 1 ? { width: cardPct as any } : { marginBottom: 8 }}>
+                      {gridCols > 1 ? (
+                        <View
+                          onLayout={e => {
+                            const w = e.nativeEvent.layout.width;
+                            if (w > 0 && w !== marketPageWidth) setMarketPageWidth(w);
+                          }}
+                          style={{ overflow: "hidden" }}
+                        >
+                          <Animated.View style={{ transform: [{ translateX: marketSlideAnim }] }}>
+                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                              {(pages[marketPageIdx] ?? []).map(event => (
+                                <View key={event.id} style={{ width: cardPct as any }}>
+                                  <MarketCard
+                                    event={event}
+                                    onPress={() => handleCardPress(event.id)}
+                                    onBetPress={() => handleBetPress(event.id)}
+                                    language={language}
+                                    sentiment={sentimentCache[event.id] ?? null}
+                                    history={historyCache[event.id]}
+                                    t={t}
+                                  />
+                                  {betPanelId === event.id && (
+                                    <BetPanel
+                                      event={event} language={language} t={t}
+                                      onClose={() => setBetPanelId(null)}
+                                      isAuthenticated={isAuthenticated} userId={userId}
+                                      placePrediction={placePrediction} refreshPortfolio={refreshPortfolio}
+                                    />
+                                  )}
+                                </View>
+                              ))}
+                            </View>
+                          </Animated.View>
+
+                          {/* Page indicator dots */}
+                          {pages.length > 1 && (
+                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 14 }}>
+                              {pages.map((_, i) => (
+                                <TouchableOpacity key={i} onPress={() => goToPage(i)}>
+                                  <View style={{
+                                    width: i === marketPageIdx ? 20 : 6, height: 6, borderRadius: 3,
+                                    backgroundColor: i === marketPageIdx ? PURPLE : "rgba(124,92,252,0.25)",
+                                  }} />
+                                </TouchableOpacity>
+                              ))}
+                              <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular", marginLeft: 6 }}>
+                                {marketPageIdx + 1}/{pages.length}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      ) : (
+                        visibleRest.map(event => (
+                          <View key={event.id} style={{ marginBottom: 8 }}>
                             <MarketCard
                               event={event}
                               onPress={() => handleCardPress(event.id)}
@@ -1895,8 +2271,8 @@ export default function MarketsScreen() {
                               />
                             )}
                           </View>
-                        ))}
-                      </View>
+                        ))
+                      )}
 
                       {/* Guest gate — fade + CTA */}
                       {showGate && (

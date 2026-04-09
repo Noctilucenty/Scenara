@@ -81,6 +81,7 @@ export default function MarketDetailScreen() {
   const [summary, setSummary] = useState<string>("");
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [chartWidth, setChartWidth] = useState(0);
   const [sentiment, setSentiment] = useState<{ total: number; scenarios: Array<{ scenario_id: number; player_count: number; percentage: number }> } | null>(null);
 
   const eventId = params.eventId ? parseInt(params.eventId) : null;
@@ -219,11 +220,14 @@ export default function MarketDetailScreen() {
 
             {/* Chart */}
             {hasChart && (
-              <View style={{ backgroundColor: "rgba(124,92,252,0.04)", borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: "rgba(124,92,252,0.12)" }}>
+              <View
+                onLayout={e => setChartWidth(e.nativeEvent.layout.width - 28)}
+                style={{ backgroundColor: "rgba(124,92,252,0.04)", borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: "rgba(124,92,252,0.12)" }}
+              >
                 <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>
                   {language === "pt" ? "HISTÓRICO DE PROBABILIDADE" : "PROBABILITY HISTORY"}
                 </Text>
-                <ProbabilityChart scenarios={history} height={160} compact={false} />
+                <ProbabilityChart scenarios={history} height={160} compact={false} width={chartWidth > 0 ? chartWidth : undefined} />
               </View>
             )}
 
@@ -270,11 +274,11 @@ export default function MarketDetailScreen() {
               </View>
             )}
 
-            {/* Outcomes */}
-            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>
+            {/* Outcomes + Bet — mobile only; desktop shows these in the right sidebar */}
+            {!IS_WEB && <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>
               {language === "pt" ? "RESULTADOS" : "OUTCOMES"}
-            </Text>
-            {event.scenarios.map((s, idx) => {
+            </Text>}
+            {!IS_WEB && event.scenarios.map((s, idx) => {
               const won  = resolved && s.status === "won";
               const lost = resolved && s.status === "lost";
               const c    = SCENARIO_COLORS[idx % SCENARIO_COLORS.length];
@@ -300,8 +304,8 @@ export default function MarketDetailScreen() {
               );
             })}
 
-            {/* Bet section */}
-            {!resolved && selScene && (
+            {/* Bet section — mobile only */}
+            {!IS_WEB && !resolved && selScene && (
               <View style={{ backgroundColor: SURFACE, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_P, marginTop: 8, marginBottom: 24 }}>
                 {/* Scenario selector */}
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
