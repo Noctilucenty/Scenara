@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 
@@ -9,9 +11,52 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
 from app import models
+from app.models.probability_history import ScenarioProbabilityHistory
+from app.models.scenario import Scenario
 from app.routers.auth import get_current_user
 
 router = APIRouter()
+
+# ---------------------------------------------------------------------------
+# Market mechanics constants
+# ---------------------------------------------------------------------------
+
+MIN_BET = 1.0          # minimum single bet in sim dollars
+MAX_BET = 10_000.0     # maximum single bet in sim dollars
+
+# Virtual liquidity depth — controls how strongly a bet moves the market.
+# A bet of size L has a 50% impact on the market.
+# Lower  = more volatile market (small bets move odds a lot)
+# Higher = more stable market (large bets needed to move odds)
+MARKET_LIQUIDITY = 1_000.0
+
+MAX_BETS_PER_MINUTE = 10
+MAX_POSITION_PER_MARKET = 2_000.0  # max $2000 open exposure per user per event
+
+_bet_timestamps: dict[str, list[float]] = defaultdict(list)
+
+def _check_rate_limit(user_id: int) -> None:
+    key = str(user_id)
+    now = time.time()
+    _bet_timestamps[key] = [t for t in _bet_timestamps[key] if now - t < 60.0]
+    if len(_bet_timestamps[key]) >= MAX_BETS_PER_MINUTE:
+        raise HTTPException(status_code=429, detail=f"Rate limit: max {MAX_BETS_PER_MINUTE} bets per minute")
+    _bet_timestamps[key].append(now)
+
+def _check_position_limit(db: Session, user_id: int, event_id: int, new_amount: float) -> None:
+    from sqlalchemy import func
+    total = db.query(func.sum(models.Prediction.simulated_amount)).join(
+        models.Scenario, models.Prediction.scenario_id == models.Scenario.id
+    ).filter(
+        models.Scenario.event_id == event_id,
+        models.Prediction.user_id == user_id,
+        models.Prediction.status == "open",
+    ).scalar() or 0
+    if float(total) + new_amount > MAX_POSITION_PER_MARKET:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Position limit reached: max ${MAX_POSITION_PER_MARKET:,.0f} open per market"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -84,9 +129,88 @@ class SettlementResponse(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+_HOUSE_EDGE = 0.02  # 2% rake — platform keeps 2% of implied value
+
 def implied_multiplier(probability: float) -> float:
     normalized = max(min(probability, 99.0), 1.0)
-    return round(100.0 / normalized, 4)
+    fair = 100.0 / normalized
+    return round(fair * (1.0 - _HOUSE_EDGE), 4)
+
+
+def _normalize_scenarios(scenarios: list) -> None:
+    """
+    Ensure all scenario probabilities sum to exactly 100%.
+    Clamps each to [1, 99] first to avoid degenerate markets.
+    Modifies in-place — caller must commit.
+    """
+    for s in scenarios:
+        s.probability = max(1.0, min(99.0, s.probability))
+    total = sum(s.probability for s in scenarios)
+    if total == 0:
+        equal = round(100.0 / len(scenarios), 2)
+        for s in scenarios:
+            s.probability = equal
+    else:
+        for s in scenarios:
+            s.probability = round(s.probability / total * 100.0, 2)
+
+
+def _shift_market(db: Session, bet_scenario: models.Scenario, amount: float) -> None:
+    """
+    Move market odds after a bet is placed.
+
+    Mechanics:
+      - Betting on scenario X increases X's probability (demand signal).
+      - All other scenarios are scaled down proportionally so the sum stays 100%.
+      - Early bettors on the right side lock in better odds before the market moves.
+      - impact = amount / (amount + MARKET_LIQUIDITY)
+        e.g. $100 bet on $1000 liquidity → ~9% market impact
+
+    After updating, logs a probability history point for every scenario so the
+    live chart reflects real crowd-driven price movement.
+    """
+    scenarios = (
+        db.query(models.Scenario)
+        .filter(
+            models.Scenario.event_id == bet_scenario.event_id,
+            models.Scenario.status == "active",
+        )
+        .all()
+    )
+    if len(scenarios) < 2:
+        return
+
+    # Impact factor — how much this single bet moves the market
+    impact = amount / (amount + MARKET_LIQUIDITY)
+
+    # Boost the bet scenario toward 100%
+    old_p = max(1.0, min(99.0, bet_scenario.probability)) / 100.0
+    new_p = old_p + (1.0 - old_p) * impact
+
+    # Scale other scenarios down proportionally to fill remaining probability mass
+    remaining = 1.0 - new_p
+    others = [s for s in scenarios if s.id != bet_scenario.id]
+    other_sum = sum(max(0.001, s.probability) for s in others)
+
+    for s in scenarios:
+        if s.id == bet_scenario.id:
+            s.probability = new_p * 100.0
+        else:
+            s.probability = (max(0.001, s.probability) / other_sum) * remaining * 100.0
+
+    # Clamp and renormalize to guarantee sum == 100 and no degenerate values
+    _normalize_scenarios(scenarios)
+
+    # Log a history snapshot for every scenario so the chart updates live
+    now = datetime.utcnow()
+    for s in scenarios:
+        db.add(ScenarioProbabilityHistory(
+            scenario_id=s.id,
+            event_id=s.event_id,
+            probability=s.probability,
+            source="bet",
+            recorded_at=now,
+        ))
 
 
 def _compute_accuracy_score(predictions: list) -> float:
@@ -111,19 +235,27 @@ def _compute_accuracy_score(predictions: list) -> float:
 def _compute_percentile(user_id: int, user_pnl: float, db: Session) -> float:
     """
     What percentage of other users does this user beat by total PnL.
+    Uses a single aggregated query instead of loading every prediction.
     """
-    all_users = db.query(models.User).filter(models.User.is_active.is_(True)).all()
-    if len(all_users) <= 1:
+    from sqlalchemy import func
+
+    rows = (
+        db.query(
+            models.Prediction.user_id,
+            func.sum(models.Prediction.pnl).label("total_pnl"),
+        )
+        .filter(models.Prediction.status.in_(("won", "lost")))
+        .filter(models.Prediction.pnl.isnot(None))
+        .group_by(models.Prediction.user_id)
+        .all()
+    )
+
+    if not rows:
         return 100.0
 
-    user_scores = []
-    for u in all_users:
-        preds = db.query(models.Prediction).filter(models.Prediction.user_id == u.id).all()
-        pnl = sum(float(p.pnl) for p in preds if p.pnl is not None and p.status in ("won", "lost"))
-        user_scores.append(pnl)
-
-    beaten = sum(1 for s in user_scores if s < user_pnl)
-    return round((beaten / (len(user_scores) - 1)) * 100, 1) if len(user_scores) > 1 else 100.0
+    scores = [float(r.total_pnl) for r in rows]
+    beaten = sum(1 for s in scores if s < user_pnl)
+    return round((beaten / len(scores)) * 100, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +271,13 @@ def create_prediction(
     # Ensure authenticated user matches requested user_id — prevents spoofing
     if payload.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Cannot place predictions on behalf of another user")
-    user = current_user
+
+    # Validate bet size
+    entry_amount = payload.simulated_amount
+    if float(entry_amount) < MIN_BET:
+        raise HTTPException(status_code=400, detail=f"Minimum bet is ${MIN_BET:.0f}")
+    if float(entry_amount) > MAX_BET:
+        raise HTTPException(status_code=400, detail=f"Maximum bet is ${MAX_BET:,.0f}")
 
     scenario = (
         db.query(models.Scenario)
@@ -153,6 +291,12 @@ def create_prediction(
         raise HTTPException(status_code=400, detail="Scenario is not active")
     if scenario.event.status != "open":
         raise HTTPException(status_code=400, detail="Event is not open")
+    # Guard against degenerate market — should never happen after normalization
+    if not (1.0 <= scenario.probability <= 99.0):
+        raise HTTPException(status_code=400, detail="Market is not accepting bets right now")
+
+    _check_rate_limit(current_user.id)
+    _check_position_limit(db, current_user.id, scenario.event.id, float(entry_amount))
 
     account = (
         db.query(models.Account)
@@ -167,15 +311,14 @@ def create_prediction(
         raise HTTPException(status_code=404, detail="Simulation account not found")
 
     current_balance = Decimal(str(account.balance))
-    entry_amount = payload.simulated_amount
-
     if current_balance < entry_amount:
         raise HTTPException(status_code=400, detail="Insufficient simulation balance")
 
     account.balance = current_balance - entry_amount
 
+    # Lock odds at the current probability BEFORE the market moves
     prediction = models.Prediction(
-        user_id=user.id,
+        user_id=current_user.id,
         scenario_id=scenario.id,
         simulated_amount=float(entry_amount),
         entry_probability=scenario.probability,
@@ -185,14 +328,18 @@ def create_prediction(
     db.add(prediction)
     db.flush()
 
-    tx = models.Transaction(
-        user_id=user.id,
+    db.add(models.Transaction(
+        user_id=current_user.id,
         account_id=account.id,
         type="prediction_entry",
         amount=float(entry_amount),
         currency=account.currency,
-    )
-    db.add(tx)
+    ))
+
+    # Move the market: shift probabilities based on this bet, then log history
+    # This happens AFTER odds are locked so the bettor keeps their entry price
+    _shift_market(db, scenario, float(entry_amount))
+
     db.commit()
     db.refresh(prediction)
     return prediction
@@ -314,11 +461,70 @@ def get_portfolio_summary(user_id: int, db: Session = Depends(get_db)):
     )
 
 
+class OpenPositionOut(BaseModel):
+    prediction_id: int
+    event_id: int
+    event_title: str
+    event_status: str
+    scenario_id: int
+    scenario_title: str
+    amount: float
+    entry_probability: float
+    payout_multiplier: float
+    current_probability: float
+    potential_payout: float   # amount × multiplier (what you'd win)
+    expected_value: float     # current_prob × potential_payout − (1−current_prob) × amount
+    unrealized_pnl: float     # expected_value − amount
+
+@router.get("/user/{user_id}/open-positions", response_model=list[OpenPositionOut])
+def get_open_positions(user_id: int, db: Session = Depends(get_db)):
+    """Returns all open predictions with current market EV and unrealized PnL."""
+    predictions = (
+        db.query(models.Prediction)
+        .options(joinedload(models.Prediction.scenario).joinedload(models.Scenario.event))
+        .filter(
+            models.Prediction.user_id == user_id,
+            models.Prediction.status == "open",
+        )
+        .order_by(models.Prediction.created_at.desc())
+        .all()
+    )
+    result = []
+    for p in predictions:
+        sc = p.scenario
+        ev = sc.event if sc else None
+        if not sc or not ev:
+            continue
+        amount = float(p.simulated_amount)
+        potential_payout = round(amount * p.payout_multiplier, 2)
+        cp = sc.probability / 100.0
+        expected_value = round(cp * potential_payout - (1 - cp) * amount, 2)
+        unrealized_pnl = round(expected_value - amount, 2)
+        result.append(OpenPositionOut(
+            prediction_id=p.id,
+            event_id=ev.id,
+            event_title=ev.title,
+            event_status=ev.status,
+            scenario_id=sc.id,
+            scenario_title=sc.title,
+            amount=amount,
+            entry_probability=p.entry_probability,
+            payout_multiplier=round(p.payout_multiplier, 4),
+            current_probability=sc.probability,
+            potential_payout=potential_payout,
+            expected_value=expected_value,
+            unrealized_pnl=unrealized_pnl,
+        ))
+    return result
+
+
 @router.post("/settle/{event_id}", response_model=SettlementResponse)
 def settle_event_predictions(event_id: int, db: Session = Depends(get_db)):
+    from app.services.resolution import settle_event as _settle
+    from sqlalchemy.orm import joinedload as _jl
     event = (
         db.query(models.Event)
-        .options(joinedload(models.Event.scenarios))
+        .options(_jl(models.Event.scenarios))
         .filter(models.Event.id == event_id)
         .first()
     )
@@ -326,67 +532,11 @@ def settle_event_predictions(event_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Event not found")
     if event.status != "resolved":
         raise HTTPException(status_code=400, detail="Event must be resolved before settlement")
-
-    scenario_map = {s.id: s for s in event.scenarios}
-    predictions = (
-        db.query(models.Prediction)
-        .join(models.Scenario, models.Prediction.scenario_id == models.Scenario.id)
-        .filter(models.Scenario.event_id == event_id, models.Prediction.status == "open")
-        .all()
-    )
-
-    settled_count = 0
-    for prediction in predictions:
-        scenario = scenario_map.get(prediction.scenario_id)
-        if not scenario:
-            continue
-        account = (
-            db.query(models.Account)
-            .filter(
-                models.Account.user_id == prediction.user_id,
-                models.Account.account_type == "simulation",
-                models.Account.is_active.is_(True),
-            )
-            .first()
-        )
-        if not account:
-            continue
-
-        prediction_amount = Decimal(str(prediction.simulated_amount))
-
-        if scenario.status == "won":
-            pnl_value = round(float(prediction_amount) * (prediction.payout_multiplier - 1.0), 2)
-            prediction.status = "won"
-            prediction.pnl = pnl_value
-            account.balance = Decimal(str(account.balance)) + prediction_amount + Decimal(str(pnl_value))
-            db.add(models.Transaction(
-                user_id=prediction.user_id, account_id=account.id,
-                type="prediction_win", amount=float(prediction_amount + Decimal(str(pnl_value))),
-                currency=account.currency,
-            ))
-        elif scenario.status == "lost":
-            prediction.status = "lost"
-            prediction.pnl = round(-float(prediction_amount), 2)
-            db.add(models.Transaction(
-                user_id=prediction.user_id, account_id=account.id,
-                type="prediction_loss", amount=float(prediction_amount),
-                currency=account.currency,
-            ))
-        else:
-            prediction.status = "void"
-            prediction.pnl = 0
-            account.balance = Decimal(str(account.balance)) + prediction_amount
-            db.add(models.Transaction(
-                user_id=prediction.user_id, account_id=account.id,
-                type="void", amount=float(prediction_amount),
-                currency=account.currency,
-            ))
-
-        prediction.settled_at = datetime.utcnow()
-        settled_count += 1
-
-    db.commit()
-    return SettlementResponse(settled_count=settled_count, event_id=event_id)
+    winning_scenario = next((s for s in event.scenarios if s.status == "won"), None)
+    if not winning_scenario:
+        raise HTTPException(status_code=400, detail="No winning scenario found")
+    result = _settle(db, event, winning_scenario.id)
+    return SettlementResponse(settled_count=result["total_winners"] + result["total_losers"], event_id=event_id)
 
 
 # ---------------------------------------------------------------------------
@@ -454,9 +604,23 @@ class ActivityItem(BaseModel):
     seconds_ago: int
 
 
+_SYNTHETIC_NAMES = [
+    "Lucas M.", "Sofia R.", "Gabriel T.", "Ana C.", "Pedro H.",
+    "Isabella F.", "Mateus S.", "Juliana B.", "Rafael O.", "Camila N.",
+    "Bruno L.", "Fernanda P.", "Diego A.", "Larissa G.", "Vitor E.",
+    "Mariana K.", "Felipe W.", "Beatriz D.", "Thiago V.", "Natalia Z.",
+    "James K.", "Emma S.", "Noah P.", "Olivia R.", "Liam B.",
+    "Ava T.", "Ethan C.", "Sophia H.", "Mason L.", "Mia F.",
+]
+_SYNTHETIC_AMOUNTS = ["<$25", "$25–$100", "$100–$500", "$500+"]
+_SYNTHETIC_AMOUNT_WEIGHTS = [0.25, 0.45, 0.25, 0.05]
+
+
 @router.get("/activity", response_model=list[ActivityItem])
-def get_recent_activity(limit: int = 12, db: Session = Depends(get_db)):
+def get_recent_activity(limit: int = 15, db: Session = Depends(get_db)):
     """Returns the last N bets (anonymized) for the social proof activity ticker."""
+    import random, hashlib
+
     recent = (
         db.query(models.Prediction)
         .options(
@@ -504,5 +668,41 @@ def get_recent_activity(limit: int = 12, db: Session = Depends(get_db)):
             amount_label=label,
             seconds_ago=max(delta, 5),
         ))
+
+    # Pad with synthetic activity when real data is sparse
+    if len(items) < limit:
+        scenarios = (
+            db.query(models.Scenario)
+            .options(joinedload(models.Scenario.event))
+            .join(models.Scenario.event)
+            .filter(models.Scenario.event != None)
+            .limit(40)
+            .all()
+        )
+        if scenarios:
+            needed = limit - len(items)
+            # Use a stable seed based on current hour so names don't flicker on refresh
+            seed = int(now.strftime("%Y%m%d%H%M"))
+            rng = random.Random(seed)
+            used_names = {it.player for it in items}
+            name_pool = [n for n in _SYNTHETIC_NAMES if n not in used_names]
+            rng.shuffle(name_pool)
+            for i in range(needed):
+                sc = rng.choice(scenarios)
+                ev = sc.event
+                if not ev:
+                    continue
+                name = name_pool[i % len(name_pool)]
+                label = rng.choices(_SYNTHETIC_AMOUNTS, weights=_SYNTHETIC_AMOUNT_WEIGHTS, k=1)[0]
+                # Spread fake timestamps across the past 6 hours
+                fake_delta = rng.randint(120, 21600)
+                items.append(ActivityItem(
+                    player=name,
+                    event_title=ev.title[:50],
+                    scenario_title=sc.title[:30],
+                    amount_label=label,
+                    seconds_ago=fake_delta,
+                ))
+            rng.shuffle(items)
 
     return items

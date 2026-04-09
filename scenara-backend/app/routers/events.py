@@ -15,6 +15,7 @@ from app.models.account import Account
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.models.probability_history import ScenarioProbabilityHistory
+from app.services.resolution import settle_event
 
 router = APIRouter()
 
@@ -128,15 +129,6 @@ def _log_probability(
     ))
 
 
-def _update_streak(user: User, won: bool) -> None:
-    if won:
-        user.current_streak = (user.current_streak or 0) + 1
-        if user.current_streak > (user.best_streak or 0):
-            user.best_streak = user.current_streak
-    else:
-        user.current_streak = 0
-
-
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -160,12 +152,22 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
     db.add(event)
     db.flush()
 
+    # Normalize input probabilities so they sum to exactly 100%
+    raw_total = sum(sp.probability for sp in payload.scenarios) or 100.0
+    normalized_probs = [
+        max(1.0, min(99.0, round(sp.probability / raw_total * 100.0, 2)))
+        for sp in payload.scenarios
+    ]
+    # Re-check after clamping — redistribute any rounding remainder to first scenario
+    norm_total = sum(normalized_probs)
+    normalized_probs[0] = round(normalized_probs[0] + (100.0 - norm_total), 2)
+
     for idx, sp in enumerate(payload.scenarios):
         scenario = Scenario(
             event_id=event.id,
             title=sp.title,
             description=sp.description,
-            probability=sp.probability,
+            probability=normalized_probs[idx],
             sort_order=sp.sort_order if sp.sort_order else idx,
             status="active",
         )
@@ -334,11 +336,30 @@ def update_scenario_probability(
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
 
-    scenario.probability = payload.probability
-    db.flush()
+    # Clamp the new value
+    new_prob = max(1.0, min(99.0, payload.probability))
+    scenario.probability = new_prob
 
-    # Log history snapshot
+    # Renormalize siblings so the whole event still sums to 100%
+    siblings = (
+        db.query(Scenario)
+        .filter(
+            Scenario.event_id == scenario.event_id,
+            Scenario.id != scenario_id,
+            Scenario.status == "active",
+        )
+        .all()
+    )
+    if siblings:
+        remaining = 100.0 - new_prob
+        sib_total = sum(max(0.001, s.probability) for s in siblings)
+        for s in siblings:
+            s.probability = round((max(0.001, s.probability) / sib_total) * remaining, 2)
+
+    # Log history for all affected scenarios
     _log_probability(db, scenario, source="updated")
+    for s in siblings:
+        _log_probability(db, s, source="updated")
 
     db.commit()
     db.refresh(scenario)
@@ -366,6 +387,7 @@ def resolve_event(
     if payload.winning_scenario_id not in scenario_ids:
         raise HTTPException(status_code=400, detail="Winning scenario does not belong to this event")
 
+    # Capture open predictions before settlement for push notification user lists
     open_predictions = (
         db.query(Prediction)
         .filter(
@@ -375,71 +397,13 @@ def resolve_event(
         .all()
     )
 
-    now = datetime.utcnow()
-    total_winners = 0
-    total_losers = 0
-    total_payout = 0.0
+    result = settle_event(db, event, payload.winning_scenario_id, payload.resolution_note or "")
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Settlement failed"))
 
-    for prediction in open_predictions:
-        account = (
-            db.query(Account)
-            .filter(
-                Account.user_id == prediction.user_id,
-                Account.account_type == "simulation",
-                Account.is_active.is_(True),
-            )
-            .first()
-        )
-        user = db.query(User).filter(User.id == prediction.user_id).first()
-
-        if prediction.scenario_id == payload.winning_scenario_id:
-            payout = float(prediction.simulated_amount) * prediction.payout_multiplier
-            pnl = payout - float(prediction.simulated_amount)
-            prediction.status = "won"
-            prediction.pnl = pnl
-            prediction.settled_at = now
-            if account:
-                account.balance = float(account.balance) + payout
-                db.add(Transaction(
-                    user_id=prediction.user_id,
-                    account_id=account.id,
-                    type="prediction_win",
-                    amount=payout,
-                    currency=account.currency,
-                ))
-            if user:
-                _update_streak(user, won=True)
-            total_winners += 1
-            total_payout += payout
-        else:
-            pnl = -float(prediction.simulated_amount)
-            prediction.status = "lost"
-            prediction.pnl = pnl
-            prediction.settled_at = now
-            if account:
-                db.add(Transaction(
-                    user_id=prediction.user_id,
-                    account_id=account.id,
-                    type="prediction_loss",
-                    amount=0,
-                    currency=account.currency,
-                ))
-            if user:
-                _update_streak(user, won=False)
-            total_losers += 1
-
-    # Mark event resolved + log final probability snapshot
-    event.status = "resolved"
-    event.resolution_note = payload.resolution_note
-    event.resolved_at = now
-
-    for scenario in event.scenarios:
-        final_prob = 100.0 if scenario.id == payload.winning_scenario_id else 0.0
-        scenario.status = "won" if scenario.id == payload.winning_scenario_id else "lost"
-        scenario.probability = final_prob
-        _log_probability(db, scenario, source="resolved")
-
-    db.commit()
+    total_winners = result["total_winners"]
+    total_losers = result["total_losers"]
+    total_payout = result["total_payout"]
 
     # Send push notifications to all affected users
     try:
@@ -468,13 +432,13 @@ def resolve_event(
 
     return EventResolveResponse(
         ok=True,
-        event_id=event.id,
-        winning_scenario_id=payload.winning_scenario_id,
-        status=event.status,
-        predictions_settled=len(open_predictions),
+        event_id=result["event_id"],
+        winning_scenario_id=result["winning_scenario_id"],
+        status="resolved",
+        predictions_settled=total_winners + total_losers,
         total_winners=total_winners,
         total_losers=total_losers,
-        total_payout=round(total_payout, 2),
+        total_payout=total_payout,
     )
 
 

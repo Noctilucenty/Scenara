@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView,
   StatusBar, TextInput, ActivityIndicator, Linking, Image,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, useWindowDimensions,
 } from "react-native";
 
 const IS_WEB = Platform.OS === "web";
@@ -82,6 +82,8 @@ export default function MarketDetailScreen() {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chartWidth, setChartWidth] = useState(0);
+  const { width: winW } = useWindowDimensions();
+  const isWide = winW >= 700;
   const [sentiment, setSentiment] = useState<{ total: number; scenarios: Array<{ scenario_id: number; player_count: number; percentage: number }> } | null>(null);
 
   const eventId = params.eventId ? parseInt(params.eventId) : null;
@@ -200,16 +202,16 @@ export default function MarketDetailScreen() {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false}
-          contentContainerStyle={IS_WEB ? { maxWidth: 1200, alignSelf: "center" as const, width: "100%", padding: 32 } : undefined}
+          contentContainerStyle={isWide ? { maxWidth: 1200, alignSelf: "center" as const, width: "100%", padding: 32 } : undefined}
         >
-          {/* Desktop: two-column wrapper */}
-          <View style={IS_WEB ? { flexDirection: "row", gap: 32, alignItems: "flex-start" } : undefined}>
+          {/* Wide: two-column wrapper */}
+          <View style={isWide ? { flexDirection: "row", gap: 32, alignItems: "flex-start" } : undefined}>
 
           {/* LEFT column (or full-width on mobile) */}
-          <View style={IS_WEB ? { flex: 0.6 } : { padding: 20 }}>
+          <View style={isWide ? { flex: 0.6 } : { padding: 20 }}>
 
             {/* Title */}
-            <Text style={{ color: TEXT, fontSize: IS_WEB ? 26 : 22, fontFamily: "DMSans_700Bold", lineHeight: IS_WEB ? 36 : 30, letterSpacing: -0.5, marginBottom: 8 }}>
+            <Text style={{ color: TEXT, fontSize: isWide ? 26 : 22, fontFamily: "DMSans_700Bold", lineHeight: isWide ? 36 : 30, letterSpacing: -0.5, marginBottom: 8 }}>
               {title}
             </Text>
             {desc && (
@@ -274,11 +276,11 @@ export default function MarketDetailScreen() {
               </View>
             )}
 
-            {/* Outcomes + Bet — mobile only; desktop shows these in the right sidebar */}
-            {!IS_WEB && <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>
+            {/* Outcomes + Bet — narrow only; wide screens show these in the right sidebar */}
+            {!isWide && <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>
               {language === "pt" ? "RESULTADOS" : "OUTCOMES"}
             </Text>}
-            {!IS_WEB && event.scenarios.map((s, idx) => {
+            {!isWide && event.scenarios.map((s, idx) => {
               const won  = resolved && s.status === "won";
               const lost = resolved && s.status === "lost";
               const c    = SCENARIO_COLORS[idx % SCENARIO_COLORS.length];
@@ -304,8 +306,8 @@ export default function MarketDetailScreen() {
               );
             })}
 
-            {/* Bet section — mobile only */}
-            {!IS_WEB && !resolved && selScene && (
+            {/* Bet section — narrow only */}
+            {!isWide && !resolved && selScene && (
               <View style={{ backgroundColor: SURFACE, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER_P, marginTop: 8, marginBottom: 24 }}>
                 {/* Scenario selector */}
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
@@ -488,8 +490,8 @@ export default function MarketDetailScreen() {
             </View>
           </View>{/* end left column */}
 
-          {/* RIGHT column — desktop only: outcomes + bet panel + sentiment */}
-          {IS_WEB && (
+          {/* RIGHT column — wide only: outcomes + bet panel + sentiment */}
+          {isWide && (
             <View style={{ flex: 0.4, gap: 16 }}>
 
               {/* Outcomes */}

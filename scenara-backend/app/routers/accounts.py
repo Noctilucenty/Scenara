@@ -74,9 +74,41 @@ def get_leaderboard(
     sort_by: str = Query(default="pnl", enum=["pnl", "balance", "win_rate"]),
     limit: int = Query(default=20, ge=1, le=100),
 ):
-    accounts = (
-        db.query(models.Account)
-        .join(models.User, models.Account.user_id == models.User.id)
+    from sqlalchemy import func, case
+
+    # Single query: aggregate predictions per user
+    pred_agg = (
+        db.query(
+            models.Prediction.user_id,
+            func.count(models.Prediction.id).label("total_predictions"),
+            func.sum(case((models.Prediction.status == "won", 1), else_=0)).label("won_count"),
+            func.sum(case((models.Prediction.status == "lost", 1), else_=0)).label("lost_count"),
+            func.sum(
+                case(
+                    (models.Prediction.status.in_(["won", "lost"]), models.Prediction.pnl),
+                    else_=0,
+                )
+            ).label("total_pnl"),
+        )
+        .group_by(models.Prediction.user_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(
+            models.User.id,
+            models.User.email,
+            models.User.display_name,
+            models.User.current_streak,
+            models.User.best_streak,
+            models.Account.balance,
+            func.coalesce(pred_agg.c.total_predictions, 0).label("total_predictions"),
+            func.coalesce(pred_agg.c.won_count, 0).label("won_count"),
+            func.coalesce(pred_agg.c.lost_count, 0).label("lost_count"),
+            func.coalesce(pred_agg.c.total_pnl, 0.0).label("total_pnl"),
+        )
+        .join(models.Account, models.Account.user_id == models.User.id)
+        .outerjoin(pred_agg, pred_agg.c.user_id == models.User.id)
         .filter(
             models.Account.account_type == "simulation",
             models.Account.is_active.is_(True),
@@ -85,52 +117,25 @@ def get_leaderboard(
         .all()
     )
 
-    entries: list[LeaderboardEntry] = []
+    entries = []
+    for row in rows:
+        settled = (row.won_count or 0) + (row.lost_count or 0)
+        win_rate = round(((row.won_count or 0) / settled) * 100, 1) if settled > 0 else 0.0
+        entries.append(LeaderboardEntry(
+            rank=0,
+            user_id=row.id,
+            email=row.email,
+            display_name=row.display_name or row.email.split("@")[0],
+            balance=round(float(row.balance), 2),
+            total_pnl=round(float(row.total_pnl or 0), 2),
+            total_predictions=row.total_predictions or 0,
+            won_count=row.won_count or 0,
+            lost_count=row.lost_count or 0,
+            win_rate=win_rate,
+            current_streak=row.current_streak or 0,
+            best_streak=row.best_streak or 0,
+        ))
 
-    for account in accounts:
-        predictions = (
-            db.query(models.Prediction)
-            .filter(models.Prediction.user_id == account.user_id)
-            .all()
-        )
-
-        total_predictions = len(predictions)
-        won_count = sum(1 for p in predictions if p.status == "won")
-        lost_count = sum(1 for p in predictions if p.status == "lost")
-
-        total_pnl = sum(
-            float(p.pnl) for p in predictions
-            if p.pnl is not None and p.status in ("won", "lost")
-        )
-
-        settled = won_count + lost_count
-        win_rate = round((won_count / settled) * 100, 1) if settled > 0 else 0.0
-
-        user = db.query(models.User).filter(
-            models.User.id == account.user_id
-        ).first()
-
-        if not user:
-            continue
-
-        entries.append(
-            LeaderboardEntry(
-                rank=0,
-                user_id=account.user_id,
-                email=user.email,
-                display_name=user.email.split("@")[0],
-                balance=round(float(account.balance), 2),
-                total_pnl=round(total_pnl, 2),
-                total_predictions=total_predictions,
-                won_count=won_count,
-                lost_count=lost_count,
-                win_rate=win_rate,
-                current_streak=user.current_streak or 0,
-                best_streak=user.best_streak or 0,
-            )
-        )
-
-    # Sort
     if sort_by == "balance":
         entries.sort(key=lambda e: e.balance, reverse=True)
     elif sort_by == "win_rate":
@@ -143,5 +148,4 @@ def get_leaderboard(
 
     total_users = len(entries)
     entries = entries[:limit]
-
     return LeaderboardOut(entries=entries, total_users=total_users)

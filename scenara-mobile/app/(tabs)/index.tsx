@@ -1131,8 +1131,9 @@ const NewsGrid = React.memo(function NewsGrid({ articles, language, onPress }: {
   onPress(a: NewsArticle): void;
 }) {
   if (articles.length === 0) return null;
-  const cols = IS_WEB ? 3 : 2;
-  const items = articles.slice(0, IS_WEB ? 6 : 4);
+  const { width: newsW } = useWindowDimensions();
+  const cols = newsW >= 700 ? 3 : newsW >= 500 ? 2 : 1;
+  const items = articles.slice(0, newsW >= 700 ? 6 : 4);
 
   return (
     <View style={{ marginBottom: 16 }}>
@@ -1512,6 +1513,7 @@ export default function MarketsScreen() {
   const featuredSlideAnim = useRef(new Animated.Value(0)).current;
   const featuredOpacityAnim = useRef(new Animated.Value(1)).current;
   const carouselIdxRef = useRef(0);
+  const featuredSwipeTouchX = useRef(0);
   const scrollRef = useRef<any>(null);
   const PAGE_SIZE = 100;
   const GUEST_CAP = 100;
@@ -1657,30 +1659,34 @@ export default function MarketsScreen() {
   // Keep carouselIdxRef in sync
   useEffect(() => { carouselIdxRef.current = carouselIdx; }, [carouselIdx]);
 
-  // Auto-advance carousel every 5 seconds — swipe-right animation
+  // Navigate carousel by delta (+1 or -1) — reused by auto-advance and swipe gestures
+  const navigateCarousel = useCallback((delta: number) => {
+    const poolLen = carouselPool.length;
+    if (poolLen <= 1) return;
+    const next = (carouselIdxRef.current + poolLen + delta) % poolLen;
+    const easeOut = Easing.out(Easing.cubic);
+    const exitDir = delta > 0 ? 60 : -60;
+    const enterDir = delta > 0 ? -60 : 60;
+    Animated.parallel([
+      Animated.timing(featuredSlideAnim, { toValue: exitDir, duration: 260, easing: easeOut, useNativeDriver: false }),
+      Animated.timing(featuredOpacityAnim, { toValue: 0, duration: 180, easing: easeOut, useNativeDriver: false }),
+    ]).start(() => {
+      setCarouselIdx(next);
+      carouselIdxRef.current = next;
+      featuredSlideAnim.setValue(enterDir);
+      Animated.parallel([
+        Animated.timing(featuredSlideAnim, { toValue: 0, duration: 320, easing: easeOut, useNativeDriver: false }),
+        Animated.timing(featuredOpacityAnim, { toValue: 1, duration: 320, easing: easeOut, useNativeDriver: false }),
+      ]).start();
+    });
+  }, [carouselPool.length]);
+
+  // Auto-advance carousel every 5 seconds
   useEffect(() => {
     if (carouselPool.length <= 1) return;
-    carouselRef.current = setInterval(() => {
-      const next = (carouselIdxRef.current + 1) % carouselPool.length;
-      const easeOut = Easing.out(Easing.cubic);
-      const easeIn  = Easing.out(Easing.cubic);
-      // Phase 1: slide current card out to the right + fade
-      Animated.parallel([
-        Animated.timing(featuredSlideAnim, { toValue: 60, duration: 260, easing: easeOut, useNativeDriver: false }),
-        Animated.timing(featuredOpacityAnim, { toValue: 0, duration: 180, easing: easeOut, useNativeDriver: false }),
-      ]).start(() => {
-        setCarouselIdx(next);
-        carouselIdxRef.current = next;
-        featuredSlideAnim.setValue(-60);
-        // Phase 2: slide new card in from the left
-        Animated.parallel([
-          Animated.timing(featuredSlideAnim, { toValue: 0, duration: 320, easing: easeIn, useNativeDriver: false }),
-          Animated.timing(featuredOpacityAnim, { toValue: 1, duration: 320, easing: easeIn, useNativeDriver: false }),
-        ]).start();
-      });
-    }, 5000);
+    carouselRef.current = setInterval(() => { navigateCarousel(1); }, 5000);
     return () => { if (carouselRef.current) clearInterval(carouselRef.current); };
-  }, [carouselPool.length]);
+  }, [carouselPool.length, navigateCarousel]);
 
   // Reset carousel when events reload
   useEffect(() => { setCarouselIdx(0); carouselIdxRef.current = 0; featuredSlideAnim.setValue(0); featuredOpacityAnim.setValue(1); }, [events.length === 0]);
@@ -1689,28 +1695,7 @@ export default function MarketsScreen() {
   useEffect(() => { marketPageIdxRef.current = marketPageIdx; }, [marketPageIdx]);
   useEffect(() => { marketPageWidthRef.current = marketPageWidth; }, [marketPageWidth]);
 
-  // Auto-advance market grid pages every 5 seconds — swipe-right animation
-  useEffect(() => {
-    if (marketPageWidth === 0) return;
-    if (marketPageIntervalRef.current) clearInterval(marketPageIntervalRef.current);
-    marketPageIntervalRef.current = setInterval(() => {
-      const count = Math.max(1, marketPageCountRef.current);
-      const next = (marketPageIdxRef.current + 1) % count;
-      const w = marketPageWidthRef.current;
-      // Phase 1: slide current page out to the RIGHT
-      Animated.timing(marketSlideAnim, { toValue: w, duration: 380, useNativeDriver: false }).start(() => {
-        setMarketPageIdx(next);
-        marketPageIdxRef.current = next;
-        // Snap new page in from the LEFT (off-screen)
-        marketSlideAnim.setValue(-w);
-        // Phase 2: slide new page in from left to center
-        Animated.timing(marketSlideAnim, { toValue: 0, duration: 380, useNativeDriver: false }).start();
-      });
-    }, 5000);
-    return () => { if (marketPageIntervalRef.current) clearInterval(marketPageIntervalRef.current); };
-  }, [marketPageWidth, events.length]);
-
-  // Reset market page on fresh load
+// Reset market page on fresh load
   useEffect(() => {
     if (!loading) { setMarketPageIdx(0); marketPageIdxRef.current = 0; marketSlideAnim.setValue(0); }
   }, [loading]);
@@ -1927,7 +1912,15 @@ export default function MarketsScreen() {
                         </LinearGradient>
                       </View>
 
-                      <Animated.View style={{ transform: [{ translateX: featuredSlideAnim }], opacity: featuredOpacityAnim }}>
+                      <Animated.View
+                        style={{ transform: [{ translateX: featuredSlideAnim }], opacity: featuredOpacityAnim }}
+                        onStartShouldSetResponder={() => true}
+                        onResponderGrant={e => { featuredSwipeTouchX.current = e.nativeEvent.pageX; }}
+                        onResponderRelease={e => {
+                          const dx = e.nativeEvent.pageX - featuredSwipeTouchX.current;
+                          if (Math.abs(dx) > 50) { navigateCarousel(dx < 0 ? 1 : -1); }
+                        }}
+                      >
                       <View style={{ backgroundColor: CARD, borderRadius: 18, borderWidth: 1.5, borderColor: BORDER_P, overflow: "hidden", marginBottom: 4 }}>
                         <LinearGradient
                           colors={["rgba(79,142,247,0.06)", "rgba(124,92,252,0.04)", "rgba(0,0,0,0)"]}

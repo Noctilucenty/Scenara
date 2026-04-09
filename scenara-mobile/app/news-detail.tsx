@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity,
   Image, SafeAreaView, StatusBar, Linking, ActivityIndicator,
-  Platform, Share,
+  Platform, Share, useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -74,6 +74,8 @@ export default function NewsDetailScreen() {
   const scrollRef = useRef<ScrollView>(null);
 
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
+  const { width: winW } = useWindowDimensions();
+  const isWide = winW >= 700;
   const { title, description, url, image, published, source, source_url } = params;
 
   const cleanDesc      = (!description  || description  === "undefined") ? "" : description;
@@ -116,7 +118,7 @@ export default function NewsDetailScreen() {
 
   // ── HERO ────────────────────────────────────────────────────────────────
   const heroSection = cleanImage ? (
-    <View style={{ height: IS_WEB ? 320 : 240, position: "relative", borderRadius: IS_WEB ? 16 : 0, overflow: "hidden" }}>
+    <View style={{ height: isWide ? 320 : 240, position: "relative", borderRadius: isWide ? 16 : 0, overflow: "hidden" }}>
       <Image source={{ uri: cleanImage }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
       <LinearGradient colors={GRAD_DARK} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 160 }} />
     </View>
@@ -125,7 +127,7 @@ export default function NewsDetailScreen() {
     <LinearGradient
       colors={["#0a0c1e", "#0e0926", "#100a2c"]}
       start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      style={{ borderRadius: IS_WEB ? 16 : 0, overflow: "hidden", paddingHorizontal: 28, paddingVertical: IS_WEB ? 32 : 24 }}
+      style={{ borderRadius: isWide ? 16 : 0, overflow: "hidden", paddingHorizontal: 28, paddingVertical: isWide ? 32 : 24 }}
     >
       {/* Decorative background orbs */}
       <View style={{ position: "absolute", top: -80, right: -80, width: 260, height: 260, borderRadius: 130, backgroundColor: "rgba(124,92,252,0.07)" }} />
@@ -150,7 +152,7 @@ export default function NewsDetailScreen() {
       </View>
 
       {/* Title preview */}
-      <Text style={{ color: TEXT, fontSize: IS_WEB ? 22 : 18, fontFamily: "DMSans_700Bold", lineHeight: IS_WEB ? 32 : 26, letterSpacing: -0.3 }} numberOfLines={IS_WEB ? 3 : 2}>
+      <Text style={{ color: TEXT, fontSize: isWide ? 22 : 18, fontFamily: "DMSans_700Bold", lineHeight: isWide ? 32 : 26, letterSpacing: -0.3 }} numberOfLines={isWide ? 3 : 2}>
         {title}
       </Text>
     </LinearGradient>
@@ -183,7 +185,7 @@ export default function NewsDetailScreen() {
 
       {/* Title — only show here if hero already showed it (image variant) */}
       {cleanImage && (
-        <Text style={{ color: TEXT, fontSize: IS_WEB ? 26 : 22, fontFamily: "DMSans_700Bold", lineHeight: IS_WEB ? 36 : 31, letterSpacing: -0.5, marginBottom: 16 }}>
+        <Text style={{ color: TEXT, fontSize: isWide ? 26 : 22, fontFamily: "DMSans_700Bold", lineHeight: isWide ? 36 : 31, letterSpacing: -0.5, marginBottom: 16 }}>
           {title}
         </Text>
       )}
@@ -319,8 +321,8 @@ export default function NewsDetailScreen() {
     </View>
   );
 
-  // ── WEB LAYOUT ───────────────────────────────────────────────────────────
-  if (IS_WEB) {
+  // ── WIDE LAYOUT (desktop / tablet) ──────────────────────────────────────
+  if (isWide) {
     return (
       <View style={{ flex: 1, backgroundColor: BG }}>
         <StatusBar barStyle="light-content" />
