@@ -34,6 +34,7 @@ class User(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
 
     simulation_accounts = relationship("Account", back_populates="user", cascade="all, delete-orphan")
     simulation_transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")

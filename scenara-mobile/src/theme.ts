@@ -58,6 +58,7 @@ export const SCENARIO_COLORS = [
 
 export const CATEGORY_META: Record<string, { icon: string; color: string; label: string; label_pt: string }> = {
   all:           { icon: "⚡", color: C.PURPLE,    label: "All",           label_pt: "Todos"         },
+  brazil:        { icon: "🇧🇷", color: "#009C3B",   label: "Brazil",        label_pt: "Brasil"        },
   politics:      { icon: "🏛",  color: "#818CF8",   label: "Politics",      label_pt: "Política"      },
   economy:       { icon: "📈", color: "#34D399",   label: "Economy",       label_pt: "Economia"      },
   crypto:        { icon: "₿",  color: "#F7931A",   label: "Crypto",        label_pt: "Cripto"        },
@@ -69,7 +70,6 @@ export const CATEGORY_META: Record<string, { icon: string; color: string; label:
   tv:            { icon: "📺", color: "#22D3EE",   label: "TV",            label_pt: "TV"            },
   science:       { icon: "🔬", color: "#86EFAC",   label: "Science",       label_pt: "Ciência"       },
   weather:       { icon: "🌦",  color: "#7DD3FC",   label: "Weather",       label_pt: "Clima"         },
-  brazil:        { icon: "🇧🇷", color: "#009C3B",   label: "Brazil",        label_pt: "Brasil"        },
 };
 
 export function catMeta(c: string) {

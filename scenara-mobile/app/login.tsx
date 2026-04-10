@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
   StatusBar, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator,
+  ScrollView, ActivityIndicator, useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop, Circle } from "react-native-svg";
@@ -61,6 +61,8 @@ function ScenaraLogo({ size = 52 }: { size?: number }) {
 }
 
 export default function LoginScreen() {
+  const { width: winW } = useWindowDimensions();
+  const isWide = winW >= 700;
   const { login } = useTrading();
   const { language } = useLanguage();
   const [email, setEmail]       = useState("");

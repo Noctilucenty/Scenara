@@ -67,6 +67,7 @@ export interface Prediction {
   event_id: number;
   event_title: string;
   event_status: string;
+  event_closes_at: string | null;
   simulated_amount: number;
   entry_probability: number;
   status: string;

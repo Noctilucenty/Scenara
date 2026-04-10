@@ -363,11 +363,12 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
 });
 
 // ── Inline bet panel ──────────────────────────────────────────────────────────
-function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placePrediction, refreshPortfolio }: {
+function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placePrediction, refreshPortfolio, sentimentCache }: {
   event: EventItem; language: string; t: any; onClose(): void;
   isAuthenticated: boolean; userId: number | null;
   placePrediction(scenarioId: number, amount: number): Promise<{ ok: boolean; error?: string }>;
   refreshPortfolio(): Promise<void>;
+  sentimentCache?: Record<number, { total: number; scenarios: SentimentItem[] }>;
 }) {
   const router = useRouter();
   const [selId, setSelId] = useState<number>(event.scenarios[0]?.id ?? 0);
@@ -425,6 +426,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
             {event.scenarios.slice(0, 2).map((s, idx) => {
               const isSel = selId === s.id;
+              const sentimentItem = sentimentCache?.[event.id]?.scenarios?.find(ss => ss.scenario_id === s.id);
               return (
                 <TouchableOpacity key={s.id} onPress={() => setSelId(s.id)} style={{ flex: 1, borderRadius: 10, overflow: "hidden" }}>
                   <LinearGradient
@@ -435,6 +437,11 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
                     <Text style={{ color: isSel ? "white" : SCENARIO_COLORS[idx], fontFamily: "DMSans_700Bold", fontSize: 12 }} numberOfLines={1}>
                       {scenarioTitle(s, language)}  {s.probability.toFixed(0)}%
                     </Text>
+                    {sentimentItem && sentimentItem.player_count > 0 && (
+                      <Text style={{ color: isSel ? "rgba(255,255,255,0.7)" : TEXT_MID, fontSize: 9, fontFamily: "DMSans_400Regular", marginTop: 2 }}>
+                        👥 {sentimentItem.player_count} bets
+                      </Text>
+                    )}
                   </LinearGradient>
                 </TouchableOpacity>
               );
@@ -446,10 +453,14 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               {event.scenarios.map((s, idx) => {
                 const isSel = selId === s.id;
+                const sentimentItem = sentimentCache?.[event.id]?.scenarios?.find(ss => ss.scenario_id === s.id);
                 return (
                   <TouchableOpacity key={s.id} onPress={() => setSelId(s.id)} style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, marginRight: 8, borderWidth: 1, borderColor: isSel ? SCENARIO_COLORS[idx % SCENARIO_COLORS.length] : BORDER, backgroundColor: isSel ? `${SCENARIO_COLORS[idx % SCENARIO_COLORS.length]}18` : "transparent" }}>
                     <Text style={{ color: isSel ? SCENARIO_COLORS[idx % SCENARIO_COLORS.length] : TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 12 }} numberOfLines={1}>{scenarioTitle(s, language)}</Text>
                     <Text style={{ color: isSel ? SCENARIO_COLORS[idx % SCENARIO_COLORS.length] : TEXT_MID, fontSize: 11, textAlign: "center" }}>{s.probability.toFixed(0)}%</Text>
+                    {sentimentItem && sentimentItem.player_count > 0 && (
+                      <Text style={{ color: TEXT_MID, fontSize: 9, textAlign: "center", marginTop: 1 }}>👥 {sentimentItem.player_count}</Text>
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -1094,8 +1105,9 @@ function CategoryTabs({ events, active, onSelect, t, language }: {
         {Object.entries(CATEGORY_META).map(([key, meta]) => {
           const isActive = active === key;
           const count = key === "all" ? events.length : events.filter(e => e.category === key).length;
-          if (key !== "all" && count === 0) return null;
+          if (key !== "all" && key !== "brazil" && count === 0) return null;
           const label = language === "pt" ? meta.label_pt : meta.label;
+          const isBrazil = key === "brazil";
           return (
             <TouchableOpacity
               key={key}
@@ -1108,9 +1120,16 @@ function CategoryTabs({ events, active, onSelect, t, language }: {
                 flexDirection: "row", alignItems: "center", gap: 4,
               }}
             >
-              <Text style={{ color: isActive ? meta.color : TEXT_MID, fontSize: IS_WEB ? 13 : 11, fontFamily: isActive ? "DMSans_700Bold" : "DMSans_500Medium" }}>
-                {meta.icon}  {label}
-              </Text>
+              {isBrazil ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Image source={{ uri: "https://flagcdn.com/w40/br.png" }} style={{ width: 18, height: 12, borderRadius: 2 }} />
+                  <Text style={{ color: isActive ? meta.color : TEXT_MID, fontSize: IS_WEB ? 13 : 11, fontFamily: isActive ? "DMSans_700Bold" : "DMSans_500Medium" }}>{label}</Text>
+                </View>
+              ) : (
+                <Text style={{ color: isActive ? meta.color : TEXT_MID, fontSize: IS_WEB ? 13 : 11, fontFamily: isActive ? "DMSans_700Bold" : "DMSans_500Medium" }}>
+                  {meta.icon}  {label}
+                </Text>
+              )}
               {count > 0 && (
                 <View style={{ backgroundColor: `${meta.color}20`, borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1 }}>
                   <Text style={{ color: meta.color, fontSize: 9, fontFamily: "DMSans_700Bold" }}>{count}</Text>
@@ -1439,6 +1458,7 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
                   onClose={() => setBetPanelId(null)}
                   isAuthenticated={isAuthenticated} userId={userId}
                   placePrediction={placePrediction} refreshPortfolio={refreshPortfolio}
+                  sentimentCache={sentimentCache}
                 />
               )}
             </View>
@@ -1462,6 +1482,7 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
                 onClose={() => setBetPanelId(null)}
                 isAuthenticated={isAuthenticated} userId={userId}
                 placePrediction={placePrediction} refreshPortfolio={refreshPortfolio}
+                sentimentCache={sentimentCache}
               />
             )}
           </View>
@@ -1500,6 +1521,12 @@ export default function MarketsScreen() {
   const [featuredComments, setFeaturedComments] = useState<{ id: number; body: string; display_name: string | null; created_at: string }[]>([]);
   const [featuredNews, setFeaturedNews] = useState<NewsArticle[]>([]);
 
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
+
   const [carouselIdx, setCarouselIdx] = useState(0);
   const [marketPageIdx, setMarketPageIdx] = useState(0);
   const [marketPageWidth, setMarketPageWidth] = useState(0);
@@ -1535,7 +1562,11 @@ export default function MarketsScreen() {
           };
         }
       });
-      setSentimentCache(prev => ({ ...prev, ...cache }));
+      setSentimentCache(prev => {
+        const keys = Object.keys(prev);
+        const trimmed = keys.length > 150 ? Object.fromEntries(Object.entries(prev).slice(-100)) : prev;
+        return { ...trimmed, ...cache };
+      });
     });
   }, []);
 
@@ -1554,7 +1585,11 @@ export default function MarketsScreen() {
         }
       });
       historyCacheRef.current = { ...historyCacheRef.current, ...newEntries };
-      setHistoryCache(prev => ({ ...prev, ...newEntries }));
+      setHistoryCache(prev => {
+        const keys = Object.keys(prev);
+        const trimmed = keys.length > 150 ? Object.fromEntries(Object.entries(prev).slice(-100)) : prev;
+        return { ...trimmed, ...newEntries };
+      });
     });
   }, []);
 
@@ -1648,11 +1683,12 @@ export default function MarketsScreen() {
   }, []);
 
   // Carousel pool: featured events first, then top events
+  const featuredEvents = events.filter(e => e.is_featured);
   const carouselPool = events.length > 0
-    ? (events.filter(e => e.is_featured).length >= 2
-        ? events.filter(e => e.is_featured).slice(0, 6)
-        : events.slice(0, 6))
+    ? (featuredEvents.length >= 2 ? featuredEvents.slice(0, 6) : events.slice(0, 6))
     : [];
+  // tick is used here so time-based displays (UrgencyBadge, countdown timers) re-render every 30s
+  void tick;
   const featuredEvent = carouselPool[carouselIdx % Math.max(1, carouselPool.length)] ?? events[0];
   const featuredId = featuredEvent?.id;
 
@@ -2053,6 +2089,7 @@ export default function MarketsScreen() {
                           onClose={() => setBetPanelId(null)}
                           isAuthenticated={isAuthenticated} userId={userId}
                           placePrediction={placePrediction} refreshPortfolio={refreshPortfolio}
+                          sentimentCache={sentimentCache}
                         />
                       )}
 
@@ -2219,6 +2256,7 @@ export default function MarketsScreen() {
                                       onClose={() => setBetPanelId(null)}
                                       isAuthenticated={isAuthenticated} userId={userId}
                                       placePrediction={placePrediction} refreshPortfolio={refreshPortfolio}
+                                      sentimentCache={sentimentCache}
                                     />
                                   )}
                                 </View>
@@ -2261,6 +2299,7 @@ export default function MarketsScreen() {
                                 onClose={() => setBetPanelId(null)}
                                 isAuthenticated={isAuthenticated} userId={userId}
                                 placePrediction={placePrediction} refreshPortfolio={refreshPortfolio}
+                                sentimentCache={sentimentCache}
                               />
                             )}
                           </View>

@@ -24,6 +24,26 @@ from app.services.auto_resolver import run_auto_resolver, start_auto_resolver
 logger = logging.getLogger(__name__)
 
 
+def _migrate_brazil_category() -> None:
+    """One-time idempotent migration: set category='brazil' for all Brazil-specific events."""
+    from sqlalchemy import text as sql_text
+    brazil_slugs = [
+        "copa-brasil-flamengo", "world-cup-2026-brazil", "libertadores-2026",
+        "brazil-5g-coverage", "trump-tariffs-brazil", "ufc-next-brazilian-champ",
+    ]
+    placeholders = ", ".join(f"'{s}'" for s in brazil_slugs)
+    with engine.begin() as conn:
+        # All events whose slug starts with "br-"
+        conn.execute(sql_text(
+            "UPDATE events SET category = 'brazil' WHERE slug LIKE 'br-%' AND category != 'brazil'"
+        ))
+        # Specific non-br- slugs that are also Brazilian
+        conn.execute(sql_text(
+            f"UPDATE events SET category = 'brazil' WHERE slug IN ({placeholders}) AND category != 'brazil'"
+        ))
+    logger.info("[Migration] brazil category sync complete.")
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, version="0.6.0", debug=settings.app_debug)
 
@@ -41,6 +61,7 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def _startup() -> None:
         Base.metadata.create_all(bind=engine)
+        _migrate_brazil_category()
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
         logger.info("[Startup] Scenara backend v0.6.0 ready.")

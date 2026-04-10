@@ -62,6 +62,8 @@ class TokenResponse(BaseModel):
     email: str
     display_name: str
     balance: float
+    daily_bonus: bool = False
+    streak_days: int = 0
 
 
 class UserOut(BaseModel):
@@ -181,6 +183,10 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     )
 
 
+DAILY_BONUS_AMOUNT = 50.0
+DAILY_BONUS_COOLDOWN_HOURS = 24
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     """Login with email + password, return JWT."""
@@ -200,6 +206,19 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         Account.is_active.is_(True),
     ).first()
 
+    # Daily login bonus: award $50 if last login was > 24 hours ago (or never)
+    daily_bonus = False
+    now = datetime.utcnow()
+    if user.last_login_at is None or (now - user.last_login_at) > timedelta(hours=DAILY_BONUS_COOLDOWN_HOURS):
+        if account:
+            account.balance = float(account.balance) + DAILY_BONUS_AMOUNT
+        daily_bonus = True
+
+    user.last_login_at = now
+    db.commit()
+    if account:
+        db.refresh(account)
+
     balance = float(account.balance) if account else 0.0
     token = create_access_token(user.id, user.email)
 
@@ -209,6 +228,8 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         email=user.email,
         display_name=user.display_name,
         balance=balance,
+        daily_bonus=daily_bonus,
+        streak_days=user.current_streak or 0,
     )
 
 

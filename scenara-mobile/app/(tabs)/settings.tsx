@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   SafeAreaView, Text, View, ScrollView,
-  TouchableOpacity, StatusBar, Alert, Platform,
+  TouchableOpacity, StatusBar, Alert, Platform, Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -86,16 +86,25 @@ export default function SettingsScreen() {
             <View style={{ flexDirection: "row", gap: 10 }}>
               {(["en", "pt"] as Language[]).map(lang => {
                 const active = language === lang;
-                const label = lang === "en" ? `🇺🇸  ${t.settings.english}` : `🇧🇷  ${t.settings.portuguese}`;
+                const flagUri = lang === "en"
+                  ? "https://flagcdn.com/w40/us.png"
+                  : "https://flagcdn.com/w40/br.png";
+                const labelText = lang === "en" ? t.settings.english : t.settings.portuguese;
+                const LangRow = ({ textColor }: { textColor: string }) => (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Image source={{ uri: flagUri }} style={{ width: 22, height: 15, borderRadius: 2 }} />
+                    <Text style={{ color: textColor, fontFamily: active ? "DMSans_700Bold" : "DMSans_500Medium", fontSize: 14 }}>{labelText}</Text>
+                  </View>
+                );
                 return (
                   <TouchableOpacity key={lang} onPress={() => setLanguage(lang)} style={{ flex: 1, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: active ? PURPLE : BORDER }}>
                     {active ? (
                       <LinearGradient colors={[BLUE, PURPLE]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 13, alignItems: "center" }}>
-                        <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>{label}</Text>
+                        <LangRow textColor="white" />
                       </LinearGradient>
                     ) : (
                       <View style={{ backgroundColor: CARD, paddingVertical: 13, alignItems: "center" }}>
-                        <Text style={{ color: TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{label}</Text>
+                        <LangRow textColor={TEXT_SUB} />
                       </View>
                     )}
                   </TouchableOpacity>
@@ -174,16 +183,25 @@ export default function SettingsScreen() {
           <View style={{ flexDirection: "row", gap: 10, marginBottom: 8 }}>
             {(["en", "pt"] as Language[]).map(lang => {
               const active = language === lang;
-              const label = lang === "en" ? `🇺🇸  ${t.settings.english}` : `🇧🇷  ${t.settings.portuguese}`;
+              const flagUri = lang === "en"
+                ? "https://flagcdn.com/w40/us.png"
+                : "https://flagcdn.com/w40/br.png";
+              const labelText = lang === "en" ? t.settings.english : t.settings.portuguese;
+              const LangRow = ({ textColor }: { textColor: string }) => (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Image source={{ uri: flagUri }} style={{ width: 22, height: 15, borderRadius: 2 }} />
+                  <Text style={{ color: textColor, fontFamily: active ? "DMSans_700Bold" : "DMSans_500Medium", fontSize: 14 }}>{labelText}</Text>
+                </View>
+              );
               return (
                 <TouchableOpacity key={lang} onPress={() => setLanguage(lang)} style={{ flex: 1, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: active ? PURPLE : BORDER }}>
                   {active ? (
                     <LinearGradient colors={[BLUE, PURPLE]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 14, alignItems: "center" }}>
-                      <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>{label}</Text>
+                      <LangRow textColor="white" />
                     </LinearGradient>
                   ) : (
                     <View style={{ backgroundColor: CARD, paddingVertical: 14, alignItems: "center" }}>
-                      <Text style={{ color: TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{label}</Text>
+                      <LangRow textColor={TEXT_SUB} />
                     </View>
                   )}
                 </TouchableOpacity>

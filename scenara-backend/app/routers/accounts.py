@@ -94,18 +94,23 @@ def get_leaderboard(
         .subquery()
     )
 
-    rows = (
+    total_pnl_col = func.coalesce(pred_agg.c.total_pnl, 0.0).label("total_pnl")
+    balance_col = models.Account.balance
+    won_count_col = func.coalesce(pred_agg.c.won_count, 0).label("won_count")
+    lost_count_col = func.coalesce(pred_agg.c.lost_count, 0).label("lost_count")
+
+    base_q = (
         db.query(
             models.User.id,
             models.User.email,
             models.User.display_name,
             models.User.current_streak,
             models.User.best_streak,
-            models.Account.balance,
+            balance_col,
             func.coalesce(pred_agg.c.total_predictions, 0).label("total_predictions"),
-            func.coalesce(pred_agg.c.won_count, 0).label("won_count"),
-            func.coalesce(pred_agg.c.lost_count, 0).label("lost_count"),
-            func.coalesce(pred_agg.c.total_pnl, 0.0).label("total_pnl"),
+            won_count_col,
+            lost_count_col,
+            total_pnl_col,
         )
         .join(models.Account, models.Account.user_id == models.User.id)
         .outerjoin(pred_agg, pred_agg.c.user_id == models.User.id)
@@ -114,8 +119,18 @@ def get_leaderboard(
             models.Account.is_active.is_(True),
             models.User.is_active.is_(True),
         )
-        .all()
     )
+
+    if sort_by == "balance":
+        base_q = base_q.order_by(models.Account.balance.desc())
+    elif sort_by == "win_rate":
+        base_q = base_q.order_by(
+            func.coalesce(pred_agg.c.won_count, 0).desc(),
+        )
+    else:
+        base_q = base_q.order_by(func.coalesce(pred_agg.c.total_pnl, 0.0).desc())
+
+    rows = base_q.all()
 
     entries = []
     for row in rows:
@@ -136,12 +151,9 @@ def get_leaderboard(
             best_streak=row.best_streak or 0,
         ))
 
-    if sort_by == "balance":
-        entries.sort(key=lambda e: e.balance, reverse=True)
-    elif sort_by == "win_rate":
+    # win_rate sort requires Python-side re-sort (depends on two columns: win_rate + won_count)
+    if sort_by == "win_rate":
         entries.sort(key=lambda e: (e.win_rate, e.won_count), reverse=True)
-    else:
-        entries.sort(key=lambda e: e.total_pnl, reverse=True)
 
     for i, entry in enumerate(entries):
         entry.rank = i + 1

@@ -282,6 +282,7 @@ export default function PortfolioScreen() {
   const { t, language } = useLanguage();
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [shareCard, setShareCard] = useState<ShareCardData | null>(null);
+  const [streakDismissed, setStreakDismissed] = useState(false);
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFocused = useRef(false);
@@ -401,6 +402,33 @@ export default function PortfolioScreen() {
         </View>
 
         <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+
+          {/* Streak milestone celebration banner */}
+          {summary && cs >= 3 && !streakDismissed && (() => {
+            let msg = "";
+            if (cs >= 10) msg = "🏆 10-win streak! Legendary!";
+            else if (cs >= 5) msg = "⚡ 5 wins in a row! You're on fire!";
+            else msg = "🔥 3-win streak! Keep it up!";
+            return (
+              <View style={{
+                marginTop: 14, marginBottom: 8, borderRadius: 14, overflow: "hidden",
+                borderWidth: 1, borderColor: "rgba(247,147,26,0.35)",
+              }}>
+                <LinearGradient
+                  colors={["rgba(247,147,26,0.18)", "rgba(124,92,252,0.08)"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 10 }}
+                >
+                  <Text style={{ color: "#F7931A", fontFamily: "DMSans_700Bold", fontSize: 14, flex: 1 }}>
+                    {msg}
+                  </Text>
+                  <TouchableOpacity onPress={() => setStreakDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={{ color: TEXT_MID, fontSize: 18, lineHeight: 20 }}>×</Text>
+                  </TouchableOpacity>
+                </LinearGradient>
+              </View>
+            );
+          })()}
 
           {/* Streak banner */}
           {cs >= 1 && (
@@ -554,6 +582,10 @@ export default function PortfolioScreen() {
             const isSettled = p.status === "won" || p.status === "lost";
             const sc = statusStyle(p.status, t);
             const isWon = p.status === "won";
+            const isClosingSoon = p.status === "open" && p.event_closes_at
+              ? (new Date(p.event_closes_at).getTime() - Date.now()) < 2 * 3_600_000
+                && new Date(p.event_closes_at).getTime() > Date.now()
+              : false;
             return (
               <View key={p.id} style={{
                 backgroundColor: CARD, borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: isWon ? 1.5 : 1,
@@ -565,7 +597,14 @@ export default function PortfolioScreen() {
               }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <View style={{ flex: 1, paddingRight: 12 }}>
-                    <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", lineHeight: 18 }}>{p.event_title}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", lineHeight: 18 }}>{p.event_title}</Text>
+                      {isClosingSoon && (
+                        <View style={{ backgroundColor: "rgba(251,146,60,0.15)", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: "rgba(251,146,60,0.35)" }}>
+                          <Text style={{ color: "#FB923C", fontSize: 9, fontFamily: "DMSans_700Bold" }}>⏰ Closing soon</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={{ color: TEXT_MID, marginTop: 3, fontSize: 12, fontFamily: "DMSans_400Regular" }}>{p.scenario_title}</Text>
                   </View>
                   <View style={{ alignItems: "flex-end", gap: 5 }}>

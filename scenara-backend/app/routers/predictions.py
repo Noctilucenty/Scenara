@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import time
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -89,6 +92,7 @@ class PredictionDetailOut(BaseModel):
     event_id: int
     event_title: str
     event_status: str
+    event_closes_at: datetime | None
     simulated_amount: Decimal
     entry_probability: float
     status: str
@@ -182,6 +186,12 @@ def _shift_market(db: Session, bet_scenario: models.Scenario, amount: float) -> 
 
     # Impact factor — how much this single bet moves the market
     impact = amount / (amount + MARKET_LIQUIDITY)
+
+    if impact > 0.05:
+        logger.warning(
+            f"[MarketMove] Event #{bet_scenario.event_id}: scenario #{bet_scenario.id} "
+            f"moved {impact*100:.1f}% after ${amount:.0f} bet"
+        )
 
     # Boost the bet scenario toward 100%
     old_p = max(1.0, min(99.0, bet_scenario.probability)) / 100.0
@@ -368,6 +378,7 @@ def list_user_predictions(user_id: int, db: Session = Depends(get_db)):
             event_id=p.scenario.event.id,
             event_title=p.scenario.event.title,
             event_status=p.scenario.event.status,
+            event_closes_at=p.scenario.event.closes_at,
             simulated_amount=p.simulated_amount,
             entry_probability=p.entry_probability,
             status=p.status,
@@ -559,6 +570,8 @@ class CrowdSentimentOut(BaseModel):
 @router.get("/events/{event_id}/sentiment", response_model=CrowdSentimentOut)
 def get_crowd_sentiment(event_id: int, db: Session = Depends(get_db)):
     """Returns how many players bet on each scenario for a given event."""
+    from sqlalchemy import func
+
     event = db.query(models.Event).filter(models.Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -567,19 +580,20 @@ def get_crowd_sentiment(event_id: int, db: Session = Depends(get_db)):
         models.Scenario.event_id == event_id
     ).order_by(models.Scenario.sort_order).all()
 
+    # Single aggregation query instead of one .count() per scenario
+    count_rows = (
+        db.query(models.Prediction.scenario_id, func.count(models.Prediction.id).label("cnt"))
+        .filter(models.Prediction.scenario_id.in_([s.id for s in scenarios]))
+        .group_by(models.Prediction.scenario_id)
+        .all()
+    )
+    counts = {row.scenario_id: row.cnt for row in count_rows}
+
+    total = sum(counts.values())
+
     result = []
-    total = 0
-    counts = {}
-
     for s in scenarios:
-        count = db.query(models.Prediction).filter(
-            models.Prediction.scenario_id == s.id
-        ).count()
-        counts[s.id] = count
-        total += count
-
-    for s in scenarios:
-        count = counts[s.id]
+        count = counts.get(s.id, 0)
         pct = round((count / total * 100), 1) if total > 0 else 0.0
         result.append(ScenarioSentiment(
             scenario_id=s.id,
