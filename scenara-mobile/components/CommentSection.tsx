@@ -22,16 +22,17 @@ type Comment = {
   id: number;
   user_id: number;
   body: string;
+  body_en?: string | null;
   created_at: string;
   display_name: string | null;
 };
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, language: string): string {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (diff < 60) return "now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return `${Math.floor(diff / 86400)}d`;
+  if (diff < 60) return language === "pt" ? "agora" : "now";
+  if (diff < 3600) return language === "pt" ? `${Math.floor(diff / 60)}m atrás` : `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return language === "pt" ? `${Math.floor(diff / 3600)}h atrás` : `${Math.floor(diff / 3600)}h ago`;
+  return language === "pt" ? `${Math.floor(diff / 86400)}d atrás` : `${Math.floor(diff / 86400)}d ago`;
 }
 
 function initials(name: string | null): string {
@@ -42,6 +43,57 @@ function initials(name: string | null): string {
 const AVATAR_COLORS = [PURPLE, "#4F8EF7", "#F050AE", "#22C55E", "#F7931A", "#22D3EE"];
 function avatarColor(userId: number): string {
   return AVATAR_COLORS[userId % AVATAR_COLORS.length];
+}
+
+// ── Language-aware comment body + toggle ─────────────────────────────────────
+// When UI language is PT → show PT body, offer "Mostrar tradução (EN)" toggle
+// When UI language is EN → show EN body (body_en), offer "Show original (PT)" toggle
+function CommentBody({
+  body, bodyEn, language,
+}: {
+  body: string; bodyEn: string; language: string;
+}) {
+  const [showAlt, setShowAlt] = useState(false);
+
+  // Primary text depends on UI language
+  const primaryText = language === "en" ? bodyEn : body;
+  const altText     = language === "en" ? body   : bodyEn;
+  const altLabel    = language === "en" ? "Show original (PT)" : "Mostrar tradução (EN)";
+  const hideLabel   = language === "en" ? "Hide original"      : "Ocultar tradução";
+  const altHeader   = language === "en" ? "ORIGINAL (PT)"      : "TRADUÇÃO (EN)";
+
+  return (
+    <View>
+      <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 }}>
+        {primaryText}
+      </Text>
+      {showAlt && (
+        <View style={{
+          backgroundColor: "rgba(124,92,252,0.06)",
+          borderRadius: 8,
+          padding: 10,
+          marginTop: 6,
+          borderLeftWidth: 2,
+          borderLeftColor: "rgba(124,92,252,0.3)",
+        }}>
+          <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 4 }}>
+            {altHeader}
+          </Text>
+          <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20, fontStyle: "italic" }}>
+            {altText}
+          </Text>
+        </View>
+      )}
+      <TouchableOpacity
+        onPress={() => setShowAlt(v => !v)}
+        style={{ marginTop: 8, alignSelf: "flex-start" }}
+      >
+        <Text style={{ color: PURPLE_D, fontSize: 11, fontFamily: "DMSans_500Medium" }}>
+          {showAlt ? hideLabel : altLabel}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 // ── Seed comment pool ─────────────────────────────────────────────────────────
@@ -57,7 +109,7 @@ const SEED_POOL: Array<{
   { uid: 9005, name: "markos_v",     en: "everyone acting surprised but this was obvious",                 pt: "todo mundo surpreso mas tava claro",                   hoursAgo: 8  },
   { uid: 9006, name: "newstrader",   en: "jumped in right when i saw it, already green",                   pt: "entrei assim que vi, já tô no positivo",               hoursAgo: 3  },
   { uid: 9007, name: "quietmike__",  en: "idk still not sure what to make of this one",                   pt: "não sei ainda o que acho disso",                       hoursAgo: 11 },
-  { uid: 9008, name: "factcheck99",  en: "read more before betting, story's still developing",             pt: "leia mais antes de apostar, história ainda rolando",   hoursAgo: 5  },
+  { uid: 9008, name: "factcheck99",  en: "read more before buying, story's still developing",              pt: "leia mais antes de comprar, história ainda rolando",   hoursAgo: 5  },
   { uid: 9009, name: "samb",         en: "honestly surprised it took this long to go viral",               pt: "honestamente demorou pra virar notícia",               hoursAgo: 7  },
   { uid: 9010, name: "alpha_s",      en: "good read. No side still feels cheap imo",                       pt: "boa leitura. lado Não ainda parece barato",            hoursAgo: 13 },
   { uid: 9011, name: "nightowl_fx",  en: "this totally flipped my view on the whole thing",               pt: "isso mudou completamente minha visão",                 hoursAgo: 9  },
@@ -65,7 +117,6 @@ const SEED_POOL: Array<{
 ];
 
 function seedComments(url: string, count = 3): typeof SEED_POOL {
-  // Deterministic pick based on URL so same article always shows same comments
   let hash = 0;
   for (let i = 0; i < url.length; i++) hash = (hash * 31 + url.charCodeAt(i)) >>> 0;
   const shuffled = [...SEED_POOL].sort((a, b) =>
@@ -89,7 +140,6 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
   const [text, setText] = useState("");
   const [error, setError] = useState("");
 
-  // Pre-compute seeds so they never sit inside JSX logic
   const seeds = newsUrl && !loading && comments.length === 0
     ? seedComments(newsUrl, 3)
     : [];
@@ -146,21 +196,12 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
     } catch {}
   };
 
-  const label = {
-    title:       language === "pt" ? "Comentários" : "Comments",
-    placeholder: language === "pt" ? "O que você acha?" : "What do you think?",
-    post:        language === "pt" ? "Publicar" : "Post",
-    noComments:  language === "pt" ? "Seja o primeiro a comentar" : "Be the first to comment",
-    you:         language === "pt" ? "Você" : "You",
-    delete:      language === "pt" ? "Excluir" : "Delete",
-  };
-
   return (
     <View style={{ marginTop: 8 }}>
       {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>
-          {label.title.toUpperCase()}
+          {(language === "pt" ? "Comentários" : "Comments").toUpperCase()}
         </Text>
         {comments.length > 0 && (
           <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "rgba(124,92,252,0.12)" }}>
@@ -174,7 +215,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder={label.placeholder}
+          placeholder={language === "pt" ? "O que você acha?" : "What do you think?"}
           placeholderTextColor={TEXT_MID}
           multiline
           style={{ color: TEXT, fontFamily: "DMSans_400Regular", fontSize: 14, minHeight: 60, textAlignVertical: "top" }}
@@ -193,7 +234,9 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
             {posting ? (
               <ActivityIndicator size="small" color={PURPLE} />
             ) : (
-              <Text style={{ color: text.trim() ? PURPLE : TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 12 }}>{label.post}</Text>
+              <Text style={{ color: text.trim() ? PURPLE : TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 12 }}>
+                {language === "pt" ? "Publicar" : "Post"}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -204,42 +247,62 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
         <ActivityIndicator color={PURPLE} size="small" style={{ marginVertical: 20 }} />
       ) : (
         <View style={{ gap: 10 }}>
-          {/* Real comments */}
+          {/* Real + synthetic comments from API */}
           {comments.map(c => {
             const isOwn = c.user_id === userId;
             const color = avatarColor(c.user_id);
             const name = c.display_name ?? `User ${c.user_id}`;
+            // PT comment with an EN translation available
+            const hasPtTranslation = !!c.body_en && c.body_en !== c.body;
             return (
               <View key={c.id} style={{ backgroundColor: CARD, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: isOwn ? "rgba(124,92,252,0.15)" : BORDER }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
                   <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: color + "20", borderWidth: 1, borderColor: color + "40", alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ color: color, fontSize: 11, fontFamily: "DMSans_700Bold" }}>{initials(c.display_name)}</Text>
+                    <Text style={{ color, fontSize: 11, fontFamily: "DMSans_700Bold" }}>{initials(c.display_name)}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ color: TEXT, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{isOwn ? label.you : name}</Text>
+                      <Text style={{ color: TEXT, fontSize: 12, fontFamily: "DMSans_700Bold" }}>
+                        {isOwn ? (language === "pt" ? "Você" : "You") : name}
+                      </Text>
                       {isOwn && (
                         <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: "rgba(124,92,252,0.1)" }}>
                           <Text style={{ color: PURPLE_D, fontSize: 8, fontFamily: "DMSans_700Bold" }}>YOU</Text>
                         </View>
                       )}
+                      {hasPtTranslation && (
+                        <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: "rgba(79,142,247,0.1)" }}>
+                          <Text style={{ color: "#4F8EF7", fontSize: 8, fontFamily: "DMSans_700Bold" }}>PT</Text>
+                        </View>
+                      )}
                     </View>
-                    <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>{timeAgo(c.created_at)}</Text>
+                    <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
+                      {timeAgo(c.created_at, language)}
+                    </Text>
                   </View>
                   {isOwn && (
                     <TouchableOpacity onPress={() => deleteComment(c.id)}>
-                      <Text style={{ color: RED, fontSize: 11, fontFamily: "DMSans_500Medium" }}>{label.delete}</Text>
+                      <Text style={{ color: RED, fontSize: 11, fontFamily: "DMSans_500Medium" }}>
+                        {language === "pt" ? "Excluir" : "Delete"}
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>
-                <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 }}>{c.body}</Text>
+                {hasPtTranslation ? (
+                  <CommentBody body={c.body} bodyEn={c.body_en!} language={language} />
+                ) : (
+                  <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 }}>{c.body}</Text>
+                )}
               </View>
             );
           })}
 
-          {/* Seed comments — shown when no real comments yet (news only) */}
+          {/* Client-side seed comments (news fallback) */}
           {seeds.map(s => {
             const color = avatarColor(s.uid);
+            // Seeds are always shown in PT with EN toggle
+            const body = s.pt;
+            const bodyEn = s.en;
             return (
               <View key={s.uid} style={{ backgroundColor: CARD, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: BORDER }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -247,18 +310,21 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
                     <Text style={{ color, fontSize: 11, fontFamily: "DMSans_700Bold" }}>{initials(s.name)}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: TEXT, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{s.name}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ color: TEXT, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{s.name}</Text>
+                      <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: "rgba(79,142,247,0.1)" }}>
+                        <Text style={{ color: "#4F8EF7", fontSize: 8, fontFamily: "DMSans_700Bold" }}>PT</Text>
+                      </View>
+                    </View>
                     <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>{fakeAgo(s.hoursAgo)}</Text>
                   </View>
                 </View>
-                <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 }}>
-                  {language === "pt" ? s.pt : s.en}
-                </Text>
+                <CommentBody body={body} bodyEn={bodyEn} language={language} />
               </View>
             );
           })}
 
-          {/* Empty state — only when no seeds either */}
+          {/* Empty state */}
           {comments.length === 0 && seeds.length === 0 && !loading && (
             <View style={{ alignItems: "center", paddingVertical: 24 }}>
               <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_400Regular" }}>

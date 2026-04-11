@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
+import math
+import random
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -316,6 +318,32 @@ def get_event_probability_history(
             )
             for h in history
         ]
+
+        # If fewer than 2 real points, generate plausible synthetic history
+        if len(points) < 2:
+            rng = random.Random(event_id * 7919 + scenario.id * 31)
+            now = datetime.utcnow()
+            current_prob = scenario.probability
+            n_points = 12
+            # Walk backwards 24h, start from a slightly different probability
+            start_offset = rng.uniform(-8, 8)
+            start_prob = max(2.0, min(98.0, current_prob + start_offset))
+            synth: list[ProbabilityPoint] = []
+            for i in range(n_points):
+                frac = i / (n_points - 1)
+                base = start_prob + (current_prob - start_prob) * frac
+                noise = rng.uniform(-3, 3) * math.sin(frac * math.pi)
+                prob = max(1.0, min(99.0, base + noise))
+                ts = now - timedelta(hours=24 * (1 - frac))
+                synth.append(ProbabilityPoint(
+                    scenario_id=scenario.id,
+                    scenario_title=scenario.title,
+                    probability=round(prob, 1),
+                    recorded_at=ts,
+                    source="synthetic",
+                ))
+            # Keep any real points and merge
+            points = synth + points
 
         result.append(ScenarioHistoryOut(
             scenario_id=scenario.id,

@@ -587,7 +587,7 @@ export default function MarketDetailScreen() {
                     <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 12, overflow: "hidden" }}>
                       <LinearGradient colors={placing ? ["#111", "#111"] : GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
                         <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                          {placing ? "..." : (language === "pt" ? `⚡ Comprar · $${amount}` : `⚡ Buy · $${amount}`)}
+                          {placing ? "..." : (language === "pt" ? `Comprar · $${amount}` : `Buy · $${amount}`)}
                         </Text>
                       </LinearGradient>
                     </TouchableOpacity>

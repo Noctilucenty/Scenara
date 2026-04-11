@@ -352,7 +352,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
               style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: isWide ? 14 : 10, paddingVertical: isWide ? 6 : 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.1)" }}
             >
               <Text style={{ color: PURPLE, fontSize: isWide ? 12 : 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
-                {language === "pt" ? "⚡ Comprar" : "⚡ Buy"}
+                {language === "pt" ? "Comprar" : "Buy"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -703,7 +703,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
                 ? <ActivityIndicator color="white" />
                 : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>
                     {isAuthenticated
-                      ? (language === "pt" ? `⚡ Comprar $${amount}` : `⚡ Buy $${amount}`)
+                      ? (language === "pt" ? `Comprar $${amount}` : `Buy $${amount}`)
                       : (language === "pt" ? "Entre para comprar" : "Log in to buy")}
                   </Text>
               }
@@ -1383,7 +1383,7 @@ function TrendingPicks({ events, language, onBetPress, onCardPress }: {
                   onPress={() => onBetPress(event.id)}
                   style={{ backgroundColor: "rgba(124,92,252,0.15)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: BORDER_P }}
                 >
-                  <Text style={{ color: PURPLE, fontSize: 9, fontFamily: "DMSans_700Bold" }}>{language === "pt" ? "⚡ Comprar" : "⚡ Buy"}</Text>
+                  <Text style={{ color: PURPLE, fontSize: 9, fontFamily: "DMSans_700Bold" }}>{language === "pt" ? "Comprar" : "Buy"}</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -1582,7 +1582,9 @@ export default function MarketsScreen() {
   const historyCacheRef = useRef<Record<number, ScenarioHistory[]>>({});
 
   const fetchHistory = useCallback((items: EventItem[]) => {
-    const toFetch = items.filter(e => !historyCacheRef.current[e.id]).slice(0, 12);
+    // Prioritise featured events so carousel cards always get history data
+    const sorted = [...items].sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0));
+    const toFetch = sorted.filter(e => !historyCacheRef.current[e.id]).slice(0, 20);
     if (toFetch.length === 0) return;
     Promise.allSettled(
       toFetch.map(e => api.get(`/events/${e.id}/history`))
@@ -2042,7 +2044,7 @@ export default function MarketsScreen() {
                           {/* Probability chart */}
                           {historyCache[featured.id]?.some(s => s.points?.length >= 2) && (
                             <View
-                              style={{ flex: 1, borderLeftWidth: isWide ? 1 : 0, borderLeftColor: "rgba(255,255,255,0.05)", paddingLeft: isWide ? 16 : 0 }}
+                              style={isWide ? { flex: 1, borderLeftWidth: 1, borderLeftColor: "rgba(255,255,255,0.05)", paddingLeft: 16 } : { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" }}
                               onLayout={e => setFeaturedChartWidth(e.nativeEvent.layout.width)}
                             >
                               <ProbabilityChart
@@ -2102,7 +2104,7 @@ export default function MarketsScreen() {
                             <TouchableOpacity onPress={() => handleBetPress(featured.id)} style={{ borderRadius: 10, overflow: "hidden" }}>
                               <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: isWide ? 14 : 11, paddingVertical: isWide ? 8 : 7, alignItems: "center" }}>
                                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: isWide ? 12 : 11 }}>
-                                  {language === "pt" ? "⚡ Comprar" : "⚡ Buy"}
+                                  {language === "pt" ? "Comprar" : "Buy"}
                                 </Text>
                               </LinearGradient>
                             </TouchableOpacity>

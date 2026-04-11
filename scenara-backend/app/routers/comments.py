@@ -123,23 +123,29 @@ _SYNTHETIC_COMMENTS_PT = [
 
 
 def _synthetic_comments(event_id: int, lang: str = "pt", count: int = 5) -> list[CommentOut]:
-    """Generate deterministic but varied synthetic comments for an event."""
-    pool = _SYNTHETIC_COMMENTS_PT if lang == "pt" else _SYNTHETIC_COMMENTS_EN
+    """Generate deterministic but varied synthetic comments for an event.
+
+    Always uses the PT pool so comments feel local; body_en carries the paired
+    EN translation so the frontend can show a "Show translation" toggle.
+    """
     rng = random.Random(event_id * 31337)
-    chosen = rng.sample(pool, min(count, len(pool)))
+    # Always pick from PT pool — same indices in EN pool are the translations
+    indices = rng.sample(range(len(_SYNTHETIC_COMMENTS_PT)), min(count, len(_SYNTHETIC_COMMENTS_PT)))
     now = datetime.utcnow()
     result = []
-    for i, (name, body) in enumerate(chosen):
-        # Spread timestamps over past 48 hours
+    for i, idx in enumerate(indices):
+        name_pt, body_pt = _SYNTHETIC_COMMENTS_PT[idx]
+        _name_en, body_en = _SYNTHETIC_COMMENTS_EN[idx]
         offset_hours = rng.randint(1, 48)
         offset_mins = rng.randint(0, 59)
         ts = now - timedelta(hours=offset_hours, minutes=offset_mins)
         result.append(CommentOut(
             id=-(event_id * 1000 + i),  # Negative IDs mark synthetic
             user_id=0,
-            body=body,
+            body=body_pt,        # Always Portuguese
+            body_en=body_en,     # Paired English translation
             created_at=ts,
-            display_name=name,
+            display_name=name_pt,
             event_id=event_id,
             news_url=None,
         ))
@@ -164,6 +170,7 @@ class CommentOut(BaseModel):
     id: int
     user_id: int
     body: str
+    body_en: str | None = None   # EN translation for PT synthetic comments
     created_at: datetime
     display_name: str | None = None
     event_id: int | None = None
@@ -209,7 +216,7 @@ def get_event_comments(
     # Pad with synthetic comments so every event has at least 6 comments
     if len(formatted) < 6:
         need = 6 - len(formatted)
-        synthetic = _synthetic_comments(event_id, lang=lang, count=need + 4)
+        synthetic = _synthetic_comments(event_id, count=need + 4)
         # Interleave synthetic with real by timestamp
         combined = formatted + synthetic
         combined.sort(key=lambda c: c.created_at, reverse=True)
@@ -256,21 +263,24 @@ _NEWS_SYNTHETIC_COMMENTS_EN = [
 
 
 def _news_synthetic_comments(url: str, lang: str = "pt", count: int = 5) -> list[CommentOut]:
-    pool = _NEWS_SYNTHETIC_COMMENTS_PT if lang == "pt" else _NEWS_SYNTHETIC_COMMENTS_EN
     rng = random.Random(hash(url) & 0xFFFFFF)
-    chosen = rng.sample(pool, min(count, len(pool)))
+    # Always pick from PT pool; EN pool at same index is the translation
+    indices = rng.sample(range(len(_NEWS_SYNTHETIC_COMMENTS_PT)), min(count, len(_NEWS_SYNTHETIC_COMMENTS_PT)))
     now = datetime.utcnow()
     result = []
-    for i, (name, body) in enumerate(chosen):
+    for i, idx in enumerate(indices):
+        name_pt, body_pt = _NEWS_SYNTHETIC_COMMENTS_PT[idx]
+        _name_en, body_en = _NEWS_SYNTHETIC_COMMENTS_EN[idx]
         offset_hours = rng.randint(1, 24)
         offset_mins = rng.randint(0, 59)
         ts = now - timedelta(hours=offset_hours, minutes=offset_mins)
         result.append(CommentOut(
             id=-(abs(hash(url)) % 100000 + i),
             user_id=0,
-            body=body,
+            body=body_pt,    # Always Portuguese
+            body_en=body_en, # Paired English translation
             created_at=ts,
-            display_name=name,
+            display_name=name_pt,
             event_id=None,
             news_url=url,
         ))
@@ -296,7 +306,7 @@ def get_news_comments(
 
     if len(formatted) < 5:
         need = 5 - len(formatted)
-        synthetic = _news_synthetic_comments(url, lang=lang, count=need + 3)
+        synthetic = _news_synthetic_comments(url, count=need + 3)
         combined = formatted + synthetic
         combined.sort(key=lambda c: c.created_at, reverse=True)
         return combined[:15]
