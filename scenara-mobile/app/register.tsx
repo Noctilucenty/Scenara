@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
   StatusBar, KeyboardAvoidingView, Platform,
-  ScrollView, ActivityIndicator,
+  ScrollView, ActivityIndicator, useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop, Circle } from "react-native-svg";
@@ -91,6 +91,8 @@ function PasswordStrength({ password, isPt }: { password: string; isPt: boolean 
 }
 
 export default function RegisterScreen() {
+  const { width: winW } = useWindowDimensions();
+  const isWide = winW >= 700;
   const { register } = useTrading();
   const { language } = useLanguage();
   const [displayName, setDisplayName] = useState("");
@@ -156,7 +158,7 @@ export default function RegisterScreen() {
     <View style={{
       backgroundColor: CARD, borderRadius: 22, padding: 24,
       borderWidth: 1, borderColor: BORDER_P,
-      ...(IS_WEB ? { maxWidth: 480, width: "100%", alignSelf: "center" as const } : {}),
+      ...(isWide ? { maxWidth: 480, width: "100%", alignSelf: "center" as const } : {}),
       shadowColor: PURPLE, shadowOpacity: 0.12, shadowRadius: 28, shadowOffset: { width: 0, height: 8 },
     }}>
       {/* Top gradient line */}
@@ -338,7 +340,7 @@ export default function RegisterScreen() {
   );
 
   // ── DESKTOP / WEB LAYOUT ──────────────────────────────────────────────────
-  if (IS_WEB) {
+  if (isWide) {
     return (
       <View style={{ flex: 1, backgroundColor: BG, flexDirection: "row" }}>
         <StatusBar barStyle="light-content" />

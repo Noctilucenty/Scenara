@@ -110,7 +110,7 @@ export default function LoginScreen() {
     <View style={{
       backgroundColor: CARD, borderRadius: 22, padding: 24,
       borderWidth: 1, borderColor: BORDER_P,
-      ...(IS_WEB ? { maxWidth: 480, width: "100%", alignSelf: "center" as const } : {}),
+      ...(isWide ? { maxWidth: 480, width: "100%", alignSelf: "center" as const } : {}),
       shadowColor: PURPLE, shadowOpacity: 0.12, shadowRadius: 28, shadowOffset: { width: 0, height: 8 },
     }}>
       {/* Top gradient line */}
@@ -218,7 +218,7 @@ export default function LoginScreen() {
   );
 
   // ── DESKTOP / WEB LAYOUT ──────────────────────────────────────────────────
-  if (IS_WEB) {
+  if (isWide) {
     return (
       <View style={{ flex: 1, backgroundColor: BG, flexDirection: "row" }}>
         <StatusBar barStyle="light-content" />

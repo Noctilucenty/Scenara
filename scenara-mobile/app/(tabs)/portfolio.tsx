@@ -94,7 +94,7 @@ function ShareCardModal({ data, onClose, language }: { data: ShareCardData; onCl
 
             <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 14, padding: 14, marginBottom: 20 }}>
               {[
-                { label: language === "pt" ? "APOSTADO" : "WAGERED", value: `$${data.wagered.toFixed(0)}` },
+                { label: language === "pt" ? "INVESTIDO" : "INVESTED", value: `$${data.wagered.toFixed(0)}` },
                 { label: language === "pt" ? "ENTRADA" : "ENTRY PROB",  value: `${data.entryProb}%` },
                 { label: "MULT", value: `${data.multiplier}x` },
               ].map(s => (
@@ -357,8 +357,8 @@ export default function PortfolioScreen() {
           </Text>
           <Text style={{ color: TEXT_MID, fontSize: 14, textAlign: "center", lineHeight: 21, marginBottom: 32 }}>
             {language === "pt"
-              ? "Crie uma conta gratuita para acompanhar suas apostas, P&L e histórico de previsões."
-              : "Create a free account to track your bets, P&L and prediction history."}
+              ? "Crie uma conta gratuita para acompanhar suas posições, P&L e histórico de previsões."
+              : "Create a free account to track your positions, P&L and prediction history."}
           </Text>
           {/* CTA inside empty state — removes dead end */}
           <TouchableOpacity onPress={() => router.push("/register")} style={{ borderRadius: 14, overflow: "hidden", width: "100%", marginBottom: 12 }}>
@@ -406,9 +406,9 @@ export default function PortfolioScreen() {
           {/* Streak milestone celebration banner */}
           {summary && cs >= 3 && !streakDismissed && (() => {
             let msg = "";
-            if (cs >= 10) msg = "🏆 10-win streak! Legendary!";
-            else if (cs >= 5) msg = "⚡ 5 wins in a row! You're on fire!";
-            else msg = "🔥 3-win streak! Keep it up!";
+            if (cs >= 10) msg = language === "pt" ? "🏆 10 seguidas! Lendário!" : "🏆 10-win streak! Legendary!";
+            else if (cs >= 5) msg = language === "pt" ? "⚡ 5 seguidas! Você está em chamas!" : "⚡ 5 wins in a row! You're on fire!";
+            else msg = language === "pt" ? "🔥 3 seguidas! Continue assim!" : "🔥 3-win streak! Keep it up!";
             return (
               <View style={{
                 marginTop: 14, marginBottom: 8, borderRadius: 14, overflow: "hidden",
@@ -465,7 +465,7 @@ export default function PortfolioScreen() {
                 <Text style={{ fontSize: 22 }}>🎯</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: "#F7931A", fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-                    {language === "pt" ? `${stats.open} aposta${stats.open > 1 ? "s" : ""} em aberto` : `${stats.open} open bet${stats.open > 1 ? "s" : ""} pending`}
+                    {language === "pt" ? `${stats.open} posição${stats.open > 1 ? "ões" : ""} em aberto` : `${stats.open} open position${stats.open > 1 ? "s" : ""} pending`}
                   </Text>
                   <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", marginTop: 2 }}>
                     {language === "pt" ? "Toque para ver novos mercados →" : "Tap to explore more markets →"}
@@ -601,7 +601,7 @@ export default function PortfolioScreen() {
                       <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", lineHeight: 18 }}>{p.event_title}</Text>
                       {isClosingSoon && (
                         <View style={{ backgroundColor: "rgba(251,146,60,0.15)", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: "rgba(251,146,60,0.35)" }}>
-                          <Text style={{ color: "#FB923C", fontSize: 9, fontFamily: "DMSans_700Bold" }}>⏰ Closing soon</Text>
+                          <Text style={{ color: "#FB923C", fontSize: 9, fontFamily: "DMSans_700Bold" }}>{language === "pt" ? "⏰ Fechando em breve" : "⏰ Closing soon"}</Text>
                         </View>
                       )}
                     </View>

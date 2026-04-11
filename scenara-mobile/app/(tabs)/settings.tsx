@@ -59,8 +59,8 @@ export default function SettingsScreen() {
               </Text>
               <Text style={{ color: TEXT_MID, fontSize: 14, textAlign: "center", lineHeight: 20 }}>
                 {language === "pt"
-                  ? "Crie uma conta gratuita para apostar, acompanhar seu portfólio e subir no ranking."
-                  : "Create a free account to place bets, track your portfolio, and climb the leaderboard."}
+                  ? "Crie uma conta gratuita para comprar posições, acompanhar seu portfólio e subir no ranking."
+                  : "Create a free account to buy positions, track your portfolio, and climb the leaderboard."}
               </Text>
             </View>
 

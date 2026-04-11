@@ -265,7 +265,7 @@ export default function MarketDetailScreen() {
                         </Text>
                       </View>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <Text style={{ color: TEXT_MID, fontSize: 10 }}>{s.player_count} bets</Text>
+                        <Text style={{ color: TEXT_MID, fontSize: 10 }}>{s.player_count} {language === "pt" ? "compras" : "buys"}</Text>
                         <Text style={{ color: SCENARIO_COLORS[i], fontFamily: "DMSans_700Bold", fontSize: 13, minWidth: 38, textAlign: "right" }}>
                           {s.percentage.toFixed(0)}%
                         </Text>
@@ -376,13 +376,13 @@ export default function MarketDetailScreen() {
                     </View>
                     <TouchableOpacity
                       onPress={() => shareContent({
-                        title: language === "pt" ? "Apostei no Scenara!" : "I bet on Scenara!",
+                        title: language === "pt" ? "Comprei no Scenara!" : "I bought on Scenara!",
                         message: buildMarketShareText(title, scenarioTitle(selScene!, language), selScene?.probability ?? 50, language),
                       })}
                       style={{ paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: BORDER_P }}
                     >
                       <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-                        {language === "pt" ? "Compartilhar aposta ↗" : "Share bet ↗"}
+                        {language === "pt" ? "Compartilhar posição ↗" : "Share position ↗"}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -405,7 +405,7 @@ export default function MarketDetailScreen() {
                     <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 12, overflow: "hidden" }}>
                       <LinearGradient colors={placing ? ["#111", "#111"] : GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
                         <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                          {placing ? "..." : (language === "pt" ? `Apostar · $${amount}` : `Bet · $${amount}`)}
+                          {placing ? "..." : (language === "pt" ? `Comprar · $${amount}` : `Buy · $${amount}`)}
                         </Text>
                       </LinearGradient>
                     </TouchableOpacity>
@@ -414,7 +414,7 @@ export default function MarketDetailScreen() {
 
                 {!isAuthenticated && (
                   <Text style={{ color: TEXT_MID, fontSize: 11, textAlign: "center", marginTop: 10 }}>
-                    {language === "pt" ? "Faça login para apostar" : "Log in to place a bet"}
+                    {language === "pt" ? "Faça login para comprar" : "Log in to buy"}
                   </Text>
                 )}
               </View>
@@ -530,7 +530,7 @@ export default function MarketDetailScreen() {
               {!resolved && selScene && (
                 <View style={{ backgroundColor: SURFACE, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER_P }}>
                   <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 14 }}>
-                    {language === "pt" ? "FAZER APOSTA" : "PLACE BET"}
+                    {language === "pt" ? "COMPRAR" : "BUY"}
                   </Text>
 
                   {event.scenarios.slice(0, 2).map((s, idx) => {
@@ -587,14 +587,14 @@ export default function MarketDetailScreen() {
                     <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 12, overflow: "hidden" }}>
                       <LinearGradient colors={placing ? ["#111", "#111"] : GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
                         <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                          {placing ? "..." : (language === "pt" ? `⚡ Apostar · $${amount}` : `⚡ Bet · $${amount}`)}
+                          {placing ? "..." : (language === "pt" ? `⚡ Comprar · $${amount}` : `⚡ Buy · $${amount}`)}
                         </Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   )}
                   {!isAuthenticated && (
                     <Text style={{ color: TEXT_MID, fontSize: 11, textAlign: "center", marginTop: 10 }}>
-                      {language === "pt" ? "Faça login para apostar" : "Log in to place a bet"}
+                      {language === "pt" ? "Faça login para comprar" : "Log in to buy"}
                     </Text>
                   )}
                 </View>
