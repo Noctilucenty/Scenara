@@ -16,12 +16,24 @@ from app.routers.news import router as news_router
 from app.routers.comments import router as comments_router
 from app.routers.push import router as push_router
 from app.routers.voting import router as voting_router
+from app.routers.admin import router as admin_router
 from app.models.user import User
 
 from app.services.event_generator import run_snapshot, run_event_generator, start_scheduler
 from app.services.auto_resolver import run_auto_resolver, start_auto_resolver
 
 logger = logging.getLogger(__name__)
+
+
+def _migrate_is_admin_column() -> None:
+    """Idempotent: add is_admin column to users table if missing."""
+    from sqlalchemy import text as sql_text, inspect
+    insp = inspect(engine)
+    cols = [c["name"] for c in insp.get_columns("users")]
+    if "is_admin" not in cols:
+        with engine.begin() as conn:
+            conn.execute(sql_text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"))
+        logger.info("[Migration] Added is_admin column to users.")
 
 
 def _migrate_brazil_category() -> None:
@@ -61,6 +73,7 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def _startup() -> None:
         Base.metadata.create_all(bind=engine)
+        _migrate_is_admin_column()
         _migrate_brazil_category()
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
@@ -107,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(comments_router,    prefix="/comments",    tags=["comments"])
     app.include_router(push_router,        prefix="/push",        tags=["push"])
     app.include_router(voting_router,      prefix="/voting",      tags=["voting"])
+    app.include_router(admin_router,       prefix="/admin",       tags=["admin"])
 
     return app
 

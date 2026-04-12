@@ -1,0 +1,140 @@
+"""
+app/routers/admin.py
+
+Admin endpoints for manually resolving non-crypto events.
+All routes require an authenticated admin user (is_admin=True).
+"""
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import case
+from sqlalchemy.orm import Session, joinedload
+
+from app.db import get_db
+from app.models.event import Event
+from app.models.user import User
+from app.routers.auth import get_current_user
+from app.services.resolution import settle_event, void_event
+
+router = APIRouter()
+
+
+# ── Auth guard ────────────────────────────────────────────────────────────────
+
+def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
+
+
+# ── Schemas ───────────────────────────────────────────────────────────────────
+
+class ScenarioSimple(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    title_pt: Optional[str]
+    probability: float
+    sort_order: int
+
+
+class PendingEvent(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    title_pt: Optional[str]
+    category: str
+    closes_at: Optional[datetime]
+    status: str
+    is_featured: bool
+    scenarios: list[ScenarioSimple]
+
+
+class ResolveRequest(BaseModel):
+    winning_scenario_id: int
+    resolution_note: Optional[str] = None
+
+
+class VoidRequest(BaseModel):
+    note: Optional[str] = "Voided by admin"
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.get("/pending-events", response_model=list[PendingEvent])
+def list_pending_events(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """
+    Return all open events that are past their closes_at (or have no closes_at
+    but are still marked open) — excluding crypto since those auto-resolve.
+    """
+    events = (
+        db.query(Event)
+        .options(joinedload(Event.scenarios))
+        .filter(
+            Event.status == "open",
+            Event.category != "crypto",
+        )
+        .order_by(
+            # NULLs last — compatible with SQLite and PostgreSQL
+            case((Event.closes_at.is_(None), 1), else_=0).asc(),
+            Event.closes_at.asc(),
+        )
+        .all()
+    )
+    return events
+
+
+@router.post("/events/{event_id}/resolve")
+def resolve_event(
+    event_id: int,
+    body: ResolveRequest,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    event = (
+        db.query(Event)
+        .options(joinedload(Event.scenarios))
+        .filter(Event.id == event_id, Event.status == "open")
+        .first()
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="Open event not found")
+
+    note = body.resolution_note or f"Manually resolved by admin at {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+    result = settle_event(db, event, body.winning_scenario_id, note)
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Resolution failed"))
+    return result
+
+
+@router.post("/events/{event_id}/void")
+def void_event_endpoint(
+    event_id: int,
+    body: VoidRequest,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    event = (
+        db.query(Event)
+        .options(joinedload(Event.scenarios))
+        .filter(Event.id == event_id, Event.status == "open")
+        .first()
+    )
+    if not event:
+        raise HTTPException(status_code=404, detail="Open event not found")
+
+    result = void_event(db, event, note=body.note or "Voided by admin")
+    return result
+
+
+@router.get("/me")
+def admin_me(_admin: User = Depends(get_admin_user)):
+    """Check if current user is admin — used by the frontend to show/hide admin UI."""
+    return {"is_admin": True, "user_id": _admin.id, "email": _admin.email}

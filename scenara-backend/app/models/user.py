@@ -29,6 +29,10 @@ class User(Base):
         Boolean, default=True, nullable=False,
     )
 
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="0",
+    )
+
     current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     best_streak: Mapped[int]    = mapped_column(Integer, default=0, nullable=False)
 

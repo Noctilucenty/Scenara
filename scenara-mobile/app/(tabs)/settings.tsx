@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   SafeAreaView, Text, View, ScrollView,
   TouchableOpacity, StatusBar, Alert, Platform, Image,
@@ -11,6 +11,7 @@ import {
 
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage, Language } from "@/src/i18n";
+import { api } from "@/src/api/client";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
@@ -32,6 +33,12 @@ export default function SettingsScreen() {
   const { authUser, logout, isAuthenticated } = useTrading();
   const { t, language, setLanguage } = useLanguage();
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    api.get("/admin/me").then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
+  }, [isAuthenticated]);
 
   if (!fontsLoaded) return null;
 
@@ -211,6 +218,16 @@ export default function SettingsScreen() {
 
           <SectionLabel title={t.settings.appVersion} />
           <RowItem label={t.settings.version} />
+
+          {isAdmin && (
+            <>
+              <SectionLabel title="ADMIN" />
+              <RowItem
+                label="Event Resolution Panel"
+                onPress={() => router.push("/admin")}
+              />
+            </>
+          )}
 
           <View style={{ marginTop: 20 }}>
             <TouchableOpacity onPress={handleLogout} style={{ borderRadius: 14, overflow: "hidden" }}>
