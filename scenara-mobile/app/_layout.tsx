@@ -4,6 +4,7 @@ import { Stack, router, useSegments } from "expo-router";
 import { TradingProvider, useTrading } from "@/src/session/TradingContext";
 import { LanguageProvider } from "@/src/i18n";
 import { hasSeenOnboarding } from "./onboarding";
+import { api } from "@/src/api/client";
 
 const PURPLE = "#7C5CFC";
 const BG     = "#08090C";
@@ -43,6 +44,11 @@ function AuthGuard() {
 }
 
 export default function RootLayout() {
+  // Fire a health ping immediately so the backend wakes up (Render free tier hibernates)
+  useEffect(() => {
+    api.get("/health", { timeout: 30000 }).catch(() => {});
+  }, []);
+
   return (
     <LanguageProvider>
       <TradingProvider>

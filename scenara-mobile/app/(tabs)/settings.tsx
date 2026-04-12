@@ -90,28 +90,25 @@ export default function SettingsScreen() {
             <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 10, textAlign: "center" }}>
               {t.settings.language.toUpperCase()}
             </Text>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              {(["en", "pt"] as Language[]).map(lang => {
+            <View style={{ gap: 8 }}>
+              {([
+                { lang: "en" as Language, flagUri: "https://flagcdn.com/w40/us.png", label: "English" },
+                { lang: "pt" as Language, flagUri: "https://flagcdn.com/w40/br.png", label: "Português" },
+                { lang: "zh" as Language, flagUri: "https://flagcdn.com/w40/cn.png", label: "中文" },
+              ]).map(({ lang, flagUri, label }) => {
                 const active = language === lang;
-                const flagUri = lang === "en"
-                  ? "https://flagcdn.com/w40/us.png"
-                  : "https://flagcdn.com/w40/br.png";
-                const labelText = lang === "en" ? t.settings.english : t.settings.portuguese;
-                const LangRow = ({ textColor }: { textColor: string }) => (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <Image source={{ uri: flagUri }} style={{ width: 22, height: 15, borderRadius: 2 }} />
-                    <Text style={{ color: textColor, fontFamily: active ? "DMSans_700Bold" : "DMSans_500Medium", fontSize: 14 }}>{labelText}</Text>
-                  </View>
-                );
                 return (
-                  <TouchableOpacity key={lang} onPress={() => setLanguage(lang)} style={{ flex: 1, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: active ? PURPLE : BORDER }}>
+                  <TouchableOpacity key={lang} onPress={() => setLanguage(lang)} style={{ borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: active ? PURPLE : BORDER }}>
                     {active ? (
-                      <LinearGradient colors={[BLUE, PURPLE]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 13, alignItems: "center" }}>
-                        <LangRow textColor="white" />
+                      <LinearGradient colors={[BLUE, PURPLE]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 13, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <Image source={{ uri: flagUri }} style={{ width: 24, height: 16, borderRadius: 2 }} />
+                        <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>{label}</Text>
+                        <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginLeft: "auto" as any }}>✓</Text>
                       </LinearGradient>
                     ) : (
-                      <View style={{ backgroundColor: CARD, paddingVertical: 13, alignItems: "center" }}>
-                        <LangRow textColor={TEXT_SUB} />
+                      <View style={{ backgroundColor: CARD, paddingVertical: 13, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <Image source={{ uri: flagUri }} style={{ width: 24, height: 16, borderRadius: 2 }} />
+                        <Text style={{ color: TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{label}</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -187,28 +184,25 @@ export default function SettingsScreen() {
           </View>
 
           <SectionLabel title={t.settings.language} />
-          <View style={{ flexDirection: "row", gap: 10, marginBottom: 8 }}>
-            {(["en", "pt"] as Language[]).map(lang => {
+          <View style={{ gap: 8, marginBottom: 8 }}>
+            {([
+              { lang: "en" as Language, flagUri: "https://flagcdn.com/w40/us.png", label: "English" },
+              { lang: "pt" as Language, flagUri: "https://flagcdn.com/w40/br.png", label: "Português" },
+              { lang: "zh" as Language, flagUri: "https://flagcdn.com/w40/cn.png", label: "中文" },
+            ]).map(({ lang, flagUri, label }) => {
               const active = language === lang;
-              const flagUri = lang === "en"
-                ? "https://flagcdn.com/w40/us.png"
-                : "https://flagcdn.com/w40/br.png";
-              const labelText = lang === "en" ? t.settings.english : t.settings.portuguese;
-              const LangRow = ({ textColor }: { textColor: string }) => (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Image source={{ uri: flagUri }} style={{ width: 22, height: 15, borderRadius: 2 }} />
-                  <Text style={{ color: textColor, fontFamily: active ? "DMSans_700Bold" : "DMSans_500Medium", fontSize: 14 }}>{labelText}</Text>
-                </View>
-              );
               return (
-                <TouchableOpacity key={lang} onPress={() => setLanguage(lang)} style={{ flex: 1, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: active ? PURPLE : BORDER }}>
+                <TouchableOpacity key={lang} onPress={() => setLanguage(lang)} style={{ borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: active ? PURPLE : BORDER }}>
                   {active ? (
-                    <LinearGradient colors={[BLUE, PURPLE]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 14, alignItems: "center" }}>
-                      <LangRow textColor="white" />
+                    <LinearGradient colors={[BLUE, PURPLE]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 13, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <Image source={{ uri: flagUri }} style={{ width: 24, height: 16, borderRadius: 2 }} />
+                      <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>{label}</Text>
+                      <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginLeft: "auto" as any }}>✓</Text>
                     </LinearGradient>
                   ) : (
-                    <View style={{ backgroundColor: CARD, paddingVertical: 14, alignItems: "center" }}>
-                      <LangRow textColor={TEXT_SUB} />
+                    <View style={{ backgroundColor: CARD, paddingVertical: 13, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <Image source={{ uri: flagUri }} style={{ width: 24, height: 16, borderRadius: 2 }} />
+                      <Text style={{ color: TEXT_SUB, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{label}</Text>
                     </View>
                   )}
                 </TouchableOpacity>

@@ -16,7 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type Language = "en" | "pt";
+export type Language = "en" | "pt" | "zh";
 
 type Translations = typeof en;
 
@@ -410,7 +410,198 @@ const pt: typeof en = {
   },
 };
 
-const translations: Record<Language, typeof en> = { en, pt };
+// ── Chinese (Simplified) ──────────────────────────────────────────────────────
+
+const zh: typeof en = {
+  tabs: {
+    markets:   "市场",
+    portfolio: "投资组合",
+    news:      "新闻",
+    rankings:  "排行榜",
+    settings:  "设置",
+  },
+
+  markets: {
+    title:       "预测市场",
+    trending:    "↗ 热门",
+    live:        "直播",
+    closed:      "已关闭",
+    featured:    "★ 精选",
+    resolve:     "结算",
+    refresh:     "↻ 刷新",
+    loading:     "...",
+    noMarkets:   "暂无市场",
+    allMarkets:  "全部市场",
+    balance:     "余额",
+    liveCount:   (n: number, c: number) => `${n} 直播 · ${c} 已关闭`,
+    tapExpand:   "点击展开 ↗",
+    probHistory: "概率历史",
+    outcomes:    "结果",
+    amount:      "金额",
+    trade:       (amt: string) => `买入 · $${amt}`,
+    opening:     "正在开仓...",
+    resolveMarket: "结算市场",
+    confirmWinner: "确认赢家",
+    cancel:      "取消",
+    positionOpened: (amt: string) => `已开仓 · $${amt}`,
+    all:           "全部",
+    politics:      "政治",
+    economy:       "经济",
+    crypto:        "加密",
+    sports:        "体育",
+    technology:    "科技",
+    geopolitics:   "全球",
+    entertainment: "娱乐",
+    music:         "音乐",
+    tv:            "电视",
+    science:       "科学",
+    weather:       "天气",
+  },
+
+  portfolio: {
+    title:        "投资组合",
+    balance:      "模拟余额",
+    total:        "总计",
+    open:         "进行中",
+    won:          "已赢",
+    lost:         "已亏",
+    totalPnl:     "总盈亏",
+    winRate:      "胜率",
+    wagered:      "已投入",
+    performance:  "表现快照",
+    accuracy:     "准确率",
+    percentile:   "百分位",
+    bestWin:      "最佳胜利",
+    single:       "单次",
+    vsOthers:     "对比他人",
+    refresh:      "↻ 刷新",
+    positions:    (n: number) => `仓位 · ${n}`,
+    noPositions:  "暂无仓位",
+    noPositionsSub: "前往市场开立您的第一个仓位",
+    wageredLabel: "已投入",
+    probLabel:    "概率",
+    multLabel:    "倍数",
+    resolved:     "已结算",
+    streak: {
+      unstoppable: "势不可挡",
+      onFire:      "火热进行",
+      hotStreak:   "热门连胜",
+      streak:      "连胜",
+      winning:     "获胜",
+      best:        "最佳",
+      consecutive: (n: number) => `连胜 ${n} 场`,
+    },
+  },
+
+  insights: {
+    title:          "洞察",
+    grade:          "表现评级",
+    calibration:    "基于布里尔分数校准",
+    accuracy:       "准确率",
+    percentileRank: "百分位排名",
+    outperform:     (pct: number) => `您超越了平台 ${pct}% 的交易者`,
+    tradingStats:   "交易统计",
+    totalPreds:     "预测总数",
+    winRate:        "胜率",
+    accuracyScore:  "准确率评分",
+    brierSub:       "布里尔分数校准",
+    avgEntry:       "平均入场概率",
+    avgEntrySub:    "越低 = 风险承受能力越高",
+    currentStreak:  "当前连胜",
+    bestStreak:     "最佳连胜",
+    wins:           (n: number) => `${n} 胜`,
+    pnlBreakdown:   "盈亏明细",
+    totalPnl:       "总盈亏",
+    avgPnl:         "每次预测平均盈亏",
+    bestPred:       "最佳预测",
+    worstPred:      "最差预测",
+    totalWagered:   "总投入",
+    positionSummary:"仓位摘要",
+    gradeScale:     "评级标准",
+    gradeLabels: {
+      S: "精英预测者",
+      A: "敏锐",
+      B: "稳健",
+      C: "一般",
+      D: "有待提高",
+    },
+    youLabel:       "← 您",
+    score:          (r: string) => `评分 ${r}`,
+    quickStats:     "快速统计",
+    balance:        "余额",
+    noData:         "暂无数据",
+    noDataSub:      "进行预测以查看您的洞察",
+  },
+
+  rankings: {
+    title:      "排行榜",
+    traders:    (n: number) => `${n} 位交易者`,
+    topPnl:     "最高盈亏",
+    balance:    "余额",
+    winRate:    "胜率",
+    trader:     "交易者",
+    pnl:        "盈亏",
+    yourStanding: "您的排名",
+    predictions:  (n: number) => `${n} 次预测`,
+    streak:       (n: number, b: number) => `🔥 ${n} 连胜 · 最佳: ${b}`,
+    topTraders:   "🏆 顶级交易者",
+    platformStats:"平台统计",
+    totalTraders: "总交易者数",
+    noTraders:    "暂无交易者排名",
+    hotMarkets:   "🔥 热门市场",
+    byCategory:   "📊 按类别",
+    youBadge:     "您",
+  },
+
+  settings: {
+    title:        "设置",
+    account:      "账户",
+    displayName:  "显示名称",
+    email:        "邮箱",
+    language:     "语言",
+    english:      "English",
+    portuguese:   "Português",
+    logout:       "退出登录",
+    logoutConfirm:"确定要退出登录吗？",
+    logoutCancel: "取消",
+    appVersion:   "应用版本",
+    version:      "Scenara v0.6",
+  },
+
+  auth: {
+    welcomeBack:   "欢迎回来",
+    signIn:        "登录您的账户",
+    email:         "邮箱",
+    password:      "密码",
+    signInBtn:     "登录",
+    noAccount:     "还没有账户？",
+    signUp:        "注册",
+    createAccount: "创建账户",
+    free:          "免费 · 无需信用卡 · 无真实资金",
+    displayName:   "显示名称",
+    displayNamePh: "在排行榜上的显示方式",
+    confirmPwd:    "确认密码",
+    repeatPwd:     "重复密码",
+    minPwd:        "最少6个字符",
+    startBalance:  "您将获得 $10,000 模拟余额",
+    createBtn:     "创建账户",
+    haveAccount:   "已有账户？",
+    tagline:       "预测未来，追踪优势。",
+    startTagline:  "从 $10,000 模拟余额开始",
+  },
+
+  common: {
+    justNow:  "刚刚",
+    mAgo:     (n: number) => `${n}分钟前`,
+    hAgo:     (n: number) => `${n}小时前`,
+    dAgo:     (n: number) => `${n}天前`,
+    chance:   "概率",
+    live:     "● 直播",
+    scenara:  "SCENARA",
+  },
+};
+
+const translations: Record<Language, typeof en> = { en, pt, zh };
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 
@@ -430,7 +621,7 @@ function loadLanguage(): Language {
   try {
     if (Platform.OS === "web") {
       const saved = localStorage.getItem(LANG_KEY);
-      if (saved === "en" || saved === "pt") return saved;
+      if (saved === "en" || saved === "pt" || saved === "zh") return saved;
     }
   } catch {}
   return "pt";
@@ -457,6 +648,7 @@ function LanguagePicker({ onSelect }: { onSelect: (lang: Language) => void }) {
   const options: Array<{ lang: Language; flagUri: string; label: string; sub: string }> = [
     { lang: "pt", flagUri: "https://flagcdn.com/w80/br.png", label: "Português", sub: "Brasil" },
     { lang: "en", flagUri: "https://flagcdn.com/w80/us.png", label: "English",   sub: "United States" },
+    { lang: "zh", flagUri: "https://flagcdn.com/w80/cn.png", label: "中文",       sub: "中国大陆" },
   ];
 
   return (
@@ -467,7 +659,7 @@ function LanguagePicker({ onSelect }: { onSelect: (lang: Language) => void }) {
           <Text style={ls.logoText}>▽</Text>
         </View>
         <Text style={ls.title}>scenara</Text>
-        <Text style={ls.subtitle}>Choose your language · Escolha seu idioma</Text>
+        <Text style={ls.subtitle}>Choose your language · Escolha seu idioma · 选择语言</Text>
 
         {/* Options */}
         <View style={ls.optionsWrap}>
@@ -508,7 +700,7 @@ function LanguagePicker({ onSelect }: { onSelect: (lang: Language) => void }) {
             style={ls.btn}
           >
             <Text style={ls.btnText}>
-              {selected === "pt" ? "Continuar →" : selected === "en" ? "Continue →" : "Continue · Continuar"}
+              {selected === "pt" ? "Continuar →" : selected === "zh" ? "继续 →" : "Continue →"}
             </Text>
           </LinearGradient>
         </TouchableOpacity>

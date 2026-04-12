@@ -64,18 +64,18 @@ type Article = {
 };
 
 const CATEGORIES = [
-  { key: "all",           label_en: "All",           label_pt: "Todos",          icon: "⚡", color: PURPLE },
-  { key: "politics",      label_en: "Politics",      label_pt: "Política",       icon: "🏛",  color: "#818CF8" },
-  { key: "economy",       label_en: "Economy",       label_pt: "Economia",       icon: "📈", color: "#34D399" },
-  { key: "crypto",        label_en: "Crypto",        label_pt: "Cripto",         icon: "₿",  color: "#F7931A" },
-  { key: "sports",        label_en: "Sports",        label_pt: "Esportes",       icon: "⚽", color: "#60A5FA" },
-  { key: "technology",    label_en: "Tech",          label_pt: "Tecnologia",     icon: "💻", color: "#A78BFA" },
-  { key: "geopolitics",   label_en: "Global",        label_pt: "Global",         icon: "🌍", color: "#FB923C" },
-  { key: "entertainment", label_en: "Entertainment", label_pt: "Entretenimento", icon: "🎬", color: "#F472B6" },
-  { key: "music",         label_en: "Music",         label_pt: "Música",         icon: "🎵", color: "#C084FC" },
-  { key: "tv",            label_en: "TV",            label_pt: "TV",             icon: "📺", color: "#22D3EE" },
-  { key: "science",       label_en: "Science",       label_pt: "Ciência",        icon: "🔬", color: "#86EFAC" },
-  { key: "weather",       label_en: "Weather",       label_pt: "Clima",          icon: "🌦",  color: "#7DD3FC" },
+  { key: "all",           label_en: "All",           label_pt: "Todos",          label_zh: "全部",   icon: "⚡", color: PURPLE },
+  { key: "politics",      label_en: "Politics",      label_pt: "Política",       label_zh: "政治",   icon: "🏛",  color: "#818CF8" },
+  { key: "economy",       label_en: "Economy",       label_pt: "Economia",       label_zh: "经济",   icon: "📈", color: "#34D399" },
+  { key: "crypto",        label_en: "Crypto",        label_pt: "Cripto",         label_zh: "加密",   icon: "₿",  color: "#F7931A" },
+  { key: "sports",        label_en: "Sports",        label_pt: "Esportes",       label_zh: "体育",   icon: "⚽", color: "#60A5FA" },
+  { key: "technology",    label_en: "Tech",          label_pt: "Tecnologia",     label_zh: "科技",   icon: "💻", color: "#A78BFA" },
+  { key: "geopolitics",   label_en: "Global",        label_pt: "Global",         label_zh: "全球",   icon: "🌍", color: "#FB923C" },
+  { key: "entertainment", label_en: "Entertainment", label_pt: "Entretenimento", label_zh: "娱乐",   icon: "🎬", color: "#F472B6" },
+  { key: "music",         label_en: "Music",         label_pt: "Música",         label_zh: "音乐",   icon: "🎵", color: "#C084FC" },
+  { key: "tv",            label_en: "TV",            label_pt: "TV",             label_zh: "电视",   icon: "📺", color: "#22D3EE" },
+  { key: "science",       label_en: "Science",       label_pt: "Ciência",        label_zh: "科学",   icon: "🔬", color: "#86EFAC" },
+  { key: "weather",       label_en: "Weather",       label_pt: "Clima",          label_zh: "天气",   icon: "🌦",  color: "#7DD3FC" },
 ];
 
 const CATEGORY_IMAGES: Record<string, string> = {
@@ -196,7 +196,7 @@ function MarketRow({ event, onPress, language, catColor, index, image, history }
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: catColor + "15" }}>
             <Text style={{ color: catColor, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>
-              {cat?.[language === "pt" ? "label_pt" : "label_en"] ?? event.category}
+              {cat?.[language === "pt" ? "label_pt" : language === "zh" ? "label_zh" : "label_en"] ?? event.category}
             </Text>
           </View>
           {event.scenarios.slice(0, 2).map((s, i) => (
@@ -266,7 +266,7 @@ function NewsCard({ article, onPress, language, catColor, summary, loadingSummar
             <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 6 }}>
               <LinearGradient colors={[BLUE, PURPLE, PINK]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
                 <Text style={{ color: "white", fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                  {language === "pt" ? "RESUMO · IA" : "AI SUMMARY"}
+                  {language === "pt" ? "RESUMO · IA" : language === "zh" ? "AI 摘要" : "AI SUMMARY"}
                 </Text>
               </LinearGradient>
             </View>
@@ -320,7 +320,7 @@ export default function NewsScreen() {
       // Fetch events and news in parallel
       const [eventsRes, newsRes] = await Promise.allSettled([
         api.get("/events/"),
-        api.get("/news/single", { params: { category: cat, lang: language, max_results: 15 } }),
+        api.get("/news/single", { params: { category: cat, lang: language, max_results: 15 }, timeout: 25000 }),
       ]);
 
       if (eventsRes.status === "fulfilled") {
@@ -425,7 +425,7 @@ export default function NewsScreen() {
             </TouchableOpacity>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text style={{ color: TEXT, fontSize: 20, fontFamily: "DMSans_700Bold", letterSpacing: -0.5 }}>
-                {language === "pt" ? "Ao Vivo" : "Breaking"}
+                {language === "pt" ? "Ao Vivo" : language === "zh" ? "头条新闻" : "Breaking"}
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                 <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: GREEN }} />
@@ -435,7 +435,7 @@ export default function NewsScreen() {
           </View>
           <TouchableOpacity onPress={() => fetchAll(activeCategory)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.06)" }}>
             <Text style={{ color: PURPLE_D, fontFamily: "DMSans_700Bold", fontSize: 9, letterSpacing: 0.8 }}>
-              {loading ? "..." : (language === "pt" ? "ATUALIZAR" : "REFRESH")}
+              {loading ? "..." : (language === "pt" ? "ATUALIZAR" : language === "zh" ? "刷新" : "REFRESH")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -444,7 +444,7 @@ export default function NewsScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8, flexDirection: "row" }} style={{ borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.08)", maxHeight: 50 }}>
           {CATEGORIES.map(cat => {
             const active = activeCategory === cat.key;
-            const label = language === "pt" ? cat.label_pt : cat.label_en;
+            const label = language === "pt" ? cat.label_pt : language === "zh" ? cat.label_zh : cat.label_en;
             return (
               <TouchableOpacity key={cat.key} onPress={() => handleCategory(cat.key)} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: active ? cat.color : BORDER, backgroundColor: active ? cat.color + "18" : "transparent" }}>
                 <Text style={{ color: active ? cat.color : TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 10, letterSpacing: 0.5 }}>

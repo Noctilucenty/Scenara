@@ -5,7 +5,6 @@ import {
   KeyboardAvoidingView, Platform, useWindowDimensions,
 } from "react-native";
 
-const IS_WEB = Platform.OS === "web";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
@@ -57,7 +56,7 @@ type Scenario = { id: number; title: string; title_pt: string | null; probabilit
 type EventDetail = {
   id: number; title: string; title_pt: string | null;
   description: string | null; description_pt: string | null;
-  category: string; status: string; scenarios: Scenario[];
+  category: string; status: string; closes_at: string | null; scenarios: Scenario[];
 };
 
 function scenarioTitle(s: Scenario, lang: string) {
@@ -85,6 +84,8 @@ export default function MarketDetailScreen() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [resolveMsg, setResolveMsg] = useState("");
+  const [pendingConfirm, setPendingConfirm] = useState(false);
+  const [betError, setBetError] = useState("");
   const { width: winW } = useWindowDimensions();
   const isWide = winW >= 700;
   const [sentiment, setSentiment] = useState<{ total: number; scenarios: Array<{ scenario_id: number; player_count: number; percentage: number }> } | null>(null);
@@ -99,7 +100,7 @@ export default function MarketDetailScreen() {
   const handleResolve = (winningScenarioId: number) => {
     if (!eventId || resolving) return;
     const scenario = event?.scenarios.find(s => s.id === winningScenarioId);
-    const label = scenarioTitle(scenario!, language);
+    const label = scenario ? scenarioTitle(scenario, language) : String(winningScenarioId);
     const doResolve = () => {
       setResolving(true);
       api.post(`/admin/events/${eventId}/resolve`, { winning_scenario_id: winningScenarioId })
@@ -166,6 +167,7 @@ export default function MarketDetailScreen() {
             setRelatedNews(scored.slice(0, 3));
             if (scored[0]) {
               setLoadingSummary(true);
+              const summaryTimeout = setTimeout(() => setLoadingSummary(false), 8000);
               api.post("/news/summary", {
                 title: scored[0].title,
                 description: scored[0].description ?? "",
@@ -173,7 +175,7 @@ export default function MarketDetailScreen() {
                 language,
               }).then(r => setSummary(r.data.summary ?? ""))
                 .catch(() => {})
-                .finally(() => setLoadingSummary(false));
+                .finally(() => { clearTimeout(summaryTimeout); setLoadingSummary(false); });
             }
           }).catch(() => {});
       }
@@ -190,13 +192,21 @@ export default function MarketDetailScreen() {
     if (!selId) return;
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt <= 0) return;
+    if (amt >= 500 && !pendingConfirm) {
+      setPendingConfirm(true);
+      return;
+    }
+    setPendingConfirm(false);
+    setBetError("");
     setPlacing(true);
     const result = await placePrediction(selId, amt);
     setPlacing(false);
     if (result.ok) {
-      setMessage(language === "pt" ? `✓ Posição aberta · $${amt.toFixed(2)}` : `✓ Position opened · $${amt.toFixed(2)}`);
+      setMessage(language === "pt" ? `✓ Posição aberta · $${amt.toFixed(2)}` : language === "zh" ? `✓ 仓位已开 · $${amt.toFixed(2)}` : `✓ Position opened · $${amt.toFixed(2)}`);
       refreshPortfolio();
-      setTimeout(() => setMessage(""), 3000);
+      setTimeout(() => setMessage(""), 4000);
+    } else {
+      setBetError(result.error ?? (language === "pt" ? "Erro ao comprar. Tente novamente." : "Failed to place bet. Please try again."));
     }
   };
 
@@ -246,13 +256,26 @@ export default function MarketDetailScreen() {
             </View>
             {!resolved && (
               <View style={{ backgroundColor: "rgba(34,197,94,0.1)", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 }}>
-                <Text style={{ color: GREEN, fontSize: 10, fontFamily: "DMSans_700Bold" }}>● {language === "pt" ? "AO VIVO" : "LIVE"}</Text>
+                <Text style={{ color: GREEN, fontSize: 10, fontFamily: "DMSans_700Bold" }}>● {language === "pt" ? "AO VIVO" : language === "zh" ? "直播" : "LIVE"}</Text>
               </View>
             )}
+            {!resolved && event.closes_at && (() => {
+              const diff = new Date(event.closes_at!).getTime() - Date.now();
+              if (diff <= 0 || diff > 72 * 3_600_000) return null;
+              const h = Math.floor(diff / 3_600_000);
+              const m = Math.floor((diff % 3_600_000) / 60_000);
+              const urgent = diff < 6 * 3_600_000;
+              const label = h > 0 ? (language === "pt" ? `${h}h restam` : language === "zh" ? `${h}h 剩余` : `${h}h left`) : (language === "pt" ? `${m}m restam` : language === "zh" ? `${m}m 剩余` : `${m}m left`);
+              return (
+                <View style={{ backgroundColor: urgent ? "rgba(239,68,68,0.12)" : "rgba(251,146,60,0.12)", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, borderWidth: 1, borderColor: urgent ? "rgba(239,68,68,0.3)" : "rgba(251,146,60,0.3)" }}>
+                  <Text style={{ color: urgent ? RED : "#FB923C", fontSize: 10, fontFamily: "DMSans_700Bold" }}>⏱ {label.toUpperCase()}</Text>
+                </View>
+              );
+            })()}
           </View>
           {isAuthenticated && (
             <View style={{ backgroundColor: "rgba(124,92,252,0.08)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: BORDER_P }}>
-              <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>{language === "pt" ? "SALDO" : "BALANCE"}</Text>
+              <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>{language === "pt" ? "SALDO" : language === "zh" ? "余额" : "BALANCE"}</Text>
               <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold" }}>${balanceText}</Text>
             </View>
           )}
@@ -284,7 +307,7 @@ export default function MarketDetailScreen() {
                 style={{ backgroundColor: "rgba(124,92,252,0.04)", borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: "rgba(124,92,252,0.12)" }}
               >
                 <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>
-                  {language === "pt" ? "HISTÓRICO DE PROBABILIDADE" : "PROBABILITY HISTORY"}
+                  {language === "pt" ? "HISTÓRICO DE PROBABILIDADE" : language === "zh" ? "概率历史" : "PROBABILITY HISTORY"}
                 </Text>
                 <ProbabilityChart scenarios={history} height={160} compact={false} width={chartWidth > 0 ? chartWidth : undefined} />
               </View>
@@ -295,12 +318,12 @@ export default function MarketDetailScreen() {
               <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: BORDER }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
-                    {language === "pt" ? "SENTIMENTO DA MULTIDÃO" : "CROWD SENTIMENT"}
+                    {language === "pt" ? "SENTIMENTO DA MULTIDÃO" : language === "zh" ? "玩家情绪" : "CROWD SENTIMENT"}
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Text style={{ fontSize: 11 }}>👥</Text>
                     <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_700Bold" }}>
-                      {sentiment.total} {language === "pt" ? "jogadores" : "players"}
+                      {sentiment.total} {language === "pt" ? "jogadores" : language === "zh" ? "位玩家" : "players"}
                     </Text>
                   </View>
                 </View>
@@ -322,7 +345,7 @@ export default function MarketDetailScreen() {
                         </Text>
                       </View>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                        <Text style={{ color: TEXT_MID, fontSize: 10 }}>{s.player_count} {language === "pt" ? "compras" : "buys"}</Text>
+                        <Text style={{ color: TEXT_MID, fontSize: 10 }}>{s.player_count} {language === "pt" ? "compras" : language === "zh" ? "次买入" : "buys"}</Text>
                         <Text style={{ color: SCENARIO_COLORS[i], fontFamily: "DMSans_700Bold", fontSize: 13, minWidth: 38, textAlign: "right" }}>
                           {s.percentage.toFixed(0)}%
                         </Text>
@@ -335,7 +358,7 @@ export default function MarketDetailScreen() {
 
             {/* Outcomes + Bet — narrow only; wide screens show these in the right sidebar */}
             {!isWide && <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>
-              {language === "pt" ? "RESULTADOS" : "OUTCOMES"}
+              {language === "pt" ? "RESULTADOS" : language === "zh" ? "结果" : "OUTCOMES"}
             </Text>}
             {!isWide && event.scenarios.map((s, idx) => {
               const won  = resolved && s.status === "won";
@@ -407,7 +430,7 @@ export default function MarketDetailScreen() {
 
                 {/* Amount */}
                 <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginBottom: 8 }}>
-                  {language === "pt" ? "VALOR" : "AMOUNT"}
+                  {language === "pt" ? "VALOR" : language === "zh" ? "金额" : "AMOUNT"}
                 </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, marginBottom: 10 }}>
                   <Text style={{ color: PURPLE_D, fontSize: 16, marginRight: 4 }}>$</Text>
@@ -429,17 +452,18 @@ export default function MarketDetailScreen() {
                 {message ? (
                   <View style={{ gap: 8 }}>
                     <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 10, padding: 12, alignItems: "center" }}>
+                      <Text style={{ fontSize: 22, marginBottom: 4 }}>🎉</Text>
                       <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{message}</Text>
                     </View>
                     <TouchableOpacity
                       onPress={() => shareContent({
-                        title: language === "pt" ? "Comprei no Scenara!" : "I bought on Scenara!",
+                        title: language === "pt" ? "Comprei no Scenara!" : language === "zh" ? "我在 Scenara 买入了！" : "I bought on Scenara!",
                         message: buildMarketShareText(title, scenarioTitle(selScene!, language), selScene?.probability ?? 50, language),
                       })}
                       style={{ paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: BORDER_P }}
                     >
                       <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-                        {language === "pt" ? "Compartilhar posição ↗" : "Share position ↗"}
+                        {language === "pt" ? "Compartilhar posição ↗" : language === "zh" ? "分享仓位 ↗" : "Share position ↗"}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -447,31 +471,63 @@ export default function MarketDetailScreen() {
                   <View>
                     {/* Estimated payout */}
                     {selScene && parseFloat(amount) > 0 && (
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10, paddingHorizontal: 4 }}>
-                        <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular" }}>
-                          {language === "pt" ? "Retorno estimado" : "Estimated return"}
-                        </Text>
-                        <Text style={{ color: GREEN, fontSize: 12, fontFamily: "DMSans_700Bold" }}>
-                          ${(parseFloat(amount || "0") / (selScene.probability / 100)).toFixed(2)}
-                          <Text style={{ color: TEXT_MID, fontFamily: "DMSans_400Regular" }}>
-                            {" "}({(100 / selScene.probability).toFixed(2)}x)
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(34,197,94,0.06)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(34,197,94,0.15)", paddingHorizontal: 12, paddingVertical: 9, marginBottom: 10 }}>
+                        <View>
+                          <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
+                            {language === "pt" ? "RETORNO POTENCIAL" : language === "zh" ? "潜在收益" : "POTENTIAL PAYOUT"}
                           </Text>
+                          <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 18, marginTop: 2 }}>
+                            ${(parseFloat(amount || "0") / (selScene.probability / 100)).toFixed(2)}
+                          </Text>
+                        </View>
+                        <Text style={{ color: TEXT_MID, fontSize: 14, fontFamily: "DMSans_700Bold" }}>
+                          {(100 / selScene.probability).toFixed(2)}x
                         </Text>
                       </View>
                     )}
-                    <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 12, overflow: "hidden" }}>
-                      <LinearGradient colors={placing ? ["#111", "#111"] : GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
-                        <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                          {placing ? "..." : (language === "pt" ? `Comprar · $${amount}` : `Buy · $${amount}`)}
+                    {betError ? (
+                      <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+                        <Text style={{ color: RED, fontSize: 12, fontFamily: "DMSans_500Medium", marginBottom: 8 }}>{betError}</Text>
+                        <TouchableOpacity onPress={() => setBetError("")} style={{ alignItems: "center" }}>
+                          <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 12 }}>
+                            {language === "pt" ? "← Tentar novamente" : language === "zh" ? "← 重试" : "← Try again"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : pendingConfirm ? (
+                      <View style={{ backgroundColor: "rgba(251,146,60,0.07)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(251,146,60,0.3)", padding: 14, marginBottom: 8 }}>
+                        <Text style={{ color: "#FB923C", fontFamily: "DMSans_700Bold", fontSize: 14, textAlign: "center", marginBottom: 12 }}>
+                          {language === "pt" ? `Confirmar $${amount}?` : language === "zh" ? `确认 $${amount}？` : `Confirm $${amount}?`}
                         </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          <TouchableOpacity onPress={() => setPendingConfirm(false)} style={{ flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: BORDER }}>
+                            <Text style={{ color: TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{language === "pt" ? "Cancelar" : language === "zh" ? "取消" : "Cancel"}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={handleBet} disabled={placing} style={{ flex: 1, borderRadius: 10, overflow: "hidden" }}>
+                            <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 11, alignItems: "center" }}>
+                              {placing ? <ActivityIndicator color="white" size="small" /> : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 13 }}>{language === "pt" ? "Confirmar" : language === "zh" ? "确认" : "Confirm"}</Text>}
+                            </LinearGradient>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 12, overflow: "hidden" }}>
+                        <LinearGradient colors={placing ? ["#111", "#111"] : GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
+                          {placing
+                            ? <ActivityIndicator color="white" size="small" />
+                            : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
+                                {language === "pt" ? `Comprar · $${amount}` : language === "zh" ? `买入 · $${amount}` : `Buy · $${amount}`}
+                              </Text>
+                          }
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
 
                 {!isAuthenticated && (
                   <Text style={{ color: TEXT_MID, fontSize: 11, textAlign: "center", marginTop: 10 }}>
-                    {language === "pt" ? "Faça login para comprar" : "Log in to buy"}
+                    {language === "pt" ? "Faça login para comprar" : language === "zh" ? "登录后买入" : "Log in to buy"}
                   </Text>
                 )}
               </View>
@@ -488,7 +544,7 @@ export default function MarketDetailScreen() {
             {relatedNews.length > 0 && (
               <View style={{ marginBottom: 24 }}>
                 <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 14 }}>
-                  {language === "pt" ? "NOTÍCIAS RELACIONADAS" : "RELATED NEWS"}
+                  {language === "pt" ? "NOTÍCIAS RELACIONADAS" : language === "zh" ? "相关新闻" : "RELATED NEWS"}
                 </Text>
 
                 {/* Top article with AI summary */}
@@ -507,7 +563,7 @@ export default function MarketDetailScreen() {
                         <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 5, padding: 1 }}>
                           <View style={{ backgroundColor: CARD, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 }}>
                             <Text style={{ color: PURPLE, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                              {language === "pt" ? "RESUMO · IA" : "SUMMARY · AI"}
+                              {language === "pt" ? "RESUMO · IA" : language === "zh" ? "AI 摘要" : "SUMMARY · AI"}
                             </Text>
                           </View>
                         </LinearGradient>
@@ -525,7 +581,7 @@ export default function MarketDetailScreen() {
                     <TouchableOpacity onPress={() => Linking.openURL(relatedNews[0].url)} style={{ borderRadius: 10, overflow: "hidden" }}>
                       <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 11, alignItems: "center" }}>
                         <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-                          {language === "pt" ? "Ler artigo completo →" : "Read full article →"}
+                          {language === "pt" ? "Ler artigo completo →" : language === "zh" ? "阅读完整文章 →" : "Read full article →"}
                         </Text>
                       </LinearGradient>
                     </TouchableOpacity>
@@ -561,7 +617,7 @@ export default function MarketDetailScreen() {
               {/* Outcomes */}
               <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER }}>
                 <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 12 }}>
-                  {language === "pt" ? "RESULTADOS" : "OUTCOMES"}
+                  {language === "pt" ? "RESULTADOS" : language === "zh" ? "结果" : "OUTCOMES"}
                 </Text>
                 {event.scenarios.map((s, idx) => {
                   const won  = resolved && s.status === "won";
@@ -594,7 +650,7 @@ export default function MarketDetailScreen() {
               {!resolved && selScene && (
                 <View style={{ backgroundColor: SURFACE, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER_P }}>
                   <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 14 }}>
-                    {language === "pt" ? "COMPRAR" : "BUY"}
+                    {language === "pt" ? "COMPRAR" : language === "zh" ? "买入" : "BUY"}
                   </Text>
 
                   {event.scenarios.slice(0, 2).map((s, idx) => {
@@ -616,7 +672,7 @@ export default function MarketDetailScreen() {
                   })}
 
                   <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginBottom: 8, marginTop: 6 }}>
-                    {language === "pt" ? "VALOR" : "AMOUNT"}
+                    {language === "pt" ? "VALOR" : language === "zh" ? "金额" : "AMOUNT"}
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, marginBottom: 10 }}>
                     <Text style={{ color: PURPLE_D, fontSize: 16, marginRight: 4 }}>$</Text>
@@ -634,31 +690,79 @@ export default function MarketDetailScreen() {
                   </View>
 
                   {selScene && parseFloat(amount) > 0 && (
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12, paddingHorizontal: 4 }}>
-                      <Text style={{ color: TEXT_MID, fontSize: 12 }}>{language === "pt" ? "Retorno estimado" : "Estimated return"}</Text>
-                      <Text style={{ color: GREEN, fontSize: 12, fontFamily: "DMSans_700Bold" }}>
-                        ${(parseFloat(amount || "0") / (selScene.probability / 100)).toFixed(2)}
-                        {" "}({(100 / selScene.probability).toFixed(2)}x)
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(34,197,94,0.06)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(34,197,94,0.15)", paddingHorizontal: 12, paddingVertical: 9, marginBottom: 12 }}>
+                      <View>
+                        <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
+                          {language === "pt" ? "RETORNO POTENCIAL" : "POTENTIAL PAYOUT"}
+                        </Text>
+                        <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 20, marginTop: 2 }}>
+                          ${(parseFloat(amount || "0") / (selScene.probability / 100)).toFixed(2)}
+                        </Text>
+                      </View>
+                      <Text style={{ color: TEXT_MID, fontSize: 16, fontFamily: "DMSans_700Bold" }}>
+                        {(100 / selScene.probability).toFixed(2)}x
                       </Text>
                     </View>
                   )}
 
                   {message ? (
-                    <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 10, padding: 12, alignItems: "center" }}>
-                      <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{message}</Text>
+                    <View style={{ gap: 8 }}>
+                      <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 10, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(34,197,94,0.2)" }}>
+                        <Text style={{ fontSize: 24, marginBottom: 6 }}>🎉</Text>
+                        <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 14 }}>{message}</Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => shareContent({
+                          title: language === "pt" ? "Comprei no Scenara!" : language === "zh" ? "我在 Scenara 买入了！" : "I bought on Scenara!",
+                          message: buildMarketShareText(title, scenarioTitle(selScene!, language), selScene?.probability ?? 50, language),
+                        })}
+                        style={{ paddingVertical: 10, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: BORDER_P }}
+                      >
+                        <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
+                          {language === "pt" ? "Compartilhar posição ↗" : language === "zh" ? "分享仓位 ↗" : "Share position ↗"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : betError ? (
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 10, padding: 12, marginBottom: 4 }}>
+                      <Text style={{ color: RED, fontSize: 12, fontFamily: "DMSans_500Medium", marginBottom: 8 }}>{betError}</Text>
+                      <TouchableOpacity onPress={() => setBetError("")} style={{ alignItems: "center" }}>
+                        <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 12 }}>
+                          {language === "pt" ? "← Tentar novamente" : language === "zh" ? "← 重试" : "← Try again"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : pendingConfirm ? (
+                    <View style={{ backgroundColor: "rgba(251,146,60,0.07)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(251,146,60,0.3)", padding: 14 }}>
+                      <Text style={{ color: "#FB923C", fontFamily: "DMSans_700Bold", fontSize: 14, textAlign: "center", marginBottom: 12 }}>
+                        {language === "pt" ? `Confirmar $${amount}?` : language === "zh" ? `确认 $${amount}？` : `Confirm $${amount}?`}
+                      </Text>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <TouchableOpacity onPress={() => setPendingConfirm(false)} style={{ flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: BORDER }}>
+                          <Text style={{ color: TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{language === "pt" ? "Cancelar" : language === "zh" ? "取消" : "Cancel"}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleBet} disabled={placing} style={{ flex: 1, borderRadius: 10, overflow: "hidden" }}>
+                          <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 11, alignItems: "center" }}>
+                            {placing ? <ActivityIndicator color="white" size="small" /> : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 13 }}>{language === "pt" ? "Confirmar" : language === "zh" ? "确认" : "Confirm"}</Text>}
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   ) : (
                     <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 12, overflow: "hidden" }}>
                       <LinearGradient colors={placing ? ["#111", "#111"] : GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
-                        <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                          {placing ? "..." : (language === "pt" ? `Comprar · $${amount}` : `Buy · $${amount}`)}
-                        </Text>
+                        {placing
+                          ? <ActivityIndicator color="white" size="small" />
+                          : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
+                              {language === "pt" ? `Comprar · $${amount}` : language === "zh" ? `买入 · $${amount}` : `Buy · $${amount}`}
+                            </Text>
+                        }
                       </LinearGradient>
                     </TouchableOpacity>
                   )}
                   {!isAuthenticated && (
                     <Text style={{ color: TEXT_MID, fontSize: 11, textAlign: "center", marginTop: 10 }}>
-                      {language === "pt" ? "Faça login para comprar" : "Log in to buy"}
+                      {language === "pt" ? "Faça login para comprar" : language === "zh" ? "登录后买入" : "Log in to buy"}
                     </Text>
                   )}
                 </View>
@@ -669,7 +773,7 @@ export default function MarketDetailScreen() {
                 <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER }}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                     <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
-                      {language === "pt" ? "SENTIMENTO DA MULTIDÃO" : "CROWD SENTIMENT"}
+                      {language === "pt" ? "SENTIMENTO DA MULTIDÃO" : language === "zh" ? "玩家情绪" : "CROWD SENTIMENT"}
                     </Text>
                     <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_700Bold" }}>👥 {sentiment.total}</Text>
                   </View>

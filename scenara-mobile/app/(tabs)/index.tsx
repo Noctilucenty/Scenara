@@ -135,8 +135,8 @@ function HotBadge({ total, language }: { total: number; language: string }) {
       <Text style={{ fontSize: 9 }}>{isViral ? "🔥" : "🌶"}</Text>
       <Text style={{ color: isViral ? RED : "#FB923C", fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.3 }}>
         {isViral
-          ? (language === "pt" ? "VIRAL" : "VIRAL")
-          : (language === "pt" ? "QUENTE" : "HOT")}
+          ? (language === "pt" ? "VIRAL" : language === "zh" ? "热门" : "VIRAL")
+          : (language === "pt" ? "QUENTE" : language === "zh" ? "热门" : "HOT")}
       </Text>
     </View>
   );
@@ -151,8 +151,8 @@ function UrgencyBadge({ closesAt, language }: { closesAt: string | null; languag
   const mins  = Math.floor((diff % 3_600_000) / 60_000);
   const urgent = diff < 6 * 3_600_000; // < 6h is red
   const label  = hours > 0
-    ? (language === "pt" ? `${hours}h restam` : `${hours}h left`)
-    : (language === "pt" ? `${mins}m restam` : `${mins}m left`);
+    ? (language === "pt" ? `${hours}h restam` : language === "zh" ? `${hours}h 剩余` : `${hours}h left`)
+    : (language === "pt" ? `${mins}m restam` : language === "zh" ? `${mins}m 剩余` : `${mins}m left`);
   return (
     <View style={{
       backgroundColor: urgent ? "rgba(239,68,68,0.12)" : "rgba(251,146,60,0.12)",
@@ -226,7 +226,7 @@ function MarketLiveDot({ language }: { language: string }) {
         <View style={{ width: DS, height: DS, borderRadius: DS / 2, backgroundColor: GREEN }} />
       </View>
       <Text style={{ color: GREEN, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>
-        {language === "pt" ? "AO VIVO" : "LIVE"}
+        {language === "pt" ? "AO VIVO" : language === "zh" ? "直播" : "LIVE"}
       </Text>
     </View>
   );
@@ -320,8 +320,8 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
             <Text style={{ color: TEXT_MID, fontSize: isWide ? 10 : 8, fontFamily: "DMSans_400Regular" }}>
               📅 {event.closes_at
-                ? (language === "pt" ? "Fecha " : "Ends ") + formatCloseDate(event.closes_at, language)
-                : (language === "pt" ? "Em aberto" : "Open-ended")}
+                ? (language === "pt" ? "Fecha " : language === "zh" ? "结束 " : "Ends ") + formatCloseDate(event.closes_at, language)
+                : (language === "pt" ? "Em aberto" : language === "zh" ? "无截止日期" : "Open-ended")}
             </Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
@@ -331,7 +331,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
               </Text>
             </View>
             <Text style={{ color: TEXT_MID, fontSize: isWide ? 10 : 8, fontFamily: "DMSans_400Regular" }}>
-              {language === "pt" ? "retorno est." : "est. return"}
+              {language === "pt" ? "retorno est." : language === "zh" ? "预计收益" : "est. return"}
             </Text>
           </View>
         </View>
@@ -344,7 +344,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
               style={{ paddingHorizontal: isWide ? 14 : 10, paddingVertical: isWide ? 6 : 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER }}
             >
               <Text style={{ color: TEXT_MID, fontSize: isWide ? 11 : 9, fontFamily: "DMSans_500Medium" }}>
-                {language === "pt" ? "Detalhes" : "Details"}
+                {language === "pt" ? "Detalhes" : language === "zh" ? "详情" : "Details"}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -352,7 +352,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
               style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: isWide ? 14 : 10, paddingVertical: isWide ? 6 : 4, borderRadius: 7, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.1)" }}
             >
               <Text style={{ color: PURPLE, fontSize: isWide ? 12 : 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
-                {language === "pt" ? "Comprar" : "Buy"}
+                {language === "pt" ? "Comprar" : language === "zh" ? "买入" : "Buy"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -377,6 +377,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
   const [placing, setPlacing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [pendingConfirm, setPendingConfirm] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -392,6 +393,11 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
   const handleBet = async () => {
     if (!isAuthenticated) { onClose(); router.push("/login"); return; }
     if (!selId || amt <= 0) return;
+    if (amt >= 500 && !pendingConfirm) {
+      setPendingConfirm(true);
+      return;
+    }
+    setPendingConfirm(false);
     setPlacing(true);
     setError("");
     const result = await placePrediction(selId, amt);
@@ -401,7 +407,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
       refreshPortfolio();
       setTimeout(() => { setSuccess(false); onClose(); }, 2500);
     } else {
-      setError(result.error ?? "Failed to buy");
+      setError(result.error ?? (language === "pt" ? "Erro ao comprar" : "Failed to buy"));
     }
   };
 
@@ -416,7 +422,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
         <View style={{ padding: 16 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
-              {language === "pt" ? "COMPRAR" : "BUY"} · {eventTitle(event, language).slice(0, 40)}{eventTitle(event, language).length > 40 ? "…" : ""}
+              {language === "pt" ? "COMPRAR" : language === "zh" ? "买入" : "BUY"} · {eventTitle(event, language).slice(0, 40)}{eventTitle(event, language).length > 40 ? "…" : ""}
             </Text>
             <TouchableOpacity onPress={onClose}>
               <Text style={{ color: TEXT_MID, fontSize: 18 }}>×</Text>
@@ -440,7 +446,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
                     </Text>
                     {sentimentItem && sentimentItem.player_count > 0 && (
                       <Text style={{ color: isSel ? "rgba(255,255,255,0.7)" : TEXT_MID, fontSize: 9, fontFamily: "DMSans_400Regular", marginTop: 2 }}>
-                        👥 {sentimentItem.player_count} {language === "pt" ? "compras" : "buys"}
+                        👥 {sentimentItem.player_count} {language === "pt" ? "compras" : language === "zh" ? "次买入" : "buys"}
                       </Text>
                     )}
                   </LinearGradient>
@@ -470,7 +476,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
 
           {/* Amount */}
           <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1, marginBottom: 8 }}>
-            {language === "pt" ? "VALOR" : "AMOUNT"}
+            {language === "pt" ? "VALOR" : language === "zh" ? "金额" : "AMOUNT"}
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, marginBottom: 8 }}>
             <Text style={{ color: PURPLE_D, fontSize: 16, marginRight: 4 }}>$</Text>
@@ -494,13 +500,13 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(34,197,94,0.06)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(34,197,94,0.2)", paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12 }}>
               <View>
                 <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                  {language === "pt" ? "RETORNO POTENCIAL" : "POTENTIAL PAYOUT"}
+                  {language === "pt" ? "RETORNO POTENCIAL" : language === "zh" ? "潜在收益" : "POTENTIAL PAYOUT"}
                 </Text>
                 <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 20, marginTop: 2 }}>${payout}</Text>
               </View>
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                  {language === "pt" ? "LUCRO" : "PROFIT"}
+                  {language === "pt" ? "LUCRO" : language === "zh" ? "利润" : "PROFIT"}
                 </Text>
                 <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 16, marginTop: 2 }}>
                   +${profit}
@@ -513,7 +519,12 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
           {/* Error */}
           {error ? (
             <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 10, padding: 10, marginBottom: 10 }}>
-              <Text style={{ color: RED, fontSize: 12, fontFamily: "DMSans_500Medium" }}>{error}</Text>
+              <Text style={{ color: RED, fontSize: 12, fontFamily: "DMSans_500Medium", marginBottom: 6 }}>{error}</Text>
+              <TouchableOpacity onPress={() => setError("")} style={{ alignItems: "center" }}>
+                <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 12 }}>
+                  {language === "pt" ? "← Tentar novamente" : language === "zh" ? "← 重试" : "← Try again"}
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : null}
 
@@ -522,8 +533,24 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
             <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(34,197,94,0.25)" }}>
               <Text style={{ fontSize: 28, marginBottom: 6 }}>🎉</Text>
               <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                {language === "pt" ? `✓ Posição aberta · $${amount}` : `✓ Position opened · $${amount}`}
+                {language === "pt" ? `✓ Posição aberta · $${amount}` : language === "zh" ? `✓ 仓位已开 · $${amount}` : `✓ Position opened · $${amount}`}
               </Text>
+            </View>
+          ) : pendingConfirm ? (
+            <View style={{ backgroundColor: "rgba(251,146,60,0.07)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(251,146,60,0.3)", padding: 14 }}>
+              <Text style={{ color: "#FB923C", fontFamily: "DMSans_700Bold", fontSize: 14, textAlign: "center", marginBottom: 12 }}>
+                {language === "pt" ? `Confirmar $${amount}?` : language === "zh" ? `确认 $${amount}？` : `Confirm $${amount}?`}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity onPress={() => setPendingConfirm(false)} style={{ flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+                  <Text style={{ color: TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{language === "pt" ? "Cancelar" : language === "zh" ? "取消" : "Cancel"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleBet} disabled={placing} style={{ flex: 1, borderRadius: 10, overflow: "hidden" }}>
+                  <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 11, alignItems: "center" }}>
+                    {placing ? <ActivityIndicator color="white" size="small" /> : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 13 }}>{language === "pt" ? "Confirmar" : language === "zh" ? "确认" : "Confirm"}</Text>}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : (
             <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 12, overflow: "hidden" }}>
@@ -536,8 +563,8 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
                   ? <ActivityIndicator color="white" />
                   : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
                       {isAuthenticated
-                        ? (language === "pt" ? `Comprar $${amount}` : `Buy $${amount}`)
-                        : (language === "pt" ? "Entre para comprar" : "Log in to buy")}
+                        ? (language === "pt" ? `Comprar $${amount}` : language === "zh" ? `买入 $${amount}` : `Buy $${amount}`)
+                        : (language === "pt" ? "Entre para comprar" : language === "zh" ? "登录后买入" : "Log in to buy")}
                     </Text>
                 }
               </LinearGradient>
@@ -562,6 +589,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
   const [placing, setPlacing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [pendingConfirm, setPendingConfirm] = useState(false);
 
   // Reset state when event switches
   useEffect(() => {
@@ -569,6 +597,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
     setAmount("100");
     setSuccess(false);
     setError("");
+    setPendingConfirm(false);
   }, [event.id]);
 
   const selScene = event.scenarios.find(s => s.id === selId);
@@ -580,6 +609,11 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
   const handleBet = async () => {
     if (!isAuthenticated) { router.push("/login"); return; }
     if (!selId || amt <= 0) return;
+    if (amt >= 500 && !pendingConfirm) {
+      setPendingConfirm(true);
+      return;
+    }
+    setPendingConfirm(false);
     setPlacing(true); setError("");
     const result = await placePrediction(selId, amt);
     setPlacing(false);
@@ -603,7 +637,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={{ fontSize: 12 }}>⚡</Text>
           <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
-            {language === "pt" ? "COMPRAR" : "BUY"}
+            {language === "pt" ? "COMPRAR" : language === "zh" ? "买入" : "BUY"}
           </Text>
         </View>
         <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular", flex: 1, marginLeft: 8 }} numberOfLines={1}>
@@ -666,13 +700,13 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
           <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "rgba(34,197,94,0.06)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(34,197,94,0.18)", paddingHorizontal: 12, paddingVertical: 9, marginBottom: 10 }}>
             <View>
               <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                {language === "pt" ? "RETORNO" : "PAYOUT"}
+                {language === "pt" ? "RETORNO" : language === "zh" ? "收益" : "PAYOUT"}
               </Text>
               <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 17 }}>${payout}</Text>
             </View>
             <View style={{ alignItems: "flex-end" }}>
               <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                {language === "pt" ? "LUCRO" : "PROFIT"}
+                {language === "pt" ? "LUCRO" : language === "zh" ? "利润" : "PROFIT"}
               </Text>
               <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 14 }}>+${profit} <Text style={{ color: TEXT_MID, fontSize: 10 }}>({multiplier}x)</Text></Text>
             </View>
@@ -681,7 +715,12 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
 
         {error ? (
           <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 9, padding: 9, marginBottom: 9 }}>
-            <Text style={{ color: RED, fontSize: 11 }}>{error}</Text>
+            <Text style={{ color: RED, fontSize: 11, marginBottom: 5 }}>{error}</Text>
+            <TouchableOpacity onPress={() => setError("")} style={{ alignItems: "center" }}>
+              <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 11 }}>
+                {language === "pt" ? "← Tentar novamente" : language === "zh" ? "← 重试" : "← Try again"}
+              </Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 
@@ -689,8 +728,24 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
           <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 11, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(34,197,94,0.25)" }}>
             <Text style={{ fontSize: 24, marginBottom: 4 }}>🎉</Text>
             <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-              {language === "pt" ? `✓ Posição aberta · $${amount}` : `✓ Position opened · $${amount}`}
+              {language === "pt" ? `✓ Posição aberta · $${amount}` : language === "zh" ? `✓ 仓位已开 · $${amount}` : `✓ Position opened · $${amount}`}
             </Text>
+          </View>
+        ) : pendingConfirm ? (
+          <View style={{ backgroundColor: "rgba(251,146,60,0.07)", borderRadius: 11, borderWidth: 1, borderColor: "rgba(251,146,60,0.3)", padding: 12 }}>
+            <Text style={{ color: "#FB923C", fontFamily: "DMSans_700Bold", fontSize: 13, textAlign: "center", marginBottom: 10 }}>
+              {language === "pt" ? `Confirmar $${amount}?` : language === "zh" ? `确认 $${amount}？` : `Confirm $${amount}?`}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 7 }}>
+              <TouchableOpacity onPress={() => setPendingConfirm(false)} style={{ flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+                <Text style={{ color: TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 12 }}>{language === "pt" ? "Cancelar" : language === "zh" ? "取消" : "Cancel"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleBet} disabled={placing} style={{ flex: 1, borderRadius: 9, overflow: "hidden" }}>
+                <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 9, alignItems: "center" }}>
+                  {placing ? <ActivityIndicator color="white" size="small" /> : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 12 }}>{language === "pt" ? "Confirmar" : language === "zh" ? "确认" : "Confirm"}</Text>}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <TouchableOpacity onPress={handleBet} disabled={placing} style={{ borderRadius: 11, overflow: "hidden" }}>
@@ -703,8 +758,8 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
                 ? <ActivityIndicator color="white" />
                 : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>
                     {isAuthenticated
-                      ? (language === "pt" ? `Comprar $${amount}` : `Buy $${amount}`)
-                      : (language === "pt" ? "Entre para comprar" : "Log in to buy")}
+                      ? (language === "pt" ? `Comprar $${amount}` : language === "zh" ? `买入 $${amount}` : `Buy $${amount}`)
+                      : (language === "pt" ? "Entre para comprar" : language === "zh" ? "登录后买入" : "Log in to buy")}
                   </Text>
               }
             </LinearGradient>
@@ -727,9 +782,9 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const timeLabel = (s: number) => {
-    if (s < 60)   return language === "pt" ? `${s}s atrás`                    : `${s}s ago`;
-    if (s < 3600) return language === "pt" ? `${Math.floor(s/60)}m atrás`     : `${Math.floor(s/60)}m ago`;
-    return          language === "pt" ? `${Math.floor(s/3600)}h atrás`         : `${Math.floor(s/3600)}h ago`;
+    if (s < 60)   return language === "pt" ? `${s}s atrás`                : language === "zh" ? `${s}秒前`                      : `${s}s ago`;
+    if (s < 3600) return language === "pt" ? `${Math.floor(s/60)}m atrás` : language === "zh" ? `${Math.floor(s/60)}分前`        : `${Math.floor(s/60)}m ago`;
+    return          language === "pt" ? `${Math.floor(s/3600)}h atrás`    : language === "zh" ? `${Math.floor(s/3600)}小时前`     : `${Math.floor(s/3600)}h ago`;
   };
 
   useEffect(() => {
@@ -1383,7 +1438,7 @@ function TrendingPicks({ events, language, onBetPress, onCardPress }: {
                   onPress={() => onBetPress(event.id)}
                   style={{ backgroundColor: "rgba(124,92,252,0.15)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: BORDER_P }}
                 >
-                  <Text style={{ color: PURPLE, fontSize: 9, fontFamily: "DMSans_700Bold" }}>{language === "pt" ? "Comprar" : "Buy"}</Text>
+                  <Text style={{ color: PURPLE, fontSize: 9, fontFamily: "DMSans_700Bold" }}>{language === "pt" ? "Comprar" : language === "zh" ? "买入" : "Buy"}</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -1557,8 +1612,16 @@ export default function MarketsScreen() {
   const eventsRef = useRef<EventItem[]>([]);
   const scrollStateRef = useRef({ loadingMore: false, hasMore: true });
 
+  const sentimentFetchedAtRef = useRef<Record<number, number>>({});
+  const SENTIMENT_TTL = 5 * 60_000; // 5 minutes
+
   const fetchSentiment = useCallback((items: EventItem[]) => {
-    const toFetch = items.slice(0, 8);
+    const now = Date.now();
+    const toFetch = items.slice(0, 8).filter(e => {
+      const t = sentimentFetchedAtRef.current[e.id];
+      return !t || now - t > SENTIMENT_TTL;
+    });
+    if (toFetch.length === 0) return;
     Promise.allSettled(
       toFetch.map(e => api.get(`/predictions/events/${e.id}/sentiment`))
     ).then(results => {
@@ -1569,6 +1632,7 @@ export default function MarketsScreen() {
             total: r.value.data.total_players ?? 0,
             scenarios: r.value.data.scenarios ?? [],
           };
+          sentimentFetchedAtRef.current[toFetch[i].id] = Date.now();
         }
       });
       setSentimentCache(prev => {
@@ -1604,9 +1668,33 @@ export default function MarketsScreen() {
     });
   }, []);
 
-  const fetchEvents = useCallback(async (silent = false, cat = activeCategory) => {
+  const EVENTS_CACHE_KEY = "scenara_events_cache";
+  const EVENTS_CACHE_TTL = 5 * 60_000; // 5 minutes
+
+  // Load stale events from localStorage immediately to avoid blank screen
+  const hydrateFromCache = useCallback((cat: string) => {
+    if (Platform.OS !== "web") return false;
     try {
-      if (!silent) { setLoading(true); setLoadError(false); }
+      const raw = localStorage.getItem(`${EVENTS_CACHE_KEY}_${cat}`);
+      if (!raw) return false;
+      const { data, ts } = JSON.parse(raw) as { data: EventItem[]; ts: number };
+      if (Date.now() - ts > EVENTS_CACHE_TTL || !data?.length) return false;
+      setEvents(data);
+      historyCacheRef.current = {};
+      fetchHistory(data);
+      fetchSentiment(data);
+      return true;
+    } catch { return false; }
+  }, [fetchHistory, fetchSentiment]);
+
+  const fetchEvents = useCallback(async (silent = false, cat = activeCategory) => {
+    // On fresh (non-silent) load: show cached data immediately while fetching
+    if (!silent) {
+      const hadCache = hydrateFromCache(cat);
+      if (!hadCache) setLoading(true);
+      setLoadError(false);
+    }
+    try {
       const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0 };
       if (cat !== "all") params.category = cat;
       const res = await api.get("/events/", { params });
@@ -1615,6 +1703,10 @@ export default function MarketsScreen() {
       const initialHasMore = all.length === PAGE_SIZE;
       scrollStateRef.current.hasMore = initialHasMore;
       setHasMore(initialHasMore);
+      // Cache events for next cold start
+      if (Platform.OS === "web") {
+        try { localStorage.setItem(`${EVENTS_CACHE_KEY}_${cat}`, JSON.stringify({ data: all, ts: Date.now() })); } catch {}
+      }
       // Only fetch history on first load (not silent auto-refresh)
       if (!silent) fetchHistory(all);
 
@@ -1622,17 +1714,17 @@ export default function MarketsScreen() {
         setActivity(r.data ?? []);
       }).catch(() => {});
 
-      api.get("/news/single", { params: { category: "all", lang: language, max_results: 12 } })
+      api.get("/news/single", { params: { category: "all", lang: language, max_results: 12 }, timeout: 25000 })
         .then(r => setNewsArticles(r.data?.articles ?? []))
         .catch(() => {});
 
       fetchSentiment(all);
     } catch {
-      // Show error card only on non-silent (user-visible) loads
-      if (!silent) setLoadError(true);
+      // Show error card only on non-silent (user-visible) loads with no cached data
+      if (!silent && events.length === 0) setLoadError(true);
     }
     finally { setLoading(false); setRefreshing(false); }
-  }, [fetchSentiment, fetchHistory, activeCategory]);
+  }, [fetchSentiment, fetchHistory, hydrateFromCache, activeCategory]);
 
   // Keep eventsRef in sync so loadMore always reads current length
   useEffect(() => { eventsRef.current = events; }, [events]);
@@ -1837,7 +1929,7 @@ export default function MarketsScreen() {
             {isAuthenticated && balanceText && (
               <View style={{ backgroundColor: "rgba(124,92,252,0.08)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: BORDER_P }}>
                 <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                  {language === "pt" ? "SALDO" : "BALANCE"}
+                  {language === "pt" ? "SALDO" : language === "zh" ? "余额" : "BALANCE"}
                 </Text>
                 <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold" }}>{balanceText}</Text>
               </View>
@@ -2088,7 +2180,7 @@ export default function MarketsScreen() {
                             )}
                             {featured.closes_at && (
                               <Text style={{ color: TEXT_MID, fontSize: isWide ? 11 : 10 }}>
-                                · {language === "pt" ? "Fecha" : "Ends"} {formatCloseDate(featured.closes_at, language)}
+                                · {language === "pt" ? "Fecha" : language === "zh" ? "结束" : "Ends"} {formatCloseDate(featured.closes_at, language)}
                               </Text>
                             )}
                           </View>
@@ -2104,7 +2196,7 @@ export default function MarketsScreen() {
                             <TouchableOpacity onPress={() => handleBetPress(featured.id)} style={{ borderRadius: 10, overflow: "hidden" }}>
                               <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: isWide ? 14 : 11, paddingVertical: isWide ? 8 : 7, alignItems: "center" }}>
                                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: isWide ? 12 : 11 }}>
-                                  {language === "pt" ? "Comprar" : "Buy"}
+                                  {language === "pt" ? "Comprar" : language === "zh" ? "买入" : "Buy"}
                                 </Text>
                               </LinearGradient>
                             </TouchableOpacity>
@@ -2347,11 +2439,12 @@ export default function MarketsScreen() {
                           <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 22, alignItems: "center", borderWidth: 1, borderColor: BORDER_P, marginBottom: 16 }}>
                             <Text style={{ fontSize: 28, marginBottom: 10 }}>🔒</Text>
                             <Text style={{ color: TEXT, fontSize: 16, fontFamily: "DMSans_700Bold", textAlign: "center", marginBottom: 6 }}>
-                              {language === "pt" ? `+${rest.length - GUEST_CAP} mercados esperando` : `+${rest.length - GUEST_CAP} more markets waiting`}
+                              {language === "pt" ? `+${rest.length - GUEST_CAP} mercados esperando` : language === "zh" ? `+${rest.length - GUEST_CAP} 个市场等待中` : `+${rest.length - GUEST_CAP} more markets waiting`}
                             </Text>
                             <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", textAlign: "center", marginBottom: 18, lineHeight: 18 }}>
                               {language === "pt"
                                 ? "Crie uma conta gratuita para ver todos os mercados e fazer previsões."
+                                : language === "zh" ? "创建免费账户查看全部市场"
                                 : "Create a free account to see all markets and start making predictions."}
                             </Text>
                             <TouchableOpacity

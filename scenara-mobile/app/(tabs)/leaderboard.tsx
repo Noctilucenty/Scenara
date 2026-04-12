@@ -182,7 +182,11 @@ export default function LeaderboardScreen() {
     finally { setLoading(false); }
   }, [t]);
 
-  useFocusEffect(useCallback(() => { load(sortBy); }, [sortBy, load]));
+  useFocusEffect(useCallback(() => {
+    load(sortBy);
+    const interval = setInterval(() => load(sortBy), 30_000);
+    return () => clearInterval(interval);
+  }, [sortBy, load]));
   if (!fontsLoaded) return null;
 
   // Leaderboard is public — guests can see it but with a join prompt at the top
