@@ -82,11 +82,68 @@ export default function MarketDetailScreen() {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chartWidth, setChartWidth] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [resolveMsg, setResolveMsg] = useState("");
   const { width: winW } = useWindowDimensions();
   const isWide = winW >= 700;
   const [sentiment, setSentiment] = useState<{ total: number; scenarios: Array<{ scenario_id: number; player_count: number; percentage: number }> } | null>(null);
 
   const eventId = params.eventId ? parseInt(params.eventId) : null;
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    api.get("/admin/me").then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
+  }, [isAuthenticated]);
+
+  const handleResolve = (winningScenarioId: number) => {
+    if (!eventId || resolving) return;
+    const scenario = event?.scenarios.find(s => s.id === winningScenarioId);
+    const label = scenarioTitle(scenario!, language);
+    const doResolve = () => {
+      setResolving(true);
+      api.post(`/admin/events/${eventId}/resolve`, { winning_scenario_id: winningScenarioId })
+        .then(() => {
+          setResolveMsg(`✓ Resolved → ${label}`);
+          // Refresh event
+          api.get(`/events/${eventId}`).then(r => setEvent(r.data)).catch(() => {});
+        })
+        .catch(err => setResolveMsg(`Error: ${err?.message ?? "failed"}`))
+        .finally(() => setResolving(false));
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm(`Resolve → Winner: "${label}"?`)) doResolve();
+    } else {
+      const { Alert } = require("react-native");
+      Alert.alert("Resolve Event", `Winner: "${label}"`, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Confirm", style: "destructive", onPress: doResolve },
+      ]);
+    }
+  };
+
+  const handleVoid = () => {
+    if (!eventId || resolving) return;
+    const doVoid = () => {
+      setResolving(true);
+      api.post(`/admin/events/${eventId}/void`, { note: "Voided by admin" })
+        .then(() => {
+          setResolveMsg("✓ Voided — all positions refunded");
+          api.get(`/events/${eventId}`).then(r => setEvent(r.data)).catch(() => {});
+        })
+        .catch(err => setResolveMsg(`Error: ${err?.message ?? "failed"}`))
+        .finally(() => setResolving(false));
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm("Void event and refund all positions?")) doVoid();
+    } else {
+      const { Alert } = require("react-native");
+      Alert.alert("Void Event", "Refund all positions?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Void & Refund", style: "destructive", onPress: doVoid },
+      ]);
+    }
+  };
 
   useEffect(() => {
     if (!eventId) return;
@@ -420,6 +477,13 @@ export default function MarketDetailScreen() {
               </View>
             )}
 
+            {/* Admin resolve panel — narrow layout */}
+            {!isWide && isAdmin && !resolved && (
+              <View style={{ marginBottom: 24 }}>
+                <AdminResolvePanel event={event} language={language} resolving={resolving} resolveMsg={resolveMsg} onResolve={handleResolve} onVoid={handleVoid} />
+              </View>
+            )}
+
             {/* Related news with AI summary */}
             {relatedNews.length > 0 && (
               <View style={{ marginBottom: 24 }}>
@@ -636,6 +700,9 @@ export default function MarketDetailScreen() {
                   <Text style={{ color: TEXT, fontSize: 18, fontFamily: "DMSans_700Bold" }}>${balanceText}</Text>
                 </View>
               )}
+
+              {/* Admin resolve panel */}
+              {isAdmin && !resolved && <AdminResolvePanel event={event} language={language} resolving={resolving} resolveMsg={resolveMsg} onResolve={handleResolve} onVoid={handleVoid} />}
             </View>
           )}{/* end right column */}
 
@@ -643,5 +710,56 @@ export default function MarketDetailScreen() {
         </ScrollView>
       </SafeAreaView>
     </KeyboardAvoidingView>
+  );
+}
+
+function AdminResolvePanel({
+  event, language, resolving, resolveMsg, onResolve, onVoid,
+}: {
+  event: EventDetail; language: string; resolving: boolean;
+  resolveMsg: string; onResolve(id: number): void; onVoid(): void;
+}) {
+  return (
+    <View style={{ backgroundColor: "rgba(239,68,68,0.05)", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: RED }} />
+        <Text style={{ color: RED, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>ADMIN — RESOLVE EVENT</Text>
+      </View>
+
+      {resolveMsg ? (
+        <Text style={{ color: resolveMsg.startsWith("✓") ? GREEN : RED, fontFamily: "DMSans_700Bold", fontSize: 13, textAlign: "center", paddingVertical: 8 }}>
+          {resolveMsg}
+        </Text>
+      ) : (
+        <>
+          <Text style={{ color: TEXT_MID, fontSize: 11, marginBottom: 10 }}>Select winning outcome:</Text>
+          {event.scenarios.map((s, i) => (
+            <TouchableOpacity
+              key={s.id}
+              disabled={resolving}
+              onPress={() => onResolve(s.id)}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: `${SCENARIO_COLORS[i % SCENARIO_COLORS.length]}10`, borderRadius: 10, padding: 11, borderWidth: 1, borderColor: `${SCENARIO_COLORS[i % SCENARIO_COLORS.length]}30`, marginBottom: 7 }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: SCENARIO_COLORS[i % SCENARIO_COLORS.length] }} />
+                <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 13 }}>{scenarioTitle(s, language)}</Text>
+              </View>
+              <Text style={{ color: SCENARIO_COLORS[i % SCENARIO_COLORS.length], fontFamily: "DMSans_700Bold", fontSize: 13 }}>{s.probability.toFixed(0)}%</Text>
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity
+            disabled={resolving}
+            onPress={onVoid}
+            style={{ marginTop: 4, paddingVertical: 9, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: "rgba(239,68,68,0.25)", backgroundColor: "rgba(239,68,68,0.04)" }}
+          >
+            {resolving
+              ? <ActivityIndicator color={RED} size="small" />
+              : <Text style={{ color: RED, fontFamily: "DMSans_700Bold", fontSize: 12 }}>Void & Refund All</Text>
+            }
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
   );
 }
