@@ -205,16 +205,16 @@ export default function LeaderboardScreen() {
         <View style={{ backgroundColor: "rgba(124,92,252,0.08)", borderRadius: 14, borderWidth: 1, borderColor: BORDER_P, padding: 16, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 12 }}>
           <View style={{ flex: 1 }}>
             <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 14, marginBottom: 3 }}>
-              {language === "pt" ? "Entre para competir" : "Join to compete"}
+              {language === "pt" ? "Entre para competir" : language === "zh" ? "登录后参与排名" : "Join to compete"}
             </Text>
             <Text style={{ color: TEXT_MID, fontSize: 12 }}>
-              {language === "pt" ? "Crie uma conta e apareça no ranking" : "Create an account and appear in rankings"}
+              {language === "pt" ? "Crie uma conta e apareça no ranking" : language === "zh" ? "创建账户并出现在排行榜中" : "Create an account and appear in rankings"}
             </Text>
           </View>
           <TouchableOpacity onPress={() => router.push("/register")} style={{ borderRadius: 10, overflow: "hidden" }}>
             <LinearGradient colors={["#4F8EF7", "#7C5CFC"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 14, paddingVertical: 9 }}>
               <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-                {language === "pt" ? "Cadastrar" : "Sign Up"}
+                {language === "pt" ? "Cadastrar" : language === "zh" ? "注册" : "Sign Up"}
               </Text>
             </LinearGradient>
           </TouchableOpacity>

@@ -1,5 +1,5 @@
 /**
- * Markets Tab — Primary trading screen
+ * Markets Tab â€� Primary trading screen
  * Polymarket-style list with inline quick-bet, category filters, crowd sentiment,
  * countdown urgency, and a featured hero card.
  */
@@ -28,15 +28,16 @@ import {
 } from "@/src/theme";
 import { ProbabilityChart, ScenarioHistory } from "@/components/ProbabilityChart";
 import { shareContent } from "@/src/utils/useShare";
+import { toChineseFallback } from "@/src/utils/zhFallback";
 
-// ── Aliases ───────────────────────────────────────────────────────────────────
+// â�€â�€ Aliases â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 const { BG, CARD, SURFACE, BLUE, PURPLE, PURPLE_DIM: PURPLE_D,
         TEXT, TEXT_SUB, TEXT_MID, BORDER, BORDER_P, GREEN, RED } = C;
 
 const SCREEN_W = Dimensions.get("window").width;
 const AUTO_REFRESH_MS = 25_000;
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// â�€â�€ Types â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 type NewsArticle = { title: string; source: string; published: string; url: string; image?: string; description?: string; source_url?: string; };
 type Scenario = {
   id: number; title: string; title_pt: string | null;
@@ -50,14 +51,29 @@ type EventItem = {
 };
 type SentimentItem = { scenario_id: number; player_count: number; percentage: number };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â�€â�€ Helpers â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function eventTitle(e: EventItem, lang: string) {
-  return lang === "pt" && e.title_pt ? e.title_pt : e.title;
+  const title = lang === "pt" && e.title_pt ? e.title_pt : e.title;
+  return toChineseFallback(title, lang);
 }
 function scenarioTitle(s: Scenario, lang: string) {
-  return lang === "pt" && s.title_pt ? s.title_pt : s.title;
+  if (lang === "zh") {
+    const value = (s.title_pt || s.title || "").trim().toLowerCase();
+    if (value === "yes") return "是";
+    if (value === "no") return "否";
+    if (value === "passes") return "通过";
+    if (value === "delayed") return "推迟";
+  }
+  return toChineseFallback(lang === "pt" && s.title_pt ? s.title_pt : s.title, lang);
 }
 
+function articleTitle(title: string, lang: string) {
+  return toChineseFallback(title, lang);
+}
+
+function articleDescription(description: string, lang: string) {
+  return toChineseFallback(description, lang);
+}
 // Extract meaningful search keywords from an event title for targeted news fetch
 const NEWS_STOP = new Set([
   "will","the","a","an","in","at","by","on","for","this","next","week",
@@ -85,7 +101,7 @@ function extractNewsQuery(event: EventItem, lang: string): string {
   return words.slice(0, 3).join(" ") || event.category;
 }
 
-// ── Mini arc gauge ─────────────────────────────────────────────────────────────
+// â�€â�€ Mini arc gauge â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function ArcGauge({ probability, size = 52 }: { probability: number; size?: number }) {
   const cx = size / 2, cy = size / 2, r = size * 0.36, sw = size * 0.1;
   const START = 135, SWEEP = 270;
@@ -121,7 +137,7 @@ function ArcGauge({ probability, size = 52 }: { probability: number; size?: numb
   );
 }
 
-// ── Hot badge — social proof cue ──────────────────────────────────────────────
+// â�€â�€ Hot badge â€� social proof cue â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function HotBadge({ total, language }: { total: number; language: string }) {
   if (total < 5) return null;
   const isViral = total >= 20;
@@ -132,7 +148,7 @@ function HotBadge({ total, language }: { total: number; language: string }) {
       borderWidth: 1, borderColor: isViral ? "rgba(239,68,68,0.3)" : "rgba(251,146,60,0.28)",
       flexDirection: "row", alignItems: "center", gap: 3,
     }}>
-      <Text style={{ fontSize: 9 }}>{isViral ? "🔥" : "🌶"}</Text>
+      <Text style={{ fontSize: 9 }}>{isViral ? "ðŸ�¥" : "🌶"}</Text>
       <Text style={{ color: isViral ? RED : "#FB923C", fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.3 }}>
         {isViral
           ? (language === "pt" ? "VIRAL" : language === "zh" ? "热门" : "VIRAL")
@@ -142,7 +158,7 @@ function HotBadge({ total, language }: { total: number; language: string }) {
   );
 }
 
-// ── Urgency badge ─────────────────────────────────────────────────────────────
+// â�€â�€ Urgency badge â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function UrgencyBadge({ closesAt, language }: { closesAt: string | null; language: string }) {
   if (!closesAt) return null;
   const diff = new Date(closesAt).getTime() - Date.now();
@@ -160,7 +176,7 @@ function UrgencyBadge({ closesAt, language }: { closesAt: string | null; languag
       borderWidth: 1, borderColor: urgent ? "rgba(239,68,68,0.3)" : "rgba(251,146,60,0.3)",
       flexDirection: "row", alignItems: "center", gap: 4,
     }}>
-      <Text style={{ fontSize: 9 }}>⏱</Text>
+      <Text style={{ fontSize: 9 }}>â�±</Text>
       <Text style={{ color: urgent ? RED : "#FB923C", fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.3 }}>
         {label.toUpperCase()}
       </Text>
@@ -168,7 +184,7 @@ function UrgencyBadge({ closesAt, language }: { closesAt: string | null; languag
   );
 }
 
-// ── Crowd sentiment bar ────────────────────────────────────────────────────────
+// â�€â�€ Crowd sentiment bar â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function SentimentBar({ total, scenarios, eventScenarios, language }: {
   total: number; scenarios: SentimentItem[];
   eventScenarios: Scenario[]; language: string;
@@ -187,7 +203,7 @@ function SentimentBar({ total, scenarios, eventScenarios, language }: {
           const sc = eventScenarios.find(x => x.id === s.scenario_id);
           return (
             <Text key={s.scenario_id} style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_400Regular" }}>
-              <Text style={{ color: SCENARIO_COLORS[i] }}>●</Text> {sc ? scenarioTitle(sc, language) : ""}  {s.percentage.toFixed(0)}%
+              <Text style={{ color: SCENARIO_COLORS[i] }}>â—�</Text> {sc ? scenarioTitle(sc, language) : ""}  {s.percentage.toFixed(0)}%
             </Text>
           );
         })}
@@ -199,7 +215,7 @@ function SentimentBar({ total, scenarios, eventScenarios, language }: {
   );
 }
 
-// ── Animated LIVE dot for market cards ───────────────────────────────────────
+// â�€â�€ Animated LIVE dot for market cards â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function MarketLiveDot({ language }: { language: string }) {
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -232,7 +248,7 @@ function MarketLiveDot({ language }: { language: string }) {
   );
 }
 
-// ── Market card (list row) ────────────────────────────────────────────────────
+// â�€â�€ Market card (list row) â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, language, sentiment, t, history }: {
   event: EventItem; onPress(): void; onBetPress(): void;
   language: string; sentiment: { total: number; scenarios: SentimentItem[] } | null; t: any;
@@ -265,7 +281,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
             <View style={{ backgroundColor: `${cm.color}15`, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, borderWidth: 1, borderColor: `${cm.color}25` }}>
               <Text style={{ color: cm.color, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
-                {cm.icon}  {(language === "pt" ? cm.label_pt : cm.label).toUpperCase()}
+                {cm.icon}  {(language === "pt" ? cm.label_pt : language === "zh" ? cm.label_zh : cm.label).toUpperCase()}
               </Text>
             </View>
             <UrgencyBadge closesAt={event.closes_at} language={language} />
@@ -320,7 +336,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
             <Text style={{ color: TEXT_MID, fontSize: isWide ? 10 : 8, fontFamily: "DMSans_400Regular" }}>
               📅 {event.closes_at
-                ? (language === "pt" ? "Fecha " : language === "zh" ? "结束 " : "Ends ") + formatCloseDate(event.closes_at, language)
+                ? (language === "pt" ? "Fecha " : language === "zh" ? "结��Ÿ " : "Ends ") + formatCloseDate(event.closes_at, language)
                 : (language === "pt" ? "Em aberto" : language === "zh" ? "无截止日期" : "Open-ended")}
             </Text>
           </View>
@@ -331,7 +347,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
               </Text>
             </View>
             <Text style={{ color: TEXT_MID, fontSize: isWide ? 10 : 8, fontFamily: "DMSans_400Regular" }}>
-              {language === "pt" ? "retorno est." : language === "zh" ? "预计收益" : "est. return"}
+              {language === "pt" ? "retorno est." : language === "zh" ? "预计���益" : "est. return"}
             </Text>
           </View>
         </View>
@@ -363,7 +379,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
   );
 });
 
-// ── Inline bet panel ──────────────────────────────────────────────────────────
+// â�€â�€ Inline bet panel â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placePrediction, refreshPortfolio, sentimentCache }: {
   event: EventItem; language: string; t: any; onClose(): void;
   isAuthenticated: boolean; userId: number | null;
@@ -421,7 +437,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={{ padding: 16 }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
+            <Text style={{ color: PURPLE_D, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
               {language === "pt" ? "COMPRAR" : language === "zh" ? "买入" : "BUY"} · {eventTitle(event, language).slice(0, 40)}{eventTitle(event, language).length > 40 ? "…" : ""}
             </Text>
             <TouchableOpacity onPress={onClose}>
@@ -486,7 +502,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
             />
           </View>
 
-          {/* Quick amount anchoring — $500 makes $100 feel small */}
+          {/* Quick amount anchoring â€� $500 makes $100 feel small */}
           <View style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}>
             {["10", "50", "100", "500"].map(v => (
               <TouchableOpacity key={v} onPress={() => setAmount(v)} style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: "center", backgroundColor: amount === v ? "rgba(124,92,252,0.18)" : "rgba(124,92,252,0.06)", borderWidth: 1, borderColor: amount === v ? BORDER_P : "rgba(124,92,252,0.15)" }}>
@@ -495,7 +511,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
             ))}
           </View>
 
-          {/* Payout preview — dopamine trigger */}
+          {/* Payout preview â€� dopamine trigger */}
           {amt > 0 && selScene && (
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(34,197,94,0.06)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(34,197,94,0.2)", paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12 }}>
               <View>
@@ -522,7 +538,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
               <Text style={{ color: RED, fontSize: 12, fontFamily: "DMSans_500Medium", marginBottom: 6 }}>{error}</Text>
               <TouchableOpacity onPress={() => setError("")} style={{ alignItems: "center" }}>
                 <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 12 }}>
-                  {language === "pt" ? "← Tentar novamente" : language === "zh" ? "← 重试" : "← Try again"}
+                  {language === "pt" ? "↻ Tentar novamente" : language === "zh" ? "↻ 重试" : "↻ Try again"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -531,15 +547,15 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
           {/* Success */}
           {success ? (
             <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(34,197,94,0.25)" }}>
-              <Text style={{ fontSize: 28, marginBottom: 6 }}>🎉</Text>
+              <Text style={{ fontSize: 28, marginBottom: 6 }}>✓</Text>
               <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                {language === "pt" ? `✓ Posição aberta · $${amount}` : language === "zh" ? `✓ 仓位已开 · $${amount}` : `✓ Position opened · $${amount}`}
+                {language === "pt" ? `✓ Posição aberta · ${amount}` : language === "zh" ? `✓ 已下单 · ${amount}` : `✓ Position opened · ${amount}`}
               </Text>
             </View>
           ) : pendingConfirm ? (
             <View style={{ backgroundColor: "rgba(251,146,60,0.07)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(251,146,60,0.3)", padding: 14 }}>
               <Text style={{ color: "#FB923C", fontFamily: "DMSans_700Bold", fontSize: 14, textAlign: "center", marginBottom: 12 }}>
-                {language === "pt" ? `Confirmar $${amount}?` : language === "zh" ? `确认 $${amount}？` : `Confirm $${amount}?`}
+                {language === "pt" ? `Confirmar ${amount}?` : language === "zh" ? `确认 ${amount}？` : `Confirm ${amount}?`}
               </Text>
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <TouchableOpacity onPress={() => setPendingConfirm(false)} style={{ flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
@@ -576,7 +592,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
   );
 }
 
-// ── Persistent sidebar trade panel ────────────────────────────────────────────
+// â�€â�€ Persistent sidebar trade panel â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function SidebarTradePanel({ event, language, isAuthenticated, userId, placePrediction, refreshPortfolio }: {
   event: EventItem; language: string;
   isAuthenticated: boolean; userId: number | null;
@@ -635,7 +651,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
         style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.12)" }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Text style={{ fontSize: 12 }}>⚡</Text>
+          <Text style={{ fontSize: 12 }}>âš¡</Text>
           <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
             {language === "pt" ? "COMPRAR" : language === "zh" ? "买入" : "BUY"}
           </Text>
@@ -700,7 +716,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
           <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "rgba(34,197,94,0.06)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(34,197,94,0.18)", paddingHorizontal: 12, paddingVertical: 9, marginBottom: 10 }}>
             <View>
               <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                {language === "pt" ? "RETORNO" : language === "zh" ? "收益" : "PAYOUT"}
+                  {language === "pt" ? "RETORNO" : language === "zh" ? "收益" : "PAYOUT"}
               </Text>
               <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 17 }}>${payout}</Text>
             </View>
@@ -718,7 +734,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
             <Text style={{ color: RED, fontSize: 11, marginBottom: 5 }}>{error}</Text>
             <TouchableOpacity onPress={() => setError("")} style={{ alignItems: "center" }}>
               <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 11 }}>
-                {language === "pt" ? "← Tentar novamente" : language === "zh" ? "← 重试" : "← Try again"}
+                  {language === "pt" ? "↻ Tentar novamente" : language === "zh" ? "↻ 重试" : "↻ Try again"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -726,15 +742,15 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
 
         {success ? (
           <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 11, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(34,197,94,0.25)" }}>
-            <Text style={{ fontSize: 24, marginBottom: 4 }}>🎉</Text>
+            <Text style={{ fontSize: 24, marginBottom: 4 }}>✓</Text>
             <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-              {language === "pt" ? `✓ Posição aberta · $${amount}` : language === "zh" ? `✓ 仓位已开 · $${amount}` : `✓ Position opened · $${amount}`}
+              {language === "pt" ? `✓ Posição aberta · ${amount}` : language === "zh" ? `✓ 已下单 · ${amount}` : `✓ Position opened · ${amount}`}
             </Text>
           </View>
         ) : pendingConfirm ? (
           <View style={{ backgroundColor: "rgba(251,146,60,0.07)", borderRadius: 11, borderWidth: 1, borderColor: "rgba(251,146,60,0.3)", padding: 12 }}>
             <Text style={{ color: "#FB923C", fontFamily: "DMSans_700Bold", fontSize: 13, textAlign: "center", marginBottom: 10 }}>
-              {language === "pt" ? `Confirmar $${amount}?` : language === "zh" ? `确认 $${amount}？` : `Confirm $${amount}?`}
+              {language === "pt" ? `Confirmar ${amount}?` : language === "zh" ? `确认 ${amount}？` : `Confirm ${amount}?`}
             </Text>
             <View style={{ flexDirection: "row", gap: 7 }}>
               <TouchableOpacity onPress={() => setPendingConfirm(false)} style={{ flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
@@ -770,7 +786,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
   );
 }
 
-// ── Activity ticker — social proof strip ─────────────────────────────────────
+// â�€â�€ Activity ticker â€� social proof strip â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 type ActivityItem = {
   player: string; event_title: string; scenario_title: string;
   amount_label: string; seconds_ago: number;
@@ -782,9 +798,9 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const timeLabel = (s: number) => {
-    if (s < 60)   return language === "pt" ? `${s}s atrás`                : language === "zh" ? `${s}秒前`                      : `${s}s ago`;
-    if (s < 3600) return language === "pt" ? `${Math.floor(s/60)}m atrás` : language === "zh" ? `${Math.floor(s/60)}分前`        : `${Math.floor(s/60)}m ago`;
-    return          language === "pt" ? `${Math.floor(s/3600)}h atrás`    : language === "zh" ? `${Math.floor(s/3600)}小时前`     : `${Math.floor(s/3600)}h ago`;
+    if (s < 60)   return language === "pt" ? `${s}s atrás`                : language === "zh" ? `${s}秒��`                      : `${s}s ago`;
+    if (s < 3600) return language === "pt" ? `${Math.floor(s/60)}m atrás` : language === "zh" ? `${Math.floor(s/60)}分��`        : `${Math.floor(s/60)}m ago`;
+    return          language === "pt" ? `${Math.floor(s/3600)}h atrás`    : language === "zh" ? `${Math.floor(s/3600)}å°�时��`     : `${Math.floor(s/3600)}h ago`;
   };
 
   useEffect(() => {
@@ -794,7 +810,7 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
     animRef.current = Animated.loop(
       Animated.timing(translateX, {
         toValue: -half,
-        duration: half * 28,   // ~28 ms per pixel → smooth, not too fast
+        duration: half * 28,   // ~28 ms per pixel â†’ smooth, not too fast
         useNativeDriver: true,
       })
     );
@@ -814,7 +830,7 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
       >
         {doubled.map((item, i) => (
           <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_500Medium" }}>⚡</Text>
+            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_500Medium" }}>âš¡</Text>
             <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_500Medium" }}>
               <Text style={{ color: TEXT_SUB }}>{item.player}</Text>
               {" "}{language === "pt" ? "comprou" : "bought"}{" "}
@@ -832,7 +848,7 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
   );
 }
 
-// ── Close date formatter (Polymarket-style) ──────────────────────────────────
+// â�€â�€ Close date formatter (Polymarket-style) â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function formatCloseDate(dateStr: string, lang = "en"): string {
   if (!dateStr) return "";
   const d = new Date(dateStr);
@@ -842,9 +858,9 @@ function formatCloseDate(dateStr: string, lang = "en"): string {
   return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
-// ── Amount label: parse "$50-$100" range → single midpoint value ─────────────
+// â�€â�€ Amount label: parse "$50-$100" range â†’ single midpoint value â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function parseAmount(label: string): string {
-  const m = label.match(/\$(\d[\d,]*)\s*[-–]\s*\$(\d[\d,]*)/);
+  const m = label.match(/\$(\d[\d,]*)\s*[-â€“]\s*\$(\d[\d,]*)/);
   if (!m) return label;
   const lo = parseInt(m[1].replace(/,/g, ""));
   const hi = parseInt(m[2].replace(/,/g, ""));
@@ -852,7 +868,7 @@ function parseAmount(label: string): string {
   return `$${mid.toLocaleString("en-US")}`;
 }
 
-// ── Time ago helper ───────────────────────────────────────────────────────────
+// â�€â�€ Time ago helper â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function timeAgo(dateStr: string, lang = "en"): string {
   if (!dateStr) return "";
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -862,16 +878,21 @@ function timeAgo(dateStr: string, lang = "en"): string {
     if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
     return `${Math.floor(diff / 86400)}d atrás`;
   }
+  if (lang === "zh") {
+    if (diff < 60) return "刚刚";
+    if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+    return `${Math.floor(diff / 86400)}天前`;
+  }
   if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
-
-// ── Radar LIVE badge ──────────────────────────────────────────────────────────
+// â�€â�€ Radar LIVE badge â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 const DOT = 7;
-const MAX_RING = DOT * 3.5; // 24.5 — container must fit this
-function LiveBadge() {
+const MAX_RING = DOT * 3.5; // 24.5 â€� container must fit this
+function LiveBadge({ language }: { language: string }) {
   const ring1 = useRef(new Animated.Value(0)).current;
   const ring2 = useRef(new Animated.Value(0)).current;
 
@@ -900,25 +921,25 @@ function LiveBadge() {
     transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 3.5] }) }],
   });
 
-  const containerSize = Math.ceil(MAX_RING) + 4; // 30px — rings have room to breathe
+  const containerSize = Math.ceil(MAX_RING) + 4; // 30px â€� rings have room to breathe
 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-      {/* Dot + pulse rings — container sized to fit max ring expansion */}
+      {/* Dot + pulse rings â€� container sized to fit max ring expansion */}
       <View style={{ width: containerSize, height: containerSize, alignItems: "center", justifyContent: "center" }}>
         <Animated.View style={ringStyle(ring1)} />
         <Animated.View style={ringStyle(ring2)} />
         <View style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: RED }} />
       </View>
       <Text style={{ color: TEXT, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
-        BREAKING NEWS
+        {language === "pt" ? "ÚLTIMAS NOTÍCIAS" : language === "zh" ? "突发新闻" : "BREAKING NEWS"}
       </Text>
       <Text style={{ color: RED, fontSize: 7, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>LIVE</Text>
     </View>
   );
 }
 
-// ── Sidebar live comments auto-scroller ──────────────────────────────────────
+// â�€â�€ Sidebar live comments auto-scroller â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 const SIDEBAR_SEED: Array<{ uid: number; name: string; body: string }> = [
   { uid: 101, name: "rafaelk",    body: "just put $20 on Yes lol let's see" },
   { uid: 102, name: "tom_wex",    body: "been watching this one all week. finally moving" },
@@ -927,7 +948,7 @@ const SIDEBAR_SEED: Array<{ uid: number; name: string; body: string }> = [
   { uid: 105, name: "pablof",     body: "lost my last bet here but I still think Yes" },
   { uid: 106, name: "8ball_fx",   body: "the market moved 12% in 2h... insane" },
   { uid: 107, name: "quietmike",  body: "waiting for more info before I commit" },
-  { uid: 108, name: "Ana_trader", body: "already up 40% this week on these markets 🔥" },
+  { uid: 108, name: "Ana_trader", body: "already up 40% this week on these markets ðŸ�¥" },
   { uid: 109, name: "newbie99",   body: "is this safe to bet on? first time here" },
   { uid: 110, name: "markosv",    body: "people sleeping on the No side here imo" },
   { uid: 111, name: "jess_q",     body: "this aged well lmao called it yesterday" },
@@ -987,14 +1008,14 @@ function SidebarLiveComments({ featuredEventId, language }: { featuredEventId?: 
       >
         <MarketLiveDot language={language} />
         <Text style={{ color: TEXT, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1, flex: 1 }}>
-          {language === "pt" ? "COMENTÁRIOS" : "LIVE COMMENTS"}
+          {language === "pt" ? "COMENTÁRIOS" : language === "zh" ? "实时评论" : "LIVE COMMENTS"}
         </Text>
         <View style={{ backgroundColor: "rgba(124,92,252,0.15)", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2, borderWidth: 1, borderColor: BORDER_P }}>
           <Text style={{ color: PURPLE_D, fontSize: 8, fontFamily: "DMSans_700Bold" }}>{liveComments.length}</Text>
         </View>
       </LinearGradient>
 
-      {/* Scrolling body — fixed height with overflow hidden */}
+      {/* Scrolling body â€� fixed height with overflow hidden */}
       <View style={{ height: 260, overflow: "hidden" }}>
         <Animated.View
           style={{ transform: [{ translateY }] }}
@@ -1020,7 +1041,7 @@ function SidebarLiveComments({ featuredEventId, language }: { featuredEventId?: 
   );
 }
 
-// ── Breaking News + Hot Topics sidebar ───────────────────────────────────────
+// â�€â�€ Breaking News + Hot Topics sidebar â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function BreakingNewsPanel({ articles, hotEvents, language }: {
   articles: NewsArticle[];
   hotEvents: EventItem[];
@@ -1032,12 +1053,12 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
     router.push({
       pathname: "/news-detail",
       params: {
-        title: article.title,
+        title: articleTitle(article.title, language),
         url: article.url,
         source: article.source,
         published: article.published,
         image: article.image ?? "",
-        description: article.description ?? "",
+        description: articleDescription(article.description ?? "", language),
         source_url: article.source_url ?? "",
       },
     });
@@ -1048,7 +1069,7 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
       {articles.length > 0 && (
         <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER }}>
           <View style={{ marginBottom: 10 }}>
-            <LiveBadge />
+            <LiveBadge language={language} />
           </View>
           {articles.slice(0, 6).map((article, i) => (
             <TouchableOpacity
@@ -1062,8 +1083,8 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
                 alignItems: "center",
               }}
             >
-              <Text style={{ color: PURPLE_D, fontSize: 11, fontFamily: "DMSans_700Bold", minWidth: 16, paddingTop: 1 }}>{i + 1}</Text>
-              {/* Thumbnail — favicon from source domain, or placeholder */}
+              <Text style={{ color: PURPLE_D, fontSize: 12, fontFamily: "DMSans_700Bold", minWidth: 16, paddingTop: 1 }}>{i + 1}</Text>
+              {/* Thumbnail â€� favicon from source domain, or placeholder */}
               {(() => {
                 const faviconUri = article.source_url
                   ? `https://www.google.com/s2/favicons?domain=${article.source_url}&sz=64`
@@ -1083,8 +1104,8 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
                 );
               })()}
               <View style={{ flex: 1 }}>
-                <Text style={{ color: TEXT_SUB, fontSize: 10, fontFamily: "DMSans_500Medium", lineHeight: 15 }} numberOfLines={2}>
-                  {article.title}
+                <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_500Medium", lineHeight: 17 }} numberOfLines={2}>
+                  {articleTitle(article.title, language)}
                 </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
                   <Text style={{ color: PURPLE_D, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
@@ -1095,13 +1116,13 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
                 </View>
               </View>
               <TouchableOpacity
-                onPress={() => shareContent({ title: article.title, message: article.title, url: article.url })}
+                onPress={() => shareContent({ title: articleTitle(article.title, language), message: articleTitle(article.title, language), url: article.url })}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={{ padding: 4 }}
               >
-                <Text style={{ color: TEXT_MID, fontSize: 12 }}>⎙</Text>
+                <Text style={{ color: TEXT_MID, fontSize: 12 }}>âŽ™</Text>
               </TouchableOpacity>
-              <Text style={{ color: TEXT_MID, fontSize: 14 }}>›</Text>
+              <Text style={{ color: TEXT_MID, fontSize: 14 }}>â€º</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -1110,9 +1131,9 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
       {hotEvents.length > 0 && (
         <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
-            <Text style={{ fontSize: 12 }}>🔥</Text>
+            <Text style={{ fontSize: 12 }}>ðŸ�¥</Text>
             <Text style={{ color: TEXT, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
-              {language === "pt" ? "EM ALTA" : "HOT TOPICS"}
+              {language === "pt" ? "EM ALTA" : language === "zh" ? "热门话题" : "HOT TOPICS"}
             </Text>
           </View>
           {hotEvents.slice(0, 6).map((event, i) => {
@@ -1132,11 +1153,11 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
               >
                 <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", minWidth: 14 }}>{i + 1}</Text>
                 <Text style={{ fontSize: 11 }}>{cm.icon}</Text>
-                <Text style={{ color: TEXT_SUB, fontSize: 10, fontFamily: "DMSans_500Medium", flex: 1 }} numberOfLines={1}>
+                <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_500Medium", flex: 1 }} numberOfLines={1}>
                   {eventTitle(event, language)}
                 </Text>
                 <Text style={{ color: probColor, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{Math.round(prob)}%</Text>
-                <Text style={{ color: TEXT_MID, fontSize: 14 }}>›</Text>
+                <Text style={{ color: TEXT_MID, fontSize: 14 }}>â€º</Text>
               </TouchableOpacity>
             );
           })}
@@ -1147,7 +1168,7 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
   );
 }
 
-// ── Category tab strip ────────────────────────────────────────────────────────
+// â�€â�€ Category tab strip â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function CategoryTabs({ events, active, onSelect, t, language }: {
   events: EventItem[]; active: string; onSelect(k: string): void; t: any; language: string;
 }) {
@@ -1164,7 +1185,7 @@ function CategoryTabs({ events, active, onSelect, t, language }: {
           const isActive = active === key;
           const count = key === "all" ? events.length : events.filter(e => e.category === key).length;
           if (key !== "all" && key !== "brazil" && count === 0) return null;
-          const label = language === "pt" ? meta.label_pt : meta.label;
+          const label = language === "pt" ? meta.label_pt : language === "zh" ? meta.label_zh : meta.label;
           const isBrazil = key === "brazil";
           return (
             <TouchableOpacity
@@ -1201,14 +1222,14 @@ function CategoryTabs({ events, active, onSelect, t, language }: {
   );
 }
 
-// ── Full-width news grid ──────────────────────────────────────────────────────
+// â�€â�€ Full-width news grid â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 const NewsGrid = React.memo(function NewsGrid({ articles, language, onPress }: {
   articles: NewsArticle[];
   language: string;
   onPress(a: NewsArticle): void;
 }) {
-  if (articles.length === 0) return null;
   const { width: newsW } = useWindowDimensions();
+  if (articles.length === 0) return null;
   const isWide = newsW >= 700;
   const cols = newsW >= 700 ? 3 : newsW >= 500 ? 2 : 1;
   const items = articles.slice(0, newsW >= 700 ? 6 : 4);
@@ -1224,13 +1245,13 @@ const NewsGrid = React.memo(function NewsGrid({ articles, language, onPress }: {
             style={{ width: 3, height: 14, borderRadius: 2 }}
           />
           <Text style={{ color: TEXT, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
-            {language === "pt" ? "ÚLTIMAS NOTÍCIAS" : "LATEST NEWS"}
+                      {language === "pt" ? "ÚLTIMAS NOTÍCIAS" : language === "zh" ? "最新新闻" : "LATEST NEWS"}
           </Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
           <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: GREEN }} />
           <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_400Regular" }}>
-            {language === "pt" ? "feed ao vivo" : "live feed"}
+            {language === "pt" ? "feed ao vivo" : language === "zh" ? "实时动态" : "live feed"}
           </Text>
         </View>
       </View>
@@ -1295,10 +1316,10 @@ const NewsGrid = React.memo(function NewsGrid({ articles, language, onPress }: {
 
                 {/* Title */}
                 <Text
-                  style={{ color: TEXT, fontSize: isWide ? 12 : 11, fontFamily: "DMSans_700Bold", lineHeight: isWide ? 18 : 16, marginBottom: 6 }}
+                  style={{ color: TEXT, fontSize: isWide ? 14 : 13, fontFamily: "DMSans_700Bold", lineHeight: isWide ? 21 : 19, marginBottom: 6 }}
                   numberOfLines={3}
                 >
-                  {article.title}
+                  {articleTitle(article.title, language)}
                 </Text>
               </View>
 
@@ -1310,15 +1331,15 @@ const NewsGrid = React.memo(function NewsGrid({ articles, language, onPress }: {
               }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <Text style={{ color: accentColors[0], fontSize: 9, fontFamily: "DMSans_700Bold" }}>
-                    {language === "pt" ? "Ler →" : "Read →"}
+                    {language === "pt" ? "Ler →" : language === "zh" ? "阅读 →" : "Read →"}
                   </Text>
                   <Text style={{ color: TEXT_MID, fontSize: 8 }}>· {readMin} min</Text>
                 </View>
                 <TouchableOpacity
-                  onPress={() => shareContent({ title: article.title, message: article.title, url: article.url })}
+                  onPress={() => shareContent({ title: articleTitle(article.title, language), message: articleTitle(article.title, language), url: article.url })}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text style={{ color: TEXT_MID, fontSize: 11 }}>⎙</Text>
+                  <Text style={{ color: TEXT_MID, fontSize: 11 }}>↗</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -1329,7 +1350,7 @@ const NewsGrid = React.memo(function NewsGrid({ articles, language, onPress }: {
   );
 });
 
-// ── Live stats bar ────────────────────────────────────────────────────────────
+// â�€â�€ Live stats bar â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function LiveStatsBar({ eventCount, language }: { eventCount: number; language: string }) {
   const { width: winW } = useWindowDimensions();
   const isWide = winW >= 700;
@@ -1352,8 +1373,8 @@ function LiveStatsBar({ eventCount, language }: { eventCount: number; language: 
 
   const stats = [
     { value: String(traders), label: language === "pt" ? "traders" : "traders", color: BLUE },
-    { value: `$${volume}K`,   label: language === "pt" ? "volume hoje" : "vol. today",  color: GREEN },
-    { value: String(eventCount), label: language === "pt" ? "mercados" : "markets",  color: PURPLE },
+    { value: `$${volume}K`,   label: language === "pt" ? "volume hoje" : language === "zh" ? "今日�交�" : "vol. today",  color: GREEN },
+    { value: String(eventCount), label: language === "pt" ? "mercados" : language === "zh" ? "市场" : "markets",  color: PURPLE },
   ];
 
   return (
@@ -1383,7 +1404,7 @@ function LiveStatsBar({ eventCount, language }: { eventCount: number; language: 
   );
 }
 
-// ── Trending picks horizontal strip ──────────────────────────────────────────
+// â�€â�€ Trending picks horizontal strip â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function TrendingPicks({ events, language, onBetPress, onCardPress }: {
   events: EventItem[]; language: string;
   onBetPress(id: number): void; onCardPress(id: number): void;
@@ -1393,7 +1414,7 @@ function TrendingPicks({ events, language, onBetPress, onCardPress }: {
   return (
     <View style={{ marginBottom: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-        <Text style={{ fontSize: 12 }}>🔥</Text>
+        <Text style={{ fontSize: 12 }}>ðŸ�¥</Text>
         <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
           {language === "pt" ? "EM ALTA" : "TRENDING"}
         </Text>
@@ -1421,7 +1442,7 @@ function TrendingPicks({ events, language, onBetPress, onCardPress }: {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 }}>
                 <Text style={{ fontSize: 10 }}>{cm.icon}</Text>
                 <Text style={{ color: cm.color, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>
-                  {(language === "pt" ? cm.label_pt : cm.label).toUpperCase()}
+                  {(language === "pt" ? cm.label_pt : language === "zh" ? cm.label_zh : cm.label).toUpperCase()}
                 </Text>
               </View>
               <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_500Medium", lineHeight: 15, marginBottom: 8 }} numberOfLines={2}>
@@ -1449,7 +1470,7 @@ function TrendingPicks({ events, language, onBetPress, onCardPress }: {
   );
 }
 
-// ── Brazil section ────────────────────────────────────────────────────────────
+// â�€â�€ Brazil section â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 const BR_KEYWORDS = ["brazil", "brazilian", "lula", "stf", "petrobras", "bolsonaro",
   "copa do brasil", "nordeste", "são paulo", "rio de janeiro", "brasil",
   "ibovespa", "selic", "ipca", "nubank", "vale iron", "fluminense", "palmeiras",
@@ -1482,7 +1503,7 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
         <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: "#009C3B" }} />
         <Text style={{ fontSize: 16 }}>🇧🇷</Text>
         <Text style={{ color: TEXT, fontSize: isWide ? 14 : 11, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
-          {language === "pt" ? "MERCADOS BRASIL" : "BRAZIL MARKETS"}
+          {language === "pt" ? "MERCADOS BRASIL" : language === "zh" ? "巴西市场" : "BRAZIL MARKETS"}
         </Text>
         <View style={{ backgroundColor: "rgba(0,156,59,0.15)", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "rgba(0,156,59,0.3)" }}>
           <Text style={{ color: "#009C3B", fontSize: 9, fontFamily: "DMSans_700Bold" }}>{brazilEvents.length}</Text>
@@ -1491,7 +1512,7 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: "#009C3B" }} />
           <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_400Regular" }}>
-            {language === "pt" ? "ao vivo" : "live"}
+            {language === "pt" ? "ao vivo" : language === "zh" ? "实时" : "live"}
           </Text>
         </View>
       </View>
@@ -1555,7 +1576,7 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
   );
 }
 
-// ── Main screen ────────────────────────────────────────────────────────────────
+// â�€â�€ Main screen â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 export default function MarketsScreen() {
   const router = useRouter();
   const { t, language } = useLanguage();
@@ -1763,7 +1784,7 @@ export default function MarketsScreen() {
       setHasMore(true);
     } catch {}
     finally { st.loadingMore = false; setLoadingMore(false); }
-  }, [fetchSentiment, fetchHistory, activeCategory]); // stable — no stale closures
+  }, [fetchSentiment, fetchHistory, activeCategory]); // stable â€� no stale closures
 
   // Keep a stable ref so useFocusEffect never recreates its callback
   const fetchEventsRef = useRef(fetchEvents);
@@ -1773,7 +1794,7 @@ export default function MarketsScreen() {
     fetchEventsRef.current();
     intervalRef.current = setInterval(() => fetchEventsRef.current(true), AUTO_REFRESH_MS);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [])); // empty deps — only re-runs on actual tab focus/blur
+  }, [])); // empty deps â€� only re-runs on actual tab focus/blur
 
   // Restore category from localStorage (web)
   useEffect(() => {
@@ -1798,7 +1819,7 @@ export default function MarketsScreen() {
   // Keep carouselIdxRef in sync
   useEffect(() => { carouselIdxRef.current = carouselIdx; }, [carouselIdx]);
 
-  // Navigate carousel by delta (+1 or -1) — reused by auto-advance and swipe gestures
+  // Navigate carousel by delta (+1 or -1) â€� reused by auto-advance and swipe gestures
   const navigateCarousel = useCallback((delta: number) => {
     const poolLen = carouselPool.length;
     if (poolLen <= 1) return;
@@ -1915,11 +1936,11 @@ export default function MarketsScreen() {
             </TouchableOpacity>
             <View>
               <Text style={{ color: TEXT, fontSize: isWide ? 26 : 20, fontFamily: "DMSans_700Bold", letterSpacing: -0.5 }}>
-                {language === "pt" ? "Mercados" : "Markets"}
+                {language === "pt" ? "Mercados" : language === "zh" ? "市场" : "Markets"}
               </Text>
               {events.length > 0 && (
                 <Text style={{ color: TEXT_MID, fontSize: isWide ? 12 : 10, fontFamily: "DMSans_400Regular" }}>
-                  {events.length} {language === "pt" ? "abertos" : "open"}
+                  {events.length} {language === "pt" ? "abertos" : language === "zh" ? "开放中" : "open"}
                 </Text>
               )}
             </View>
@@ -1929,7 +1950,7 @@ export default function MarketsScreen() {
             {isAuthenticated && balanceText && (
               <View style={{ backgroundColor: "rgba(124,92,252,0.08)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: BORDER_P }}>
                 <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                  {language === "pt" ? "SALDO" : language === "zh" ? "余额" : "BALANCE"}
+                  {language === "pt" ? "SALDO" : language === "zh" ? "余��" : "BALANCE"}
                 </Text>
                 <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold" }}>{balanceText}</Text>
               </View>
@@ -1941,13 +1962,13 @@ export default function MarketsScreen() {
                   style={{ paddingHorizontal: isWide ? 14 : 10, paddingVertical: isWide ? 8 : 6, borderRadius: 10, borderWidth: 1, borderColor: BORDER_P }}
                 >
                   <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: isWide ? 13 : 11 }}>
-                    {language === "pt" ? "Criar conta" : "Sign Up"}
+                    {language === "pt" ? "Criar conta" : language === "zh" ? "注册" : "Sign Up"}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => router.push("/login")} style={{ borderRadius: 10, overflow: "hidden" }}>
                   <LinearGradient colors={GRAD.BP} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: isWide ? 14 : 10, paddingVertical: isWide ? 8 : 6, borderRadius: 10, alignItems: "center" }}>
                     <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: isWide ? 13 : 11 }}>
-                      {language === "pt" ? "Entrar" : "Sign In"}
+                      {language === "pt" ? "Entrar" : language === "zh" ? "登录" : "Sign In"}
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -1956,7 +1977,7 @@ export default function MarketsScreen() {
           </View>
         </View>
 
-        {/* Category tabs — counts are approximate (from current page) */}
+        {/* Category tabs â€� counts are approximate (from current page) */}
         <CategoryTabs
           events={events}
           active={activeCategory}
@@ -1978,9 +1999,9 @@ export default function MarketsScreen() {
           </View>
         ) : loadError ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
-            <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>⚡</Text>
+            <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>âš¡</Text>
             <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_700Bold", textAlign: "center", marginBottom: 8 }}>
-              {language === "pt" ? "Falha ao carregar mercados" : "Failed to load markets"}
+              {language === "pt" ? "Falha ao carregar mercados" : language === "zh" ? "加载市场失败" : "Failed to load markets"}
             </Text>
             <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", textAlign: "center", marginBottom: 24 }}>
               {language === "pt"
@@ -1997,7 +2018,7 @@ export default function MarketsScreen() {
                 style={{ paddingHorizontal: 28, paddingVertical: 12 }}
               >
                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>
-                  {language === "pt" ? "Tentar novamente" : "Retry"}
+                  {language === "pt" ? "Tentar novamente" : language === "zh" ? "é‡试" : "Retry"}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -2029,14 +2050,14 @@ export default function MarketsScreen() {
           >
             {events.length === 0 ? (
               <View style={{ alignItems: "center", paddingTop: 80 }}>
-                <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>◈</Text>
+                <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>â—ˆ</Text>
                 <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_500Medium" }}>
-                  {language === "pt" ? "Nenhum mercado encontrado" : "No markets found"}
+                  {language === "pt" ? "Nenhum mercado encontrado" : language === "zh" ? "未找到市场" : "No markets found"}
                 </Text>
               </View>
             ) : (
               <>
-                {/* ── Hero row: Featured card + Breaking news sidebar ─────── */}
+                {/* â�€â�€ Hero row: Featured card + Breaking news sidebar â�€â�€â�€â�€â�€â�€â�€ */}
                 <View style={isWide ? { flexDirection: "row", gap: 12, marginBottom: 6 } : { marginBottom: 6 }}>
 
                   {/* Left: Featured hero card */}
@@ -2047,7 +2068,7 @@ export default function MarketsScreen() {
                         <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 5, padding: 1 }}>
                           <View style={{ backgroundColor: BG, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 }}>
                             <Text style={{ color: PURPLE, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                              {language === "pt" ? "✦ DESTAQUE" : "✦ FEATURED"}
+                  {language === "pt" ? "? DESTAQUE" : language === "zh" ? "✦ 精选" : "? FEATURED"}
                             </Text>
                           </View>
                         </LinearGradient>
@@ -2062,14 +2083,14 @@ export default function MarketsScreen() {
                           featuredSlideAnim.stopAnimation();
                         }}
                         onResponderMove={e => {
-                          // Card follows finger: swipe left → card moves left, swipe right → card moves right
+                          // Card follows finger: swipe left â†’ card moves left, swipe right â†’ card moves right
                           const dx = e.nativeEvent.pageX - featuredSwipeTouchX.current;
                           featuredSlideAnim.setValue(dx * 0.85);
                         }}
                         onResponderRelease={e => {
                           const dx = e.nativeEvent.pageX - featuredSwipeTouchX.current;
                           if (Math.abs(dx) > 60) {
-                            // swipe right (dx>0) → go to previous; swipe left (dx<0) → go to next
+                            // swipe right (dx>0) â†’ go to previous; swipe left (dx<0) â†’ go to next
                             navigateCarousel(dx > 0 ? -1 : 1);
                           } else {
                             Animated.spring(featuredSlideAnim, { toValue: 0, useNativeDriver: true, friction: 8, tension: 90 }).start();
@@ -2090,7 +2111,7 @@ export default function MarketsScreen() {
                             {(() => { const cm = catMeta(featured.category); return (
                               <View style={{ backgroundColor: `${cm.color}12`, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, borderWidth: 1, borderColor: `${cm.color}22` }}>
                                 <Text style={{ color: cm.color, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.4 }}>
-                                  {cm.icon}  {(language === "pt" ? cm.label_pt : cm.label).toUpperCase()}
+                                  {cm.icon}  {(language === "pt" ? cm.label_pt : language === "zh" ? cm.label_zh : cm.label).toUpperCase()}
                                 </Text>
                               </View>
                             ); })()}
@@ -2100,7 +2121,7 @@ export default function MarketsScreen() {
 
                           {/* Title */}
                           <TouchableOpacity activeOpacity={0.85} onPress={() => router.push({ pathname: "/market-detail", params: { eventId: String(featured.id) } })}>
-                            <Text style={{ color: TEXT, fontSize: isWide ? 22 : 17, fontFamily: "DMSans_700Bold", lineHeight: isWide ? 30 : 24, letterSpacing: -0.4, marginBottom: 16 }}>
+                            <Text style={{ color: TEXT, fontSize: isWide ? 25 : 19, fontFamily: "DMSans_700Bold", lineHeight: isWide ? 33 : 27, letterSpacing: -0.4, marginBottom: 16 }}>
                               {eventTitle(featured, language)}
                             </Text>
                           </TouchableOpacity>
@@ -2116,11 +2137,11 @@ export default function MarketsScreen() {
                                 <View key={s.id} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
                                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
                                     <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: color }} />
-                                    <Text style={{ color: TEXT_SUB, fontSize: isWide ? 14 : 13, fontFamily: "DMSans_500Medium", flex: 1 }} numberOfLines={1}>
+                                    <Text style={{ color: TEXT_SUB, fontSize: isWide ? 16 : 15, fontFamily: "DMSans_500Medium", flex: 1 }} numberOfLines={1}>
                                       {scenarioTitle(s, language)}
                                     </Text>
                                   </View>
-                                  <Text style={{ color, fontSize: isWide ? 17 : 15, fontFamily: "DMSans_700Bold", marginLeft: 10 }}>
+                                  <Text style={{ color, fontSize: isWide ? 19 : 17, fontFamily: "DMSans_700Bold", marginLeft: 10 }}>
                                     {s.probability.toFixed(0)}%
                                   </Text>
                                 </View>
@@ -2162,8 +2183,8 @@ export default function MarketsScreen() {
                                 <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.3, marginBottom: 3 }}>
                                   {article.source}  ·  {timeAgo(article.published, language)}
                                 </Text>
-                                <Text style={{ color: TEXT_SUB, fontSize: isWide ? 13 : 12, fontFamily: "DMSans_500Medium", lineHeight: isWide ? 18 : 17 }} numberOfLines={2}>
-                                  {article.title}
+                                <Text style={{ color: TEXT_SUB, fontSize: isWide ? 14 : 13, fontFamily: "DMSans_500Medium", lineHeight: isWide ? 19 : 18 }} numberOfLines={2}>
+                                  {articleTitle(article.title, language)}
                                 </Text>
                               </TouchableOpacity>
                             ))}
@@ -2174,13 +2195,13 @@ export default function MarketsScreen() {
                         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: "rgba(124,92,252,0.1)", backgroundColor: "rgba(0,0,0,0.18)" }}>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
                             {sentimentCache[featured.id] && (
-                              <Text style={{ color: TEXT_MID, fontSize: isWide ? 11 : 10, fontFamily: "DMSans_500Medium" }}>
+                              <Text style={{ color: TEXT_MID, fontSize: isWide ? 12 : 11, fontFamily: "DMSans_500Medium" }}>
                                 👥 {sentimentCache[featured.id].total}
                               </Text>
                             )}
                             {featured.closes_at && (
                               <Text style={{ color: TEXT_MID, fontSize: isWide ? 11 : 10 }}>
-                                · {language === "pt" ? "Fecha" : language === "zh" ? "结束" : "Ends"} {formatCloseDate(featured.closes_at, language)}
+                                · {language === "pt" ? "Fecha" : language === "zh" ? "截止" : "Ends"} {formatCloseDate(featured.closes_at, language)}
                               </Text>
                             )}
                           </View>
@@ -2190,7 +2211,7 @@ export default function MarketsScreen() {
                               style={{ paddingHorizontal: isWide ? 14 : 11, paddingVertical: isWide ? 8 : 7, borderRadius: 10, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.07)" }}
                             >
                               <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: isWide ? 12 : 11 }}>
-                                {language === "pt" ? "Ver →" : "View →"}
+                                {language === "pt" ? "Ver ?" : language === "zh" ? "查看 →" : "View ?"}
                               </Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => handleBetPress(featured.id)} style={{ borderRadius: 10, overflow: "hidden" }}>
@@ -2246,7 +2267,7 @@ export default function MarketsScreen() {
                         </View>
                       )}
 
-                      {/* Trade panel — always visible below featured card */}
+                      {/* Trade panel â€� always visible below featured card */}
                       {featured && (
                         <SidebarTradePanel
                           key={featured.id}
@@ -2273,7 +2294,7 @@ export default function MarketsScreen() {
                   )}
                 </View>
 
-                {/* ── News grid ────────────────────────────────────────────── */}
+                {/* â�€â�€ News grid â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€ */}
                 {newsArticles.length > 0 && (
                   <View style={{ marginBottom: isWide ? 16 : 10 }}>
                     <NewsGrid
@@ -2283,7 +2304,7 @@ export default function MarketsScreen() {
                     />
                   </View>
                 )}
-                {/* Trending picks strip — mobile only */}
+                {/* Trending picks strip â€� mobile only */}
                 {!isWide && rest.length > 3 && (
                   <TrendingPicks
                     events={rest.slice(0, 6)}
@@ -2293,7 +2314,7 @@ export default function MarketsScreen() {
                   />
                 )}
 
-                {/* ── Brazil Markets section ───────────────────────────────── */}
+                {/* â�€â�€ Brazil Markets section â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€ */}
                 <BrazilSection
                   events={events}
                   language={language}
@@ -2312,17 +2333,17 @@ export default function MarketsScreen() {
                   cardPct={cardPct}
                 />
 
-                {/* ── All markets section ──────────────────────────────────── */}
+                {/* â�€â�€ All markets section â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€ */}
                 {rest.length > 0 && (
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10, marginTop: 4 }}>
                     <Text style={{ color: PURPLE_D, fontSize: isWide ? 13 : 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>
-                      {language === "pt" ? "TODOS OS MERCADOS" : "ALL MARKETS"}
+                      {language === "pt" ? "TODOS OS MERCADOS" : language === "zh" ? "全部市场" : "ALL MARKETS"}
                     </Text>
-                    <Text style={{ color: TEXT_MID, fontSize: isWide ? 12 : 10 }}>{events.length} {language === "pt" ? "ativos" : "active"}</Text>
+                    <Text style={{ color: TEXT_MID, fontSize: isWide ? 12 : 10 }}>{events.length} {language === "pt" ? "ativos" : language === "zh" ? "活跃中" : "active"}</Text>
                   </View>
                 )}
 
-                {/* Market grid — paginated carousel, auto-advances every 5s */}
+                {/* Market grid â€� paginated carousel, auto-advances every 5s */}
                 {(() => {
                   const visibleRest = (!isAuthenticated && rest.length > GUEST_CAP)
                     ? rest.slice(0, GUEST_CAP)
@@ -2428,7 +2449,7 @@ export default function MarketsScreen() {
                         ))
                       )}
 
-                      {/* Guest gate — fade + CTA */}
+                      {/* Guest gate â€� fade + CTA */}
                       {showGate && (
                         <View style={{ marginTop: -100, paddingTop: 80 }}>
                           <LinearGradient
@@ -2437,14 +2458,14 @@ export default function MarketsScreen() {
                             style={{ height: 140, marginBottom: -8 }}
                           />
                           <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 22, alignItems: "center", borderWidth: 1, borderColor: BORDER_P, marginBottom: 16 }}>
-                            <Text style={{ fontSize: 28, marginBottom: 10 }}>🔒</Text>
+                            <Text style={{ fontSize: 28, marginBottom: 10 }}>ðŸ�’</Text>
                             <Text style={{ color: TEXT, fontSize: 16, fontFamily: "DMSans_700Bold", textAlign: "center", marginBottom: 6 }}>
                               {language === "pt" ? `+${rest.length - GUEST_CAP} mercados esperando` : language === "zh" ? `+${rest.length - GUEST_CAP} 个市场等待中` : `+${rest.length - GUEST_CAP} more markets waiting`}
                             </Text>
                             <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", textAlign: "center", marginBottom: 18, lineHeight: 18 }}>
                               {language === "pt"
                                 ? "Crie uma conta gratuita para ver todos os mercados e fazer previsões."
-                                : language === "zh" ? "创建免费账户查看全部市场"
+                                : language === "zh" ? "创建��费账户查看全部市场"
                                 : "Create a free account to see all markets and start making predictions."}
                             </Text>
                             <TouchableOpacity
@@ -2453,13 +2474,13 @@ export default function MarketsScreen() {
                             >
                               <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 13, alignItems: "center" }}>
                                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>
-                                  {language === "pt" ? "⚡ Criar conta grátis" : "⚡ Create free account"}
+                                  {language === "pt" ? "âš¡ Criar conta grátis" : "âš¡ Create free account"}
                                 </Text>
                               </LinearGradient>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => router.push("/login")} style={{ marginTop: 10 }}>
                               <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular" }}>
-                                {language === "pt" ? "Já tenho conta →" : "Already have an account →"}
+                                {language === "pt" ? "Já tenho conta â†’" : "Already have an account â†’"}
                               </Text>
                             </TouchableOpacity>
                           </View>
@@ -2476,14 +2497,14 @@ export default function MarketsScreen() {
               <View style={{ paddingVertical: 20, alignItems: "center", gap: 6 }}>
                 <ActivityIndicator color={PURPLE} size="small" />
                 <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
-                  {language === "pt" ? "Gerando novos mercados..." : "Generating new markets..."}
+                  {language === "pt" ? "Gerando novos mercados..." : language === "zh" ? "正在生�新市场..." : "Generating new markets..."}
                 </Text>
               </View>
             )}
             {!hasMore && !loadingMore && events.length > 0 && (
               <View style={{ paddingVertical: 16, alignItems: "center" }}>
                 <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
-                  {language === "pt" ? "— Todos os mercados carregados —" : "— All markets loaded —"}
+                  {language === "pt" ? "â€� Todos os mercados carregados â€�" : "â€� All markets loaded â€�"}
                 </Text>
               </View>
             )}

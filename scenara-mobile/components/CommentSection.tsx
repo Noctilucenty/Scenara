@@ -29,10 +29,10 @@ type Comment = {
 
 function timeAgo(dateStr: string, language: string): string {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-  if (diff < 60) return language === "pt" ? "agora" : "now";
-  if (diff < 3600) return language === "pt" ? `${Math.floor(diff / 60)}m atrás` : `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return language === "pt" ? `${Math.floor(diff / 3600)}h atrás` : `${Math.floor(diff / 3600)}h ago`;
-  return language === "pt" ? `${Math.floor(diff / 86400)}d atrás` : `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 60) return language === "pt" ? "agora" : language === "zh" ? "刚刚" : "now";
+  if (diff < 3600) return language === "pt" ? `${Math.floor(diff / 60)}m atrás` : language === "zh" ? `${Math.floor(diff / 60)}分钟前` : `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return language === "pt" ? `${Math.floor(diff / 3600)}h atrás` : language === "zh" ? `${Math.floor(diff / 3600)}小时前` : `${Math.floor(diff / 3600)}h ago`;
+  return language === "pt" ? `${Math.floor(diff / 86400)}d atrás` : language === "zh" ? `${Math.floor(diff / 86400)}天前` : `${Math.floor(diff / 86400)}d ago`;
 }
 
 function initials(name: string | null): string {
@@ -45,9 +45,9 @@ function avatarColor(userId: number): string {
   return AVATAR_COLORS[userId % AVATAR_COLORS.length];
 }
 
-// ── Language-aware comment body + toggle ─────────────────────────────────────
-// When UI language is PT → show PT body, offer "Mostrar tradução (EN)" toggle
-// When UI language is EN → show EN body (body_en), offer "Show original (PT)" toggle
+// â”€â”€ Language-aware comment body + toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// When UI language is PT â†’ show PT body, offer "Mostrar traduÃ§Ã£o (EN)" toggle
+// When UI language is EN â†’ show EN body (body_en), offer "Show original (PT)" toggle
 function CommentBody({
   body, bodyEn, language,
 }: {
@@ -58,9 +58,9 @@ function CommentBody({
   // Primary text depends on UI language
   const primaryText = language === "en" ? bodyEn : body;
   const altText     = language === "en" ? body   : bodyEn;
-  const altLabel    = language === "en" ? "Show original (PT)" : "Mostrar tradução (EN)";
-  const hideLabel   = language === "en" ? "Hide original"      : "Ocultar tradução";
-  const altHeader   = language === "en" ? "ORIGINAL (PT)"      : "TRADUÇÃO (EN)";
+  const altLabel    = language === "en" ? "Show original (PT)" : language === "zh" ? "显示英文翻译" : "Mostrar tradução (EN)";
+  const hideLabel   = language === "en" ? "Hide original"      : language === "zh" ? "隐藏翻译" : "Ocultar tradução";
+  const altHeader   = language === "en" ? "ORIGINAL (PT)"      : language === "zh" ? "ENGLISH" : "TRADUÇÃO (EN)";
 
   return (
     <View>
@@ -96,23 +96,23 @@ function CommentBody({
   );
 }
 
-// ── Seed comment pool ─────────────────────────────────────────────────────────
+// â”€â”€ Seed comment pool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SEED_POOL: Array<{
   uid: number; name: string;
   en: string; pt: string;
   hoursAgo: number;
 }> = [
-  { uid: 9001, name: "cryptohawk_",  en: "wild. didn't expect this today",                                 pt: "caramba. não esperava isso hoje",                      hoursAgo: 2  },
+  { uid: 9001, name: "cryptohawk_",  en: "wild. didn't expect this today",                                 pt: "caramba. nÃ£o esperava isso hoje",                      hoursAgo: 2  },
   { uid: 9002, name: "pedro.t",      en: "been following this for days, finally something moved",          pt: "acompanhando faz dias, finalmente saiu algo",           hoursAgo: 4  },
-  { uid: 9003, name: "datanerdd",    en: "odds were already creeping up this morning tbh",                 pt: "as probabilidades já subiam desde cedo",                hoursAgo: 6  },
-  { uid: 9004, name: "globalpulse",  en: "last time this happened things got crazy lol",                   pt: "da última vez que isso rolou foi bagunça",              hoursAgo: 1  },
+  { uid: 9003, name: "datanerdd",    en: "odds were already creeping up this morning tbh",                 pt: "as probabilidades jÃ¡ subiam desde cedo",                hoursAgo: 6  },
+  { uid: 9004, name: "globalpulse",  en: "last time this happened things got crazy lol",                   pt: "da Ãºltima vez que isso rolou foi bagunÃ§a",              hoursAgo: 1  },
   { uid: 9005, name: "markos_v",     en: "everyone acting surprised but this was obvious",                 pt: "todo mundo surpreso mas tava claro",                   hoursAgo: 8  },
-  { uid: 9006, name: "newstrader",   en: "jumped in right when i saw it, already green",                   pt: "entrei assim que vi, já tô no positivo",               hoursAgo: 3  },
-  { uid: 9007, name: "quietmike__",  en: "idk still not sure what to make of this one",                   pt: "não sei ainda o que acho disso",                       hoursAgo: 11 },
-  { uid: 9008, name: "factcheck99",  en: "read more before buying, story's still developing",              pt: "leia mais antes de comprar, história ainda rolando",   hoursAgo: 5  },
-  { uid: 9009, name: "samb",         en: "honestly surprised it took this long to go viral",               pt: "honestamente demorou pra virar notícia",               hoursAgo: 7  },
-  { uid: 9010, name: "alpha_s",      en: "good read. No side still feels cheap imo",                       pt: "boa leitura. lado Não ainda parece barato",            hoursAgo: 13 },
-  { uid: 9011, name: "nightowl_fx",  en: "this totally flipped my view on the whole thing",               pt: "isso mudou completamente minha visão",                 hoursAgo: 9  },
+  { uid: 9006, name: "newstrader",   en: "jumped in right when i saw it, already green",                   pt: "entrei assim que vi, jÃ¡ tÃ´ no positivo",               hoursAgo: 3  },
+  { uid: 9007, name: "quietmike__",  en: "idk still not sure what to make of this one",                   pt: "nÃ£o sei ainda o que acho disso",                       hoursAgo: 11 },
+  { uid: 9008, name: "factcheck99",  en: "read more before buying, story's still developing",              pt: "leia mais antes de comprar, histÃ³ria ainda rolando",   hoursAgo: 5  },
+  { uid: 9009, name: "samb",         en: "honestly surprised it took this long to go viral",               pt: "honestamente demorou pra virar notÃ­cia",               hoursAgo: 7  },
+  { uid: 9010, name: "alpha_s",      en: "good read. No side still feels cheap imo",                       pt: "boa leitura. lado NÃ£o ainda parece barato",            hoursAgo: 13 },
+  { uid: 9011, name: "nightowl_fx",  en: "this totally flipped my view on the whole thing",               pt: "isso mudou completamente minha visÃ£o",                 hoursAgo: 9  },
   { uid: 9012, name: "quietstorm",   en: "market's def underreacting rn, give it a day",                  pt: "mercado subreagindo claramente, espera um dia",        hoursAgo: 15 },
 ];
 
@@ -146,7 +146,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
 
   function fakeAgo(h: number) {
     return language === "pt"
-      ? (h < 24 ? `${h}h atrás` : `${Math.floor(h / 24)}d atrás`)
+      ? (h < 24 ? `${h}h atrÃ¡s` : `${Math.floor(h / 24)}d atrÃ¡s`)
       : (h < 24 ? `${h}h ago`   : `${Math.floor(h / 24)}d ago`);
   }
 
@@ -171,7 +171,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
 
   const postComment = async () => {
     if (!text.trim()) return;
-    if (!userId) { setError(language === "pt" ? "Faça login para comentar" : "Log in to comment"); return; }
+    if (!userId) { setError(language === "pt" ? "Faça login para comentar" : language === "zh" ? "登录后评论" : "Log in to comment"); return; }
     try {
       setPosting(true); setError("");
       await api.post("/comments/", {
@@ -183,7 +183,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
       setText("");
       await fetchComments();
     } catch {
-      setError(language === "pt" ? "Erro ao postar comentário" : "Failed to post comment");
+      setError(language === "pt" ? "Erro ao postar comentário" : language === "zh" ? "发表评论失败" : "Failed to post comment");
     } finally {
       setPosting(false);
     }
@@ -201,7 +201,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
       {/* Header */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>
-          {(language === "pt" ? "Comentários" : "Comments").toUpperCase()}
+          {(language === "pt" ? "Comentários" : language === "zh" ? "评论" : "Comments").toUpperCase()}
         </Text>
         {comments.length > 0 && (
           <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "rgba(124,92,252,0.12)" }}>
@@ -215,7 +215,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder={language === "pt" ? "O que você acha?" : "What do you think?"}
+          placeholder={language === "pt" ? "O que você acha?" : language === "zh" ? "你怎么看？" : "What do you think?"}
           placeholderTextColor={TEXT_MID}
           multiline
           style={{ color: TEXT, fontFamily: "DMSans_400Regular", fontSize: 14, minHeight: 60, textAlignVertical: "top" }}
@@ -235,7 +235,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
               <ActivityIndicator size="small" color={PURPLE} />
             ) : (
               <Text style={{ color: text.trim() ? PURPLE : TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 12 }}>
-                {language === "pt" ? "Publicar" : "Post"}
+                {language === "pt" ? "Publicar" : language === "zh" ? "发布" : "Post"}
               </Text>
             )}
           </TouchableOpacity>
@@ -263,7 +263,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={{ color: TEXT, fontSize: 12, fontFamily: "DMSans_700Bold" }}>
-                        {isOwn ? (language === "pt" ? "Você" : "You") : name}
+                        {isOwn ? (language === "pt" ? "Você" : language === "zh" ? "你" : "You") : name}
                       </Text>
                       {isOwn && (
                         <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: "rgba(124,92,252,0.1)" }}>
@@ -283,7 +283,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
                   {isOwn && (
                     <TouchableOpacity onPress={() => deleteComment(c.id)}>
                       <Text style={{ color: RED, fontSize: 11, fontFamily: "DMSans_500Medium" }}>
-                        {language === "pt" ? "Excluir" : "Delete"}
+                        {language === "pt" ? "Excluir" : language === "zh" ? "删除" : "Delete"}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -328,7 +328,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
           {comments.length === 0 && seeds.length === 0 && !loading && (
             <View style={{ alignItems: "center", paddingVertical: 24 }}>
               <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_400Regular" }}>
-                {language === "pt" ? "Seja o primeiro a comentar" : "Be the first to comment"}
+                {language === "pt" ? "Seja o primeiro a comentar" : language === "zh" ? "来发表第一条评论" : "Be the first to comment"}
               </Text>
             </View>
           )}

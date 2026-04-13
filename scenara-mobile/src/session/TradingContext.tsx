@@ -10,6 +10,7 @@ import { api } from "../api/client";
 async function registerPushToken(): Promise<void> {
   if (Platform.OS === "web") return;
   try {
+    // eslint-disable-next-line import/no-unresolved
     const Notifications = await import("expo-notifications");
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== "granted") return;

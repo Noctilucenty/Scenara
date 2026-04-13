@@ -75,7 +75,7 @@ function ShareCardModal({ data, onClose, language }: { data: ShareCardData; onCl
               </View>
               <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: isWin ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)", borderWidth: 1, borderColor: isWin ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)" }}>
                 <Text style={{ color: isWin ? GREEN : RED, fontFamily: "DMSans_700Bold", fontSize: 10, letterSpacing: 1 }}>
-                  {isWin ? (language === "pt" ? "GANHOU" : "WON") : (language === "pt" ? "PERDEU" : "LOST")}
+                  {isWin ? (language === "pt" ? "GANHOU" : language === "zh" ? "已赢" : "WON") : (language === "pt" ? "PERDEU" : language === "zh" ? "已输" : "LOST")}
                 </Text>
               </View>
             </View>
@@ -85,7 +85,7 @@ function ShareCardModal({ data, onClose, language }: { data: ShareCardData; onCl
 
             <View style={{ alignItems: "center", marginBottom: 28 }}>
               <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 8 }}>
-                {language === "pt" ? "RESULTADO" : "RESULT"}
+                {language === "pt" ? "RESULTADO" : language === "zh" ? "结果" : "RESULT"}
               </Text>
               <LinearGradient colors={isWin ? [GREEN, "#16a34a"] : [RED, "#dc2626"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14 }}>
                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 36, letterSpacing: -1 }}>{pnlStr}</Text>
@@ -94,8 +94,8 @@ function ShareCardModal({ data, onClose, language }: { data: ShareCardData; onCl
 
             <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 14, padding: 14, marginBottom: 20 }}>
               {[
-                { label: language === "pt" ? "INVESTIDO" : "INVESTED", value: `$${data.wagered.toFixed(0)}` },
-                { label: language === "pt" ? "ENTRADA" : "ENTRY PROB",  value: `${data.entryProb}%` },
+                { label: language === "pt" ? "INVESTIDO" : language === "zh" ? "投入" : "INVESTED", value: `$${data.wagered.toFixed(0)}` },
+                { label: language === "pt" ? "ENTRADA" : language === "zh" ? "入场概率" : "ENTRY PROB",  value: `${data.entryProb}%` },
                 { label: "MULT", value: `${data.multiplier}x` },
               ].map(s => (
                 <View key={s.label} style={{ alignItems: "center" }}>
@@ -112,12 +112,12 @@ function ShareCardModal({ data, onClose, language }: { data: ShareCardData; onCl
         </View>
 
         <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", textAlign: "center", marginTop: 20, marginBottom: 24 }}>
-          {language === "pt" ? "Tire um print para compartilhar" : "Take a screenshot to share"}
+          {language === "pt" ? "Tire um print para compartilhar" : language === "zh" ? "截图即可分享" : "Take a screenshot to share"}
         </Text>
 
         <TouchableOpacity onPress={onClose} style={{ paddingHorizontal: 32, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.08)" }}>
           <Text style={{ color: PURPLE_D, fontFamily: "DMSans_700Bold", fontSize: 13, letterSpacing: 0.5 }}>
-            {language === "pt" ? "Fechar" : "Close"}
+            {language === "pt" ? "Fechar" : language === "zh" ? "关闭" : "Close"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -176,7 +176,7 @@ function WinCelebrationBanner({ topWin, language }: {
         <Text style={{ fontSize: 24 }}>🎉</Text>
         <View style={{ flex: 1 }}>
           <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-            {language === "pt" ? `Você ganhou ${pnlStr}!` : `You won ${pnlStr}!`}
+            {language === "pt" ? `Você ganhou ${pnlStr}!` : language === "zh" ? `你赢了 ${pnlStr}！` : `You won ${pnlStr}!`}
           </Text>
           <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", marginTop: 2 }} numberOfLines={1}>
             {topWin.eventTitle}
@@ -353,24 +353,26 @@ export default function PortfolioScreen() {
             <Text style={{ color: "white", fontSize: 28, fontFamily: "DMSans_700Bold" }}>S</Text>
           </LinearGradient>
           <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", marginBottom: 10, textAlign: "center" }}>
-            {language === "pt" ? "Sua carteira está aqui" : "Your portfolio lives here"}
+            {language === "pt" ? "Sua carteira está aqui" : language === "zh" ? "你的投资组合在这里" : "Your portfolio lives here"}
           </Text>
           <Text style={{ color: TEXT_MID, fontSize: 14, textAlign: "center", lineHeight: 21, marginBottom: 32 }}>
             {language === "pt"
               ? "Crie uma conta gratuita para acompanhar suas posições, P&L e histórico de previsões."
-              : "Create a free account to track your positions, P&L and prediction history."}
+              : language === "zh"
+                ? "创建免费账户即可跟踪你的仓位、盈亏和预测历史。"
+                : "Create a free account to track your positions, P&L and prediction history."}
           </Text>
           {/* CTA inside empty state — removes dead end */}
           <TouchableOpacity onPress={() => router.push("/register")} style={{ borderRadius: 14, overflow: "hidden", width: "100%", marginBottom: 12 }}>
             <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: "center" }}>
               <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 16 }}>
-                {language === "pt" ? "Criar conta grátis" : "Create free account"}
+                {language === "pt" ? "Criar conta grátis" : language === "zh" ? "创建免费账户" : "Create free account"}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => router.push("/login")} style={{ paddingVertical: 15, borderRadius: 14, alignItems: "center", borderWidth: 1, borderColor: BORDER_P, width: "100%" }}>
             <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 16 }}>
-              {language === "pt" ? "Já tenho conta" : "I already have an account"}
+              {language === "pt" ? "Já tenho conta" : language === "zh" ? "我已有账户" : "I already have an account"}
             </Text>
           </TouchableOpacity>
         </SafeAreaView>
@@ -379,7 +381,7 @@ export default function PortfolioScreen() {
   }
 
   const cs = summary?.current_streak ?? 0;
-  const bs = summary?.best_streak    ?? 0;
+  const bs = summary?.best_streak ?? 0;
   const sEmoji = streakEmoji(cs);
   const sLabel = summary && cs >= 1 ? streakLabel(cs, t) : "";
   const pnlPos = stats.totalPnl >= 0;
@@ -406,9 +408,9 @@ export default function PortfolioScreen() {
           {/* Streak milestone celebration banner */}
           {summary && cs >= 3 && !streakDismissed && (() => {
             let msg = "";
-            if (cs >= 10) msg = language === "pt" ? "🏆 10 seguidas! Lendário!" : "🏆 10-win streak! Legendary!";
-            else if (cs >= 5) msg = language === "pt" ? "⚡ 5 seguidas! Você está em chamas!" : "⚡ 5 wins in a row! You're on fire!";
-            else msg = language === "pt" ? "🔥 3 seguidas! Continue assim!" : "🔥 3-win streak! Keep it up!";
+            if (cs >= 10) msg = language === "pt" ? "10 seguidas! Lendário!" : language === "zh" ? "10 连胜！传奇表现！" : "10-win streak! Legendary!";
+            else if (cs >= 5) msg = language === "pt" ? "5 seguidas! Você está em chamas!" : language === "zh" ? "5 连胜！手感火热！" : "5 wins in a row! You're on fire!";
+            else msg = language === "pt" ? "3 seguidas! Continue assim!" : language === "zh" ? "3 连胜！继续保持！" : "3-win streak! Keep it up!";
             return (
               <View style={{
                 marginTop: 14, marginBottom: 8, borderRadius: 14, overflow: "hidden",
@@ -465,10 +467,10 @@ export default function PortfolioScreen() {
                 <Text style={{ fontSize: 22 }}>🎯</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: "#F7931A", fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-                    {language === "pt" ? `${stats.open} posição${stats.open > 1 ? "ões" : ""} em aberto` : `${stats.open} open position${stats.open > 1 ? "s" : ""} pending`}
+                    {language === "pt" ? `${stats.open} posição${stats.open > 1 ? "ões" : ""} em aberto` : language === "zh" ? `${stats.open} 个未结仓位` : `${stats.open} open position${stats.open > 1 ? "s" : ""} pending`}
                   </Text>
                   <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", marginTop: 2 }}>
-                    {language === "pt" ? "Toque para ver novos mercados →" : "Tap to explore more markets →"}
+                    {language === "pt" ? "Toque para ver novos mercados →" : language === "zh" ? "点按查看更多市场 →" : "Tap to explore more markets →"}
                   </Text>
                 </View>
               </LinearGradient>
@@ -569,7 +571,7 @@ export default function PortfolioScreen() {
               <TouchableOpacity onPress={() => router.push("/(tabs)")} style={{ borderRadius: 12, overflow: "hidden" }}>
                 <LinearGradient colors={GRAD.BP} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 12, paddingHorizontal: 28 }}>
                   <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>
-                    {language === "pt" ? "Ver mercados →" : "Browse Markets →"}
+                    {language === "pt" ? "Ver mercados →" : language === "zh" ? "查看市场 →" : "Browse Markets →"}
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -601,7 +603,7 @@ export default function PortfolioScreen() {
                       <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", lineHeight: 18 }}>{p.event_title}</Text>
                       {isClosingSoon && (
                         <View style={{ backgroundColor: "rgba(251,146,60,0.15)", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: "rgba(251,146,60,0.35)" }}>
-                          <Text style={{ color: "#FB923C", fontSize: 9, fontFamily: "DMSans_700Bold" }}>{language === "pt" ? "⏰ Fechando em breve" : "⏰ Closing soon"}</Text>
+                          <Text style={{ color: "#FB923C", fontSize: 9, fontFamily: "DMSans_700Bold" }}>{language === "pt" ? "Fechando em breve" : language === "zh" ? "即将结束" : "Closing soon"}</Text>
                         </View>
                       )}
                     </View>
@@ -609,7 +611,7 @@ export default function PortfolioScreen() {
                   </View>
                   <View style={{ alignItems: "flex-end", gap: 5 }}>
                     <View style={{ backgroundColor: sc.bg, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 4 }}>
-                      {p.status === "won" && <Text style={{ fontSize: 10 }}>🏆</Text>}
+                      {p.status === "won" && <Text style={{ fontSize: 10 }}>ðŸ†</Text>}
                       <Text style={{ color: sc.color, fontFamily: "DMSans_700Bold", fontSize: 10, letterSpacing: 0.8 }}>{sc.label}</Text>
                     </View>
                     {p.event_status === "resolved" && (
@@ -656,7 +658,7 @@ export default function PortfolioScreen() {
                           style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: "rgba(124,92,252,0.25)", backgroundColor: "rgba(124,92,252,0.08)" }}
                         >
                           <Text style={{ color: PURPLE_D, fontFamily: "DMSans_700Bold", fontSize: 9, letterSpacing: 0.8 }}>
-                            {language === "pt" ? "COMPARTILHAR" : "SHARE"}
+                            {language === "pt" ? "COMPARTILHAR" : language === "zh" ? "分享" : "SHARE"}
                           </Text>
                         </TouchableOpacity>
                       </View>

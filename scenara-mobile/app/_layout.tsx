@@ -1,38 +1,123 @@
-import { useEffect } from "react";
-import { View, ActivityIndicator } from "react-native";
+import { useEffect, useState } from "react";
+import { View, ActivityIndicator, Modal, Text, TouchableOpacity, Image, Platform } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Stack, router, useSegments } from "expo-router";
 import { TradingProvider, useTrading } from "@/src/session/TradingContext";
-import { LanguageProvider } from "@/src/i18n";
+import { LanguageProvider, useLanguage } from "@/src/i18n";
 import { hasSeenOnboarding } from "./onboarding";
 import { api } from "@/src/api/client";
 
-const PURPLE = "#7C5CFC";
-const BG     = "#08090C";
+const PURPLE   = "#7C5CFC";
+const PURPLE_D = "#4A3699";
+const BLUE     = "#4F8EF7";
+const PINK     = "#F050AE";
+const BG       = "#08090C";
+const CARD     = "#0D1117";
+const TEXT     = "#F1F5F9";
+const TEXT_MID = "#64748B";
+const BORDER   = "rgba(255,255,255,0.08)";
+const BORDER_P = "rgba(124,92,252,0.25)";
+
+const LANG_OPTIONS = [
+  { lang: "pt" as const, flagUri: "https://flagcdn.com/w80/br.png", label: "Português", sub: "Brasil" },
+  { lang: "en" as const, flagUri: "https://flagcdn.com/w80/us.png", label: "English",   sub: "United States" },
+  { lang: "zh" as const, flagUri: "https://flagcdn.com/w80/cn.png", label: "中文",       sub: "中国大陆" },
+];
+
+function LanguageModal() {
+  const { hasChosenLanguage, isLanguageHydrated, setLanguage, language } = useLanguage();
+  const [selected, setSelected] = useState<"pt" | "en" | "zh">("en");
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (isLanguageHydrated && !hasChosenLanguage) setVisible(true);
+  }, [isLanguageHydrated, hasChosenLanguage]);
+
+  const confirm = () => {
+    void setLanguage(selected);
+    setVisible(false);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal transparent animationType="fade" visible={visible} statusBarTranslucent>
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.75)", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <View style={{ width: "100%", maxWidth: 420, backgroundColor: CARD, borderRadius: 24, padding: 28, borderWidth: 1, borderColor: BORDER_P }}>
+          {/* Header */}
+          <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", textAlign: "center", marginBottom: 4 }}>scenara</Text>
+          <Text style={{ color: TEXT_MID, fontSize: 13, textAlign: "center", marginBottom: 28 }}>
+            {"Choose your language · Escolha seu idioma · 选择语言"}
+          </Text>
+
+          {/* Options */}
+          <View style={{ gap: 12, marginBottom: 24 }}>
+            {LANG_OPTIONS.map(opt => {
+              const isSel = selected === opt.lang;
+              return (
+                <TouchableOpacity
+                  key={opt.lang}
+                  onPress={() => setSelected(opt.lang)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 14, backgroundColor: isSel ? "rgba(124,92,252,0.1)" : "rgba(255,255,255,0.03)", borderRadius: 14, padding: 16, borderWidth: 2, borderColor: isSel ? PURPLE : BORDER }}
+                >
+                  <Image source={{ uri: opt.flagUri }} style={{ width: 44, height: 30, borderRadius: 5 }} resizeMode="cover" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: TEXT, fontSize: 16, fontFamily: "DMSans_700Bold" }}>{opt.label}</Text>
+                    <Text style={{ color: TEXT_MID, fontSize: 12, marginTop: 1 }}>{opt.sub}</Text>
+                  </View>
+                  {isSel && (
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ color: "white", fontSize: 11, fontFamily: "DMSans_700Bold" }}>✓</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Confirm */}
+          <TouchableOpacity onPress={confirm} style={{ borderRadius: 14, overflow: "hidden" }}>
+            <LinearGradient colors={[BLUE, PURPLE, PINK]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 14, alignItems: "center" }}>
+              <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
+                {selected === "pt" ? "Continuar →" : selected === "zh" ? "继续 →" : "Continue →"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 function AuthGuard() {
   const { isAuthenticated, isLoadingAuth } = useTrading();
+  const { hasChosenLanguage, isLanguageHydrated } = useLanguage();
   const segments = useSegments();
 
   useEffect(() => {
-    if (isLoadingAuth) return;
+    if (isLoadingAuth || !isLanguageHydrated) return;
 
     const onLogin      = segments[0] === "login";
     const onRegister   = segments[0] === "register";
     const onOnboarding = segments[0] === "onboarding";
+    const onLanguage   = segments[0] === "language-select";
+
+    // If already on language-select screen (old flow), redirect away
+    if (hasChosenLanguage && onLanguage) {
+      router.replace(isAuthenticated ? (hasSeenOnboarding() ? "/(tabs)" : "/onboarding") : "/(tabs)");
+      return;
+    }
+
     // Authenticated users on login/register → redirect to app
     if (isAuthenticated && (onLogin || onRegister)) {
-      if (!hasSeenOnboarding()) {
-        router.replace("/onboarding");
-      } else {
-        router.replace("/(tabs)");
-      }
+      router.replace(hasSeenOnboarding() ? "/(tabs)" : "/onboarding");
     } else if (isAuthenticated && onOnboarding && hasSeenOnboarding()) {
       router.replace("/(tabs)");
     }
     // Guests are allowed to stay on (tabs) — no redirect to login
-  }, [isAuthenticated, isLoadingAuth, segments]);
+  }, [hasChosenLanguage, isAuthenticated, isLanguageHydrated, isLoadingAuth, segments]);
 
-  if (isLoadingAuth) {
+  if (isLoadingAuth || !isLanguageHydrated) {
     return (
       <View style={{ flex: 1, backgroundColor: BG, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator color={PURPLE} size="large" />
@@ -53,6 +138,7 @@ export default function RootLayout() {
     <LanguageProvider>
       <TradingProvider>
         <AuthGuard />
+        <LanguageModal />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: BG } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="login"          options={{ animation: "fade" }} />

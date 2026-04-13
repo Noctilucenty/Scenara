@@ -55,19 +55,19 @@ export function Sidebar({ visible, onClose }: Props) {
   if (!mounted) return null;
 
   const label = {
-    markets:     language === "pt" ? "Mercados" : "Markets",
-    portfolio:   language === "pt" ? "Carteira" : "Portfolio",
-    rankings:    language === "pt" ? "Ranking" : "Rankings",
-    news:        language === "pt" ? "Notícias" : "News",
-    settings:    language === "pt" ? "Ajustes" : "Settings",
-    insights:    language === "pt" ? "Insights" : "Insights",
-    login:       language === "pt" ? "Entrar" : "Log In",
-    signup:      language === "pt" ? "Criar Conta" : "Sign Up",
-    logout:      language === "pt" ? "Sair" : "Log Out",
-    language:    language === "pt" ? "Idioma" : "Language",
-    simulation:  language === "pt" ? "Mercado Simulado" : "Simulated Market",
-    howItWorks:  language === "pt" ? "Como Funciona" : "How It Works",
-    termsOfUse:  language === "pt" ? "Termos de Uso" : "Terms of Use",
+    markets:     language === "pt" ? "Mercados" : language === "zh" ? "市场" : "Markets",
+    portfolio:   language === "pt" ? "Carteira" : language === "zh" ? "投资组合" : "Portfolio",
+    rankings:    language === "pt" ? "Ranking" : language === "zh" ? "排行榜" : "Rankings",
+    news:        language === "pt" ? "Notícias" : language === "zh" ? "新闻" : "News",
+    settings:    language === "pt" ? "Ajustes" : language === "zh" ? "设置" : "Settings",
+    insights:    language === "pt" ? "Insights" : language === "zh" ? "洞察" : "Insights",
+    login:       language === "pt" ? "Entrar" : language === "zh" ? "登录" : "Log In",
+    signup:      language === "pt" ? "Criar Conta" : language === "zh" ? "注册" : "Sign Up",
+    logout:      language === "pt" ? "Sair" : language === "zh" ? "退出登录" : "Log Out",
+    language:    language === "pt" ? "Idioma" : language === "zh" ? "语言" : "Language",
+    simulation:  language === "pt" ? "Mercado Simulado" : language === "zh" ? "模拟市场" : "Simulated Market",
+    howItWorks:  language === "pt" ? "Como Funciona" : language === "zh" ? "使用说明" : "How It Works",
+    termsOfUse:  language === "pt" ? "Termos de Uso" : language === "zh" ? "使用条款" : "Terms of Use",
   };
 
   // Web: use CSS transform for zero-jank animation
@@ -184,7 +184,7 @@ const SidebarContent = memo(function SidebarContent({ isAuthenticated, userId, l
               </LinearGradient>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: TEXT, fontSize: 14, fontFamily: "DMSans_700Bold" }}>{language === "pt" ? "Minha Conta" : "My Account"}</Text>
+              <Text style={{ color: TEXT, fontSize: 14, fontFamily: "DMSans_700Bold" }}>{language === "pt" ? "Minha Conta" : language === "zh" ? "我的账户" : "My Account"}</Text>
               <Text style={{ color: TEXT_MID, fontSize: 11 }}>ID #{userId}</Text>
             </View>
           </View>
@@ -224,9 +224,9 @@ const SidebarContent = memo(function SidebarContent({ isAuthenticated, userId, l
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 8 }}>
         <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_500Medium" }}>{label.language}</Text>
         <View style={{ flexDirection: "row", gap: 6 }}>
-          {(["en", "pt"] as const).map(l => (
+          {(["en", "pt", "zh"] as const).map(l => (
             <TouchableOpacity key={l} onPress={() => setLanguage(l)} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: language === l ? PURPLE : BORDER, backgroundColor: language === l ? "rgba(124,92,252,0.15)" : "transparent" }}>
-              <Text style={{ color: language === l ? PURPLE : TEXT_MID, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{l === "en" ? "EN" : "PT"}</Text>
+              <Text style={{ color: language === l ? PURPLE : TEXT_MID, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{l === "en" ? "EN" : l === "pt" ? "PT" : "中文"}</Text>
             </TouchableOpacity>
           ))}
         </View>

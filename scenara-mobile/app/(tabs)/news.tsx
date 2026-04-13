@@ -11,6 +11,7 @@ import {
   useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
 import { useLanguage } from "@/src/i18n";
+import { toChineseFallback } from "@/src/utils/zhFallback";
 import { api } from "@/src/api/client";
 import { SidebarContext } from "./_layout";
 import React from "react";
@@ -116,6 +117,12 @@ function timeAgo(dateStr: string, lang: string): string {
     if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
     return `${Math.floor(diff / 86400)}d atrás`;
   }
+  if (lang === "zh") {
+    if (diff < 60) return "刚刚";
+    if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+    return `${Math.floor(diff / 86400)}天前`;
+  }
   if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -125,7 +132,8 @@ function timeAgo(dateStr: string, lang: string): string {
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
 
 function eventTitle(e: EventItem, lang: string) {
-  return (lang === "pt" && e.title_pt) ? e.title_pt : e.title;
+  const title = (lang === "pt" && e.title_pt) ? e.title_pt : e.title;
+  return toChineseFallback(title, lang);
 }
 
 function scenarioTitle(s: Scenario, lang: string) {
@@ -472,10 +480,10 @@ export default function NewsScreen() {
                 <>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 }}>
                     <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>
-                      {language === "pt" ? "MERCADOS ABERTOS" : "OPEN MARKETS"}
+                      {language === "pt" ? "MERCADOS ABERTOS" : language === "zh" ? "开放市场" : "OPEN MARKETS"}
                     </Text>
                     <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
-                      {events.length} {language === "pt" ? "ativos" : "active"}
+                      {events.length} {language === "pt" ? "ativos" : language === "zh" ? "活跃中" : "active"}
                     </Text>
                   </View>
                   <View style={{ backgroundColor: CARD, borderTopWidth: 1, borderBottomWidth: 1, borderColor: BORDER }}>

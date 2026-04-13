@@ -15,6 +15,7 @@ import { useLanguage } from "@/src/i18n";
 import { useTrading } from "@/src/session/TradingContext";
 import { api } from "@/src/api/client";
 import { shareContent, buildMarketShareText } from "@/src/utils/useShare";
+import { toChineseFallback } from "@/src/utils/zhFallback";
 import { ProbabilityChart } from "@/components/ProbabilityChart";
 import { CommentSection } from "@/components/CommentSection";
 
@@ -60,7 +61,24 @@ type EventDetail = {
 };
 
 function scenarioTitle(s: Scenario, lang: string) {
-  return lang === "pt" && s.title_pt ? s.title_pt : s.title;
+  return toChineseFallback(lang === "pt" && s.title_pt ? s.title_pt : s.title, lang);
+}
+
+function eventTitle(title: string, titlePt: string | null, lang: string) {
+  return toChineseFallback(lang === "pt" && titlePt ? titlePt : title, lang);
+}
+
+function eventDescription(description: string | null, descriptionPt: string | null, lang: string) {
+  const value = lang === "pt" && descriptionPt ? descriptionPt : (description ?? "");
+  return toChineseFallback(value, lang);
+}
+
+function articleTitle(title: string, lang: string) {
+  return toChineseFallback(title, lang);
+}
+
+function articleDescription(description: string | null | undefined, lang: string) {
+  return toChineseFallback(description ?? "", lang);
 }
 
 export default function MarketDetailScreen() {
@@ -169,8 +187,8 @@ export default function MarketDetailScreen() {
               setLoadingSummary(true);
               const summaryTimeout = setTimeout(() => setLoadingSummary(false), 8000);
               api.post("/news/summary", {
-                title: scored[0].title,
-                description: scored[0].description ?? "",
+                title: articleTitle(scored[0].title, language),
+                description: articleDescription(scored[0].description ?? "", language),
                 url: scored[0].url,
                 language,
               }).then(r => setSummary(r.data.summary ?? ""))
@@ -206,7 +224,7 @@ export default function MarketDetailScreen() {
       refreshPortfolio();
       setTimeout(() => setMessage(""), 4000);
     } else {
-      setBetError(result.error ?? (language === "pt" ? "Erro ao comprar. Tente novamente." : "Failed to place bet. Please try again."));
+      setBetError(result.error ?? (language === "pt" ? "Erro ao comprar. Tente novamente." : language === "zh" ? "下注失败，请重试。" : "Failed to place bet. Please try again."));
     }
   };
 
@@ -220,13 +238,13 @@ export default function MarketDetailScreen() {
 
   if (!event) return (
     <View style={{ flex: 1, backgroundColor: BG, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: TEXT_MID }}>Event not found</Text>
+      <Text style={{ color: TEXT_MID }}>{language === "pt" ? "Evento não encontrado" : language === "zh" ? "未找到事件" : "Event not found"}</Text>
     </View>
   );
 
   const cm = CAT_META[event.category] ?? { icon: "◈", color: PURPLE };
-  const title = language === "pt" && event.title_pt ? event.title_pt : event.title;
-  const desc = language === "pt" && event.description_pt ? event.description_pt : event.description;
+  const title = eventTitle(event.title, event.title_pt, language);
+  const desc = eventDescription(event.description, event.description_pt, language);
   const resolved = event.status === "resolved";
   const selScene = event.scenarios.find(s => s.id === selId);
   const selIdx = event.scenarios.findIndex(s => s.id === selId);
@@ -554,7 +572,7 @@ export default function MarketDetailScreen() {
                   )}
                   <View style={{ padding: 14 }}>
                     <Text style={{ color: TEXT, fontSize: 15, fontFamily: "DMSans_700Bold", lineHeight: 21, marginBottom: 10 }}>
-                      {relatedNews[0].title}
+                      {articleTitle(relatedNews[0].title, language)}
                     </Text>
 
                     {/* AI Summary */}
@@ -573,7 +591,7 @@ export default function MarketDetailScreen() {
                         <ActivityIndicator color={PURPLE} size="small" />
                       ) : (
                         <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 }}>
-                          {summary || relatedNews[0].description || ""}
+                          {summary || articleDescription(relatedNews[0].description, language) || ""}
                         </Text>
                       )}
                     </View>
@@ -595,7 +613,7 @@ export default function MarketDetailScreen() {
                       <Image source={{ uri: article.image }} style={{ width: 60, height: 48, borderRadius: 8 }} resizeMode="cover" />
                     )}
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", lineHeight: 18, marginBottom: 4 }} numberOfLines={2}>{article.title}</Text>
+                      <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", lineHeight: 18, marginBottom: 4 }} numberOfLines={2}>{articleTitle(article.title, language)}</Text>
                       <Text style={{ color: PURPLE_D, fontSize: 10 }}>{article.source}</Text>
                     </View>
                     <Text style={{ color: TEXT_MID, fontSize: 16, alignSelf: "center" }}>›</Text>
@@ -693,7 +711,7 @@ export default function MarketDetailScreen() {
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(34,197,94,0.06)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(34,197,94,0.15)", paddingHorizontal: 12, paddingVertical: 9, marginBottom: 12 }}>
                       <View>
                         <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                          {language === "pt" ? "RETORNO POTENCIAL" : "POTENTIAL PAYOUT"}
+                          {language === "pt" ? "RETORNO POTENCIAL" : language === "zh" ? "潜在收益" : "POTENTIAL PAYOUT"}
                         </Text>
                         <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 20, marginTop: 2 }}>
                           ${(parseFloat(amount || "0") / (selScene.probability / 100)).toFixed(2)}
@@ -800,7 +818,7 @@ export default function MarketDetailScreen() {
               {/* Balance */}
               {isAuthenticated && (
                 <View style={{ backgroundColor: "rgba(124,92,252,0.06)", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: BORDER_P, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_500Medium" }}>{language === "pt" ? "Seu saldo" : "Your balance"}</Text>
+                  <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_500Medium" }}>{language === "pt" ? "Seu saldo" : language === "zh" ? "您的余额" : "Your balance"}</Text>
                   <Text style={{ color: TEXT, fontSize: 18, fontFamily: "DMSans_700Bold" }}>${balanceText}</Text>
                 </View>
               )}

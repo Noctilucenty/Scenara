@@ -1,35 +1,84 @@
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 
-// Configure how notifications appear when app is foregrounded
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+type NotificationModule = {
+  AndroidImportance: { MAX: number; HIGH: number };
+  setNotificationHandler(config: {
+    handleNotification: () => Promise<{
+      shouldShowAlert: boolean;
+      shouldPlaySound: boolean;
+      shouldSetBadge: boolean;
+    }>;
+  }): void;
+  getPermissionsAsync(): Promise<{ status: string }>;
+  requestPermissionsAsync(): Promise<{ status: string }>;
+  setNotificationChannelAsync(name: string, config: Record<string, unknown>): Promise<void>;
+  getExpoPushTokenAsync(): Promise<{ data: string }>;
+  addNotificationReceivedListener(callback: (notification: unknown) => void): { remove(): void };
+  addNotificationResponseReceivedListener(callback: (response: any) => void): { remove(): void };
+};
 
-export async function registerForPushNotificationsAsync(): Promise<
-  string | null
-> {
+type DeviceModule = {
+  isDevice: boolean;
+};
+
+let notificationsPromise: Promise<NotificationModule | null> | null = null;
+let devicePromise: Promise<DeviceModule | null> | null = null;
+let notificationHandlerConfigured = false;
+
+async function loadNotifications(): Promise<NotificationModule | null> {
+  if (Platform.OS === "web") return null;
+  if (!notificationsPromise) {
+    // eslint-disable-next-line import/no-unresolved
+    notificationsPromise = import("expo-notifications")
+      .then(mod => mod as unknown as NotificationModule)
+      .catch(() => null);
+  }
+  return notificationsPromise;
+}
+
+async function loadDevice(): Promise<DeviceModule | null> {
+  if (Platform.OS === "web") return null;
+  if (!devicePromise) {
+    // eslint-disable-next-line import/no-unresolved
+    devicePromise = import("expo-device")
+      .then(mod => mod as unknown as DeviceModule)
+      .catch(() => null);
+  }
+  return devicePromise;
+}
+
+async function ensureNotificationHandler(): Promise<void> {
+  const Notifications = await loadNotifications();
+  if (!Notifications || notificationHandlerConfigured) return;
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+  notificationHandlerConfigured = true;
+}
+
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
   if (Platform.OS === "web") return null;
 
-  // Must be a physical device
+  const [Notifications, Device] = await Promise.all([loadNotifications(), loadDevice()]);
+  if (!Notifications || !Device) return null;
+
+  await ensureNotificationHandler();
+
   if (!Device.isDevice) {
     console.log("[Push] Push notifications require a physical device");
     return null;
   }
 
-  // Check existing permissions
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
-  // Request if not already granted
   if (existingStatus !== "granted") {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
@@ -40,7 +89,6 @@ export async function registerForPushNotificationsAsync(): Promise<
     return null;
   }
 
-  // Android channel setup
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("scenara-default", {
       name: "Scenara Markets",
@@ -79,38 +127,45 @@ export async function sendPushTokenToServer(token: string): Promise<void> {
 
 export function usePushNotifications() {
   const router = useRouter();
-  const notificationListener = useRef<Notifications.EventSubscription>();
-  const responseListener = useRef<Notifications.EventSubscription>();
+  const notificationListener = useRef<{ remove(): void } | null>(null);
+  const responseListener = useRef<{ remove(): void } | null>(null);
 
   useEffect(() => {
     if (Platform.OS === "web") return;
 
-    // Listen for notifications while app is foregrounded
-    notificationListener.current =
-      Notifications.addNotificationReceivedListener((notification) => {
-        console.log("[Push] Notification received:", notification);
-      });
+    let mounted = true;
 
-    // Listen for user tapping notification
-    responseListener.current =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        const data = response.notification.request.content.data as any;
-        console.log("[Push] Notification tapped:", data);
+    void (async () => {
+      const Notifications = await loadNotifications();
+      if (!mounted || !Notifications) return;
 
-        // Navigate to the relevant screen
-        if (data?.event_id) {
-          router.push({
-            pathname: "/market-detail",
-            params: { eventId: String(data.event_id) },
-          });
-        } else if (data?.type === "won" || data?.type === "lost") {
-          router.push("/(tabs)/portfolio");
-        }
-      });
+      await ensureNotificationHandler();
+
+      notificationListener.current =
+        Notifications.addNotificationReceivedListener((notification) => {
+          console.log("[Push] Notification received:", notification);
+        });
+
+      responseListener.current =
+        Notifications.addNotificationResponseReceivedListener((response: any) => {
+          const data = response.notification.request.content.data as any;
+          console.log("[Push] Notification tapped:", data);
+
+          if (data?.event_id) {
+            router.push({
+              pathname: "/market-detail",
+              params: { eventId: String(data.event_id) },
+            });
+          } else if (data?.type === "won" || data?.type === "lost") {
+            router.push("/(tabs)/portfolio");
+          }
+        });
+    })();
 
     return () => {
+      mounted = false;
       notificationListener.current?.remove();
       responseListener.current?.remove();
     };
-  }, []);
+  }, [router]);
 }

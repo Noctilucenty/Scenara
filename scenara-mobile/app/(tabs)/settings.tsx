@@ -15,7 +15,6 @@ import { api } from "@/src/api/client";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
-const SURFACE  = "#111620";
 const BLUE     = "#4F8EF7";
 const PURPLE   = "#7C5CFC";
 const PINK     = "#F050AE";
@@ -42,7 +41,6 @@ export default function SettingsScreen() {
 
   if (!fontsLoaded) return null;
 
-  // Guest view
   if (!isAuthenticated) {
     return (
       <View style={{ flex: 1, backgroundColor: BG }}>
@@ -54,7 +52,6 @@ export default function SettingsScreen() {
           </View>
 
           <ScrollView contentContainerStyle={{ flex: 1, justifyContent: "center", paddingHorizontal: 28 }}>
-            {/* Logo */}
             <View style={{ alignItems: "center", marginBottom: 40 }}>
               <View style={{ width: 72, height: 72, borderRadius: 20, overflow: "hidden", marginBottom: 18 }}>
                 <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -62,31 +59,31 @@ export default function SettingsScreen() {
                 </LinearGradient>
               </View>
               <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", marginBottom: 8 }}>
-                {language === "pt" ? "Entre na sua conta" : "Sign in to your account"}
+                {language === "pt" ? "Entre na sua conta" : language === "zh" ? "登录你的账户" : "Sign in to your account"}
               </Text>
               <Text style={{ color: TEXT_MID, fontSize: 14, textAlign: "center", lineHeight: 20 }}>
                 {language === "pt"
                   ? "Crie uma conta gratuita para comprar posições, acompanhar seu portfólio e subir no ranking."
-                  : "Create a free account to buy positions, track your portfolio, and climb the leaderboard."}
+                  : language === "zh"
+                    ? "创建免费账户即可买入仓位、跟踪投资组合并登上排行榜。"
+                    : "Create a free account to buy positions, track your portfolio, and climb the leaderboard."}
               </Text>
             </View>
 
-            {/* Buttons */}
             <TouchableOpacity onPress={() => router.push("/register")} style={{ borderRadius: 14, overflow: "hidden", marginBottom: 12 }}>
               <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 16, alignItems: "center" }}>
                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 16 }}>
-                  {language === "pt" ? "Criar conta grátis" : "Create free account"}
+                  {language === "pt" ? "Criar conta grátis" : language === "zh" ? "创建免费账户" : "Create free account"}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => router.push("/login")} style={{ paddingVertical: 15, borderRadius: 14, alignItems: "center", borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.05)", marginBottom: 32 }}>
               <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 16 }}>
-                {language === "pt" ? "Já tenho conta" : "I already have an account"}
+                {language === "pt" ? "Já tenho conta" : language === "zh" ? "我已有账户" : "I already have an account"}
               </Text>
             </TouchableOpacity>
 
-            {/* Language toggle */}
             <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5, marginBottom: 10, textAlign: "center" }}>
               {t.settings.language.toUpperCase()}
             </Text>
@@ -98,7 +95,7 @@ export default function SettingsScreen() {
               ]).map(({ lang, flagUri, label }) => {
                 const active = language === lang;
                 return (
-                  <TouchableOpacity key={lang} onPress={() => setLanguage(lang)} style={{ borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: active ? PURPLE : BORDER }}>
+                  <TouchableOpacity key={lang} onPress={() => void setLanguage(lang)} style={{ borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: active ? PURPLE : BORDER }}>
                     {active ? (
                       <LinearGradient colors={[BLUE, PURPLE]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 13, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
                         <Image source={{ uri: flagUri }} style={{ width: 24, height: 16, borderRadius: 2 }} />
@@ -192,7 +189,7 @@ export default function SettingsScreen() {
             ]).map(({ lang, flagUri, label }) => {
               const active = language === lang;
               return (
-                <TouchableOpacity key={lang} onPress={() => setLanguage(lang)} style={{ borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: active ? PURPLE : BORDER }}>
+                <TouchableOpacity key={lang} onPress={() => void setLanguage(lang)} style={{ borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: active ? PURPLE : BORDER }}>
                   {active ? (
                     <LinearGradient colors={[BLUE, PURPLE]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 13, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 10 }}>
                       <Image source={{ uri: flagUri }} style={{ width: 24, height: 16, borderRadius: 2 }} />
@@ -216,10 +213,7 @@ export default function SettingsScreen() {
           {isAdmin && (
             <>
               <SectionLabel title="ADMIN" />
-              <RowItem
-                label="Event Resolution Panel"
-                onPress={() => router.push("/admin")}
-              />
+              <RowItem label="Event Resolution Panel" onPress={() => router.push("/admin")} />
             </>
           )}
 
