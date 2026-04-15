@@ -6,10 +6,7 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///./scenara.db"
-)
+DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///./scenara.db"
 
 # Render gives postgres:// but SQLAlchemy needs postgresql://
 if DATABASE_URL.startswith("postgres://"):
