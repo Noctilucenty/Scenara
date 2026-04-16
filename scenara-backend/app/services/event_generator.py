@@ -2021,8 +2021,17 @@ def _seed_history(db: Session, scenario: Scenario, points: int = 96) -> None:
 
 def _insert_event(event_data: dict, db: Session) -> bool:
     slug = event_data["slug"]
-    if db.query(Event).filter(Event.slug == slug).first():
-        return False
+    existing = db.query(Event).filter(Event.slug == slug).first()
+    if existing:
+        # Reopen void (expired) events so exhausted slug waves can be recycled
+        if existing.status == "void":
+            existing.status = "open"
+            existing.closes_at = datetime.utcnow() + timedelta(hours=event_data.get("closes_hours", 24))
+            existing.resolved_at = None
+            existing.resolution_note = None
+            db.flush()
+            return True
+        return False  # open or resolved — skip
 
     closes_at = datetime.utcnow() + timedelta(hours=event_data.get("closes_hours", 24))
 
@@ -2291,7 +2300,7 @@ async def run_event_generator() -> None:
                     "scenarios_pt": template.get("scenarios_pt", template["scenarios"]),
                 }
                 # Try wave 0 first, then recycle waves 1-4 if slug already exists
-                for wave in range(5):
+                for wave in range(20):
                     event_data = {**base_event_data, "slug": _make_slug(template["slug_key"], wave)}
                     if _insert_event(event_data, db):
                         static_count += 1
