@@ -15,6 +15,7 @@ import { toChineseFallback } from "@/src/utils/zhFallback";
 import { api } from "@/src/api/client";
 import { SidebarContext } from "./_layout";
 import React from "react";
+import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
@@ -128,8 +129,6 @@ function timeAgo(dateStr: string, lang: string): string {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
-
-import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
 
 function eventTitle(e: EventItem, lang: string) {
   const title = (lang === "pt" && e.title_pt) ? e.title_pt : e.title;
@@ -296,7 +295,7 @@ function NewsCard({ article, onPress, language, catColor, summary, loadingSummar
         ) : null}
 
         <Text style={{ color: PURPLE_D, fontSize: 11, fontFamily: "DMSans_700Bold" }}>
-          {language === "pt" ? "Ler mais →" : "Read more →"}
+          {language === "zh" ? "阅读更多 →" : language === "pt" ? "Ler mais →" : "Read more →"}
         </Text>
       </View>
     </TouchableOpacity>
@@ -511,10 +510,10 @@ export default function NewsScreen() {
                 <>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, marginTop: 8 }}>
                     <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>
-                      {language === "pt" ? "NOTÍCIAS RELACIONADAS" : "RELATED NEWS"}
+                      {language === "zh" ? "相关新闻" : language === "pt" ? "NOTÍCIAS RELACIONADAS" : "RELATED NEWS"}
                     </Text>
                     <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_400Regular" }}>
-                      {language === "pt" ? "Com resumo por IA" : "With AI summary"}
+                      {language === "zh" ? "含AI摘要" : language === "pt" ? "Com resumo por IA" : "With AI summary"}
                     </Text>
                   </View>
                   <View style={{ paddingHorizontal: 16 }}>
@@ -537,7 +536,7 @@ export default function NewsScreen() {
                 <View style={{ alignItems: "center", paddingTop: 80 }}>
                   <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>◈</Text>
                   <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_500Medium" }}>
-                    {language === "pt" ? "Nenhum mercado encontrado" : "No markets found"}
+                    {language === "zh" ? "未找到市场" : language === "pt" ? "Nenhum mercado encontrado" : "No markets found"}
                   </Text>
                 </View>
               )}

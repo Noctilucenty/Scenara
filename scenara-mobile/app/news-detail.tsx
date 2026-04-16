@@ -39,6 +39,12 @@ function timeAgo(dateStr: string, lang: string): string {
     if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
     return `${Math.floor(diff / 86400)}d atrás`;
   }
+  if (lang === "zh") {
+    if (diff < 60) return "刚刚";
+    if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+    return `${Math.floor(diff / 86400)}天前`;
+  }
   if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -113,6 +119,7 @@ export default function NewsDetailScreen() {
 
   const ago      = timeAgo(cleanPublished, language);
   const isPt     = language === "pt";
+  const isZh     = language === "zh";
   const readMin  = readTime((summary || cleanDesc || title) + " " + (summary || ""));
   const tags     = extractTags(title ?? "");
 
@@ -178,7 +185,7 @@ export default function NewsDetailScreen() {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
             <Text style={{ fontSize: 10 }}>🕐</Text>
-            <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular" }}>{readMin} min {isPt ? "de leitura" : "read"}</Text>
+            <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular" }}>{readMin} min {isZh ? "阅读" : isPt ? "de leitura" : "read"}</Text>
           </View>
         </View>
       )}
@@ -208,13 +215,13 @@ export default function NewsDetailScreen() {
         <LinearGradient colors={["rgba(79,142,247,0.08)", "rgba(124,92,252,0.12)", "rgba(240,80,174,0.06)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 18, borderWidth: 1, borderColor: "rgba(124,92,252,0.2)", borderRadius: 18 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
             <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
-              <Text style={{ color: "white", fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>✦ {isPt ? "RESUMO · IA" : "AI SUMMARY"}</Text>
+              <Text style={{ color: "white", fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>✦ {isZh ? "AI 摘要" : isPt ? "RESUMO · IA" : "AI SUMMARY"}</Text>
             </LinearGradient>
           </View>
           {loadingSummary ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 }}>
               <ActivityIndicator color={PURPLE} size="small" />
-              <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_400Regular" }}>{isPt ? "Gerando resumo com IA..." : "Generating AI summary..."}</Text>
+              <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_400Regular" }}>{isZh ? "正在生成AI摘要..." : isPt ? "Gerando resumo com IA..." : "Generating AI summary..."}</Text>
             </View>
           ) : summary ? (
             <Text style={{ color: TEXT_SUB, fontSize: 14, fontFamily: "DMSans_400Regular", lineHeight: 24 }}>{summary}</Text>
@@ -222,8 +229,8 @@ export default function NewsDetailScreen() {
             <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
               <Text style={{ fontSize: 18 }}>📡</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium", marginBottom: 4 }}>{isPt ? "Resumo não disponível" : "Summary unavailable"}</Text>
-                <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", lineHeight: 17 }}>{isPt ? "O artigo completo está disponível na fonte original." : "The full article is available at the original source."}</Text>
+                <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium", marginBottom: 4 }}>{isZh ? "摘要不可用" : isPt ? "Resumo não disponível" : "Summary unavailable"}</Text>
+                <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", lineHeight: 17 }}>{isZh ? "完整文章请访问原始来源。" : isPt ? "O artigo completo está disponível na fonte original." : "The full article is available at the original source."}</Text>
               </View>
             </View>
           )}
@@ -233,7 +240,7 @@ export default function NewsDetailScreen() {
       {/* Read full article */}
       <TouchableOpacity onPress={() => Linking.openURL(url)} style={{ borderRadius: 16, overflow: "hidden", marginBottom: 28 }}>
         <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}>
-          <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14, letterSpacing: 0.3 }}>{isPt ? "Ler artigo completo" : "Read full article"}</Text>
+          <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14, letterSpacing: 0.3 }}>{isZh ? "阅读完整文章" : isPt ? "Ler artigo completo" : "Read full article"}</Text>
           <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 16 }}>→</Text>
         </LinearGradient>
       </TouchableOpacity>
@@ -251,31 +258,31 @@ export default function NewsDetailScreen() {
     <View style={{ gap: 16 }}>
       {/* Reading progress */}
       <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER }}>
-        <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 12 }}>{isPt ? "PROGRESSO DE LEITURA" : "READING PROGRESS"}</Text>
+        <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 12 }}>{isZh ? "阅读进度" : isPt ? "PROGRESSO DE LEITURA" : "READING PROGRESS"}</Text>
         <View style={{ height: 4, backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden", marginBottom: 8 }}>
           <View style={{ height: "100%", width: `${Math.round(scrollPct * 100)}%`, backgroundColor: PURPLE, borderRadius: 2 }} />
         </View>
-        <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular" }}>{Math.round(scrollPct * 100)}% · {readMin} min {isPt ? "de leitura" : "read"}</Text>
+        <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular" }}>{Math.round(scrollPct * 100)}% · {readMin} min {isZh ? "阅读" : isPt ? "de leitura" : "read"}</Text>
       </View>
 
       {/* Share */}
       <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER }}>
-        <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 14 }}>{isPt ? "COMPARTILHAR" : "SHARE"}</Text>
+        <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 14 }}>{isZh ? "分享" : isPt ? "COMPARTILHAR" : "SHARE"}</Text>
         <View style={{ gap: 10 }}>
           <TouchableOpacity onPress={handleCopy} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: copied ? "rgba(34,197,94,0.1)" : SURFACE, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: copied ? "rgba(34,197,94,0.3)" : BORDER }}>
             <Text style={{ fontSize: 16 }}>{copied ? "✓" : "🔗"}</Text>
-            <Text style={{ color: copied ? GREEN : TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium", flex: 1 }}>{copied ? (isPt ? "Link copiado!" : "Link copied!") : (isPt ? "Copiar link" : "Copy link")}</Text>
+            <Text style={{ color: copied ? GREEN : TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium", flex: 1 }}>{copied ? (isZh ? "链接已复制！" : isPt ? "Link copiado!" : "Link copied!") : (isZh ? "复制链接" : isPt ? "Copiar link" : "Copy link")}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => Linking.openURL(url)} style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: SURFACE, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: BORDER }}>
             <Text style={{ fontSize: 16 }}>↗</Text>
-            <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium", flex: 1 }}>{isPt ? "Abrir fonte" : "Open source"}</Text>
+            <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium", flex: 1 }}>{isZh ? "打开来源" : isPt ? "Abrir fonte" : "Open source"}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Source card */}
       <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER }}>
-        <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 14 }}>{isPt ? "FONTE" : "SOURCE"}</Text>
+        <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 14 }}>{isZh ? "来源" : isPt ? "FONTE" : "SOURCE"}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
           {faviconUri && (
             <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: SURFACE, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: BORDER }}>
@@ -292,7 +299,7 @@ export default function NewsDetailScreen() {
       {/* Tags card */}
       {tags.length > 0 && (
         <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: BORDER }}>
-          <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 14 }}>{isPt ? "TÓPICOS" : "TOPICS"}</Text>
+          <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 14 }}>{isZh ? "话题" : isPt ? "TÓPICOS" : "TOPICS"}</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {tags.map((tag, i) => (
               <View key={i} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: "rgba(124,92,252,0.08)", borderWidth: 1, borderColor: BORDER_P }}>
@@ -307,13 +314,13 @@ export default function NewsDetailScreen() {
       <View style={{ borderRadius: 16, overflow: "hidden" }}>
         <LinearGradient colors={["rgba(79,142,247,0.07)", "rgba(124,92,252,0.1)"]} style={{ padding: 18, borderWidth: 1, borderColor: BORDER_P, borderRadius: 16 }}>
           <Text style={{ fontSize: 20, marginBottom: 8 }}>💡</Text>
-          <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", marginBottom: 6 }}>{isPt ? "Notícias impactam mercados" : "News impacts markets"}</Text>
+          <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", marginBottom: 6 }}>{isZh ? "新闻影响市场" : isPt ? "Notícias impactam mercados" : "News impacts markets"}</Text>
           <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", lineHeight: 18 }}>
-            {isPt ? "Use esta notícia para embasar suas previsões nos mercados da Scenara." : "Use this news to inform your predictions on Scenara markets."}
+            {isZh ? "利用此新闻为您在 Scenara 市场上的预测提供参考。" : isPt ? "Use esta notícia para embasar suas previsões nos mercados da Scenara." : "Use this news to inform your predictions on Scenara markets."}
           </Text>
           <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 12, borderRadius: 10, overflow: "hidden" }}>
             <LinearGradient colors={GRAD_BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 10, alignItems: "center" }}>
-              <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 12 }}>{isPt ? "Ver mercados →" : "View markets →"}</Text>
+              <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 12 }}>{isZh ? "查看市场 →" : isPt ? "Ver mercados →" : "View markets →"}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </LinearGradient>
@@ -336,13 +343,13 @@ export default function NewsDetailScreen() {
         <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 24, paddingVertical: 14, borderBottomWidth: 1, borderColor: BORDER, backgroundColor: "rgba(8,9,12,0.98)" }}>
           <TouchableOpacity onPress={() => router.back()} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginRight: 16 }}>
             <Text style={{ color: TEXT_SUB, fontSize: 18, lineHeight: 20 }}>←</Text>
-            <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium" }}>{isPt ? "Voltar" : "Back"}</Text>
+            <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium" }}>{isZh ? "返回" : isPt ? "Voltar" : "Back"}</Text>
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_500Medium" }} numberOfLines={1}>{title}</Text>
           </View>
           <TouchableOpacity onPress={handleCopy} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: copied ? "rgba(34,197,94,0.4)" : BORDER_P, backgroundColor: copied ? "rgba(34,197,94,0.08)" : "rgba(124,92,252,0.06)" }}>
-            <Text style={{ color: copied ? GREEN : PURPLE, fontFamily: "DMSans_700Bold", fontSize: 11, letterSpacing: 0.5 }}>{copied ? (isPt ? "✓ COPIADO" : "✓ COPIED") : (isPt ? "🔗 COMPARTILHAR" : "🔗 SHARE")}</Text>
+            <Text style={{ color: copied ? GREEN : PURPLE, fontFamily: "DMSans_700Bold", fontSize: 11, letterSpacing: 0.5 }}>{copied ? (isZh ? "✓ 已复制" : isPt ? "✓ COPIADO" : "✓ COPIED") : (isZh ? "🔗 分享" : isPt ? "🔗 COMPARTILHAR" : "🔗 SHARE")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -385,7 +392,7 @@ export default function NewsDetailScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1 }} />
           <TouchableOpacity onPress={handleCopy} style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: copied ? "rgba(34,197,94,0.4)" : BORDER_P, backgroundColor: "rgba(8,9,12,0.75)" }}>
-            <Text style={{ color: copied ? GREEN : PURPLE, fontFamily: "DMSans_700Bold", fontSize: 10, letterSpacing: 0.8 }}>{copied ? "✓" : (isPt ? "🔗 COMPARTILHAR" : "🔗 SHARE")}</Text>
+            <Text style={{ color: copied ? GREEN : PURPLE, fontFamily: "DMSans_700Bold", fontSize: 10, letterSpacing: 0.8 }}>{copied ? "✓" : (isZh ? "🔗 分享" : isPt ? "🔗 COMPARTILHAR" : "🔗 SHARE")}</Text>
           </TouchableOpacity>
         </View>
 
