@@ -32,7 +32,7 @@ def _migrate_is_admin_column() -> None:
     cols = [c["name"] for c in insp.get_columns("users")]
     if "is_admin" not in cols:
         with engine.begin() as conn:
-            conn.execute(sql_text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"))
+            conn.execute(sql_text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"))
         logger.info("[Migration] Added is_admin column to users.")
 
 
