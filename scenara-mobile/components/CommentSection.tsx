@@ -46,7 +46,7 @@ function avatarColor(userId: number): string {
 }
 
 // â”€â”€ Language-aware comment body + toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// When UI language is PT â†’ show PT body, offer "Mostrar traduÃ§Ã£o (EN)" toggle
+// When UI language is PT â†’ show PT body, offer "Mostrar tradução (EN)" toggle
 // When UI language is EN â†’ show EN body (body_en), offer "Show original (PT)" toggle
 function CommentBody({
   body, bodyEn, language,
@@ -102,17 +102,17 @@ const SEED_POOL: Array<{
   en: string; pt: string;
   hoursAgo: number;
 }> = [
-  { uid: 9001, name: "cryptohawk_",  en: "wild. didn't expect this today",                                 pt: "caramba. nÃ£o esperava isso hoje",                      hoursAgo: 2  },
+  { uid: 9001, name: "cryptohawk_",  en: "wild. didn't expect this today",                                 pt: "caramba. não esperava isso hoje",                       hoursAgo: 2  },
   { uid: 9002, name: "pedro.t",      en: "been following this for days, finally something moved",          pt: "acompanhando faz dias, finalmente saiu algo",           hoursAgo: 4  },
-  { uid: 9003, name: "datanerdd",    en: "odds were already creeping up this morning tbh",                 pt: "as probabilidades jÃ¡ subiam desde cedo",                hoursAgo: 6  },
-  { uid: 9004, name: "globalpulse",  en: "last time this happened things got crazy lol",                   pt: "da Ãºltima vez que isso rolou foi bagunÃ§a",              hoursAgo: 1  },
-  { uid: 9005, name: "markos_v",     en: "everyone acting surprised but this was obvious",                 pt: "todo mundo surpreso mas tava claro",                   hoursAgo: 8  },
-  { uid: 9006, name: "newstrader",   en: "jumped in right when i saw it, already green",                   pt: "entrei assim que vi, jÃ¡ tÃ´ no positivo",               hoursAgo: 3  },
-  { uid: 9007, name: "quietmike__",  en: "idk still not sure what to make of this one",                   pt: "nÃ£o sei ainda o que acho disso",                       hoursAgo: 11 },
-  { uid: 9008, name: "factcheck99",  en: "read more before buying, story's still developing",              pt: "leia mais antes de comprar, histÃ³ria ainda rolando",   hoursAgo: 5  },
-  { uid: 9009, name: "samb",         en: "honestly surprised it took this long to go viral",               pt: "honestamente demorou pra virar notÃ­cia",               hoursAgo: 7  },
-  { uid: 9010, name: "alpha_s",      en: "good read. No side still feels cheap imo",                       pt: "boa leitura. lado NÃ£o ainda parece barato",            hoursAgo: 13 },
-  { uid: 9011, name: "nightowl_fx",  en: "this totally flipped my view on the whole thing",               pt: "isso mudou completamente minha visÃ£o",                 hoursAgo: 9  },
+  { uid: 9003, name: "datanerdd",    en: "odds were already creeping up this morning tbh",                 pt: "as probabilidades já subiam desde cedo",                 hoursAgo: 6  },
+  { uid: 9004, name: "globalpulse",  en: "last time this happened things got crazy lol",                   pt: "da última vez que isso rolou foi bagunça",               hoursAgo: 1  },
+  { uid: 9005, name: "markos_v",     en: "everyone acting surprised but this was obvious",                 pt: "todo mundo surpreso mas tava claro",                    hoursAgo: 8  },
+  { uid: 9006, name: "newstrader",   en: "jumped in right when i saw it, already green",                   pt: "entrei assim que vi, já tô no positivo",                 hoursAgo: 3  },
+  { uid: 9007, name: "quietmike__",  en: "idk still not sure what to make of this one",                   pt: "não sei ainda o que acho disso",                        hoursAgo: 11 },
+  { uid: 9008, name: "factcheck99",  en: "read more before buying, story's still developing",              pt: "leia mais antes de comprar, história ainda rolando",    hoursAgo: 5  },
+  { uid: 9009, name: "samb",         en: "honestly surprised it took this long to go viral",               pt: "honestamente demorou pra virar notícia",                hoursAgo: 7  },
+  { uid: 9010, name: "alpha_s",      en: "good read. No side still feels cheap imo",                       pt: "boa leitura. lado Não ainda parece barato",             hoursAgo: 13 },
+  { uid: 9011, name: "nightowl_fx",  en: "this totally flipped my view on the whole thing",               pt: "isso mudou completamente minha visão",                  hoursAgo: 9  },
   { uid: 9012, name: "quietstorm",   en: "market's def underreacting rn, give it a day",                  pt: "mercado subreagindo claramente, espera um dia",        hoursAgo: 15 },
 ];
 
@@ -146,7 +146,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
 
   function fakeAgo(h: number) {
     return language === "pt"
-      ? (h < 24 ? `${h}h atrÃ¡s` : `${Math.floor(h / 24)}d atrÃ¡s`)
+      ? (h < 24 ? `${h}h atrás` : `${Math.floor(h / 24)}d atrás`)
       : (h < 24 ? `${h}h ago`   : `${Math.floor(h / 24)}d ago`);
   }
 

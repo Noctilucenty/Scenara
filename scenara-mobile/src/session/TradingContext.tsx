@@ -175,7 +175,10 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       registerPushToken();
       return { ok: true };
     } catch (e: any) {
-      const error = e?.response?.data?.detail ?? "Login failed";
+      // The axios interceptor in client.ts reshapes errors to { status, data, message }
+      // so e?.response is undefined; read from e?.data instead.
+      const detail = e?.data?.detail ?? e?.data?.message ?? e?.data?.error;
+      const error = detail ?? e?.message ?? "Login failed";
       return { ok: false, error };
     }
   }, []);
@@ -195,7 +198,10 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       registerPushToken();
       return { ok: true };
     } catch (e: any) {
-      const error = e?.response?.data?.detail ?? "Registration failed";
+      // The axios interceptor in client.ts reshapes errors to { status, data, message }
+      // so e?.response is undefined; read from e?.data instead.
+      const detail = e?.data?.detail ?? e?.data?.message ?? e?.data?.error;
+      const error = detail ?? e?.message ?? "Registration failed";
       return { ok: false, error };
     }
   }, []);

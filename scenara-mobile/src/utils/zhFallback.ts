@@ -43,6 +43,28 @@ const EXACT_TITLE_MAP: Record<string, string> = {
   "bitcoin reclaims $80k as trump pauses tariffs for 90 days": "特朗普暂停关税90天，比特币重回8万美元。",
   "crypto market: bitcoin jumps, altcoins rally on tariff pause": "加密市场：关税暂停提振比特币大涨，山寨币全线反弹。",
   "ethereum price today: eth rises as market recovers": "以太坊今日行情：市场回暖，ETH上涨。",
+
+  // --- Hot topics / market event titles ---
+  "will neymar play in a brazilian club in 2026?": "内马尔会否在2026年效力巴西俱乐部？",
+  "will brazil increase its science and research budget by more than 10% in 2026?": "巴西会否在2026年将科研预算提高10%以上？",
+  "which club will win the brasileirão 2026?": "哪支球队将赢得2026年巴西甲级联赛？",
+  "will a sovereign wealth fund disclose bitcoin etf holdings in 2026?": "2026年是否会有主权财富基金披露比特币ETF持仓？",
+  "will bbb 27 break viewership records in brazil?": "BBB 27会否打破巴西收视率记录？",
+  "will tesla launch its robotaxi service in 5+ cities by end of 2026?": "特斯拉会否在2026年底前于5个以上城市推出无人出租车服务？",
+  "will sbt grow its prime-time ratings by more than 15% in 2026?": "SBT会否在2026年将黄金档收视率提高15%以上？",
+  "will bitcoin reach $100,000 in 2026?": "比特币会否在2026年突破10万美元？",
+  "will the fed cut interest rates in 2026?": "美联储会否在2026年降息？",
+  "will elon musk remain ceo of tesla in 2026?": "埃隆·马斯克会否在2026年继续担任特斯拉CEO？",
+  "will apple release a foldable iphone in 2026?": "苹果会否在2026年发布折叠屏iPhone？",
+  "will trump win the 2024 us presidential election?": "特朗普会否赢得2024年美国总统大选？",
+  "will the us enter a recession in 2026?": "美国会否在2026年陷入经济衰退？",
+  "will there be a ceasefire in ukraine in 2026?": "乌克兰会否在2026年实现停火？",
+  "will china invade taiwan in 2026?": "中国会否在2026年入侵台湾？",
+  "will the dow jones hit 50,000 in 2026?": "道琼斯指数会否在2026年突破5万点？",
+  "will brazil qualify for the 2026 world cup?": "巴西会否晋级2026年世界杯？",
+  "will vinicius jr win the ballon d'or in 2026?": "维尼修斯会否赢得2026年金球奖？",
+  "will the 2026 world cup be a success?": "2026年世界杯会否成功举办？",
+  "will openai release gpt-5 in 2026?": "OpenAI会否在2026年发布GPT-5？",
 };
 
 const REPLACEMENTS: Array<[RegExp, string]> = [
@@ -115,5 +137,8 @@ export function toChineseFallback(text: string, language: string): string {
   // (≥12% CJK chars of non-whitespace). Otherwise the original reads better.
   const nonSpace = result.replace(/\s/g, "").length;
   const ratio = nonSpace > 0 ? countCJK(result) / nonSpace : 0;
-  return ratio >= 0.12 ? result : text;
+  // 30 % threshold: needs roughly 1 CJK char per 3 non-space chars to pass.
+  // This prevents "会否 Neymar play in a 巴西 club 在2026年?" from showing
+  // while still allowing short questions that are mostly translated.
+  return ratio >= 0.30 ? result : text;
 }

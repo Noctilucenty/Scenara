@@ -62,7 +62,7 @@ function ScenaraLogo({ size = 52 }: { size?: number }) {
   );
 }
 
-function PasswordStrength({ password, isPt }: { password: string; isPt: boolean }) {
+function PasswordStrength({ password, isPt, isZh }: { password: string; isPt: boolean; isZh: boolean }) {
   if (!password) return null;
 
   let score = 0;
@@ -75,6 +75,7 @@ function PasswordStrength({ password, isPt }: { password: string; isPt: boolean 
   const level = score <= 1 ? 0 : score <= 2 ? 1 : score <= 3 ? 2 : 3;
   const labels    = ["Weak", "Fair", "Good", "Strong"];
   const labels_pt = ["Fraca", "Razoável", "Boa", "Forte"];
+  const labels_zh = ["弱", "一般", "良好", "强"];
   const colors    = [RED, YELLOW, BLUE, GREEN];
   const widths    = ["25%", "50%", "75%", "100%"] as const;
 
@@ -84,7 +85,7 @@ function PasswordStrength({ password, isPt }: { password: string; isPt: boolean 
         <View style={{ height: "100%", width: widths[level], backgroundColor: colors[level], borderRadius: 2 }} />
       </View>
       <Text style={{ color: colors[level], fontSize: 10, fontFamily: "DMSans_500Medium", marginTop: 4 }}>
-        {isPt ? labels_pt[level] : labels[level]}
+        {isZh ? labels_zh[level] : isPt ? labels_pt[level] : labels[level]}
       </Text>
     </View>
   );
@@ -113,30 +114,38 @@ export default function RegisterScreen() {
   if (!fontsLoaded) return null;
 
   const isPt = language === "pt";
+  const isZh = language === "zh";
 
   const handleRegister = async () => {
     setError("");
     if (!displayName.trim()) {
-      setError(isPt ? "Nome de usuário é obrigatório." : "Display name is required.");
+      setError(isZh ? "请输入显示名称。" : isPt ? "Nome de usuário é obrigatório." : "Display name is required.");
       return;
     }
     if (!email.trim()) {
-      setError(isPt ? "E-mail é obrigatório." : "Email is required.");
+      setError(isZh ? "请输入电子邮件。" : isPt ? "E-mail é obrigatório." : "Email is required.");
       return;
     }
     if (password.length < 6) {
-      setError(isPt ? "Senha deve ter no mínimo 6 caracteres." : "Password must be at least 6 characters.");
+      setError(isZh ? "密码至少需要6个字符。" : isPt ? "Senha deve ter no mínimo 6 caracteres." : "Password must be at least 6 characters.");
       return;
     }
     if (password !== confirm) {
-      setError(isPt ? "As senhas não coincidem." : "Passwords do not match.");
+      setError(isZh ? "两次密码不一致。" : isPt ? "As senhas não coincidem." : "Passwords do not match.");
       return;
     }
     setLoading(true);
     const result = await register(email.trim().toLowerCase(), password, displayName.trim());
     setLoading(false);
     if (!result.ok) {
-      setError(result.error ?? (isPt ? "Erro ao criar conta." : "Registration failed."));
+      const raw = (result.error ?? "").toLowerCase();
+      if (raw.includes("timeout") || raw.includes("network") || raw.includes("network error")) {
+        setError(isZh ? "服务器正在启动，请30秒后重试。" : isPt ? "Servidor iniciando. Tente novamente em 30 segundos." : "Server is warming up. Please try again in 30 seconds.");
+      } else if (raw.includes("already") || raw.includes("exist") || raw.includes("registrado") || raw.includes("cadastrado") || raw.includes("duplicate")) {
+        setError(isZh ? "该邮箱已被注册，请直接登录。" : isPt ? "E-mail já cadastrado. Faça login." : "Email already registered. Please sign in instead.");
+      } else {
+        setError(result.error ?? (isZh ? "注册失败，请重试。" : isPt ? "Erro ao criar conta." : "Registration failed."));
+      }
       return;
     }
     router.replace("/(tabs)");
@@ -169,10 +178,10 @@ export default function RegisterScreen() {
       />
 
       <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", marginBottom: 4 }}>
-        {isPt ? "Criar conta" : "Create account"}
+        {isZh ? "创建账户" : isPt ? "Criar conta" : "Create account"}
       </Text>
       <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_400Regular", marginBottom: 22 }}>
-        {isPt ? "Grátis · Sem cartão · Sem dinheiro real" : "Free · No card · No real money"}
+        {isZh ? "免费 · 无需信用卡 · 无真实资金" : isPt ? "Grátis · Sem cartão · Sem dinheiro real" : "Free · No card · No real money"}
       </Text>
 
       {!!error && (
@@ -184,13 +193,13 @@ export default function RegisterScreen() {
 
       {/* Display Name */}
       <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 7 }}>
-        {isPt ? "NOME DE USUÁRIO" : "DISPLAY NAME"}
+        {isZh ? "显示名称" : isPt ? "NOME DE USUÁRIO" : "DISPLAY NAME"}
       </Text>
       <View style={inputStyle("name")}>
         <TextInput
           value={displayName}
           onChangeText={v => { setDisplayName(v); setError(""); }}
-          placeholder={isPt ? "Como aparecerá no ranking" : "How you'll appear on the leaderboard"}
+          placeholder={isZh ? "您在排行榜上的名字" : isPt ? "Como aparecerá no ranking" : "How you'll appear on the leaderboard"}
           placeholderTextColor={TEXT_MID}
           autoCorrect={false}
           returnKeyType="next"
@@ -202,7 +211,7 @@ export default function RegisterScreen() {
 
       {/* Email */}
       <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 7 }}>
-        {isPt ? "E-MAIL" : "EMAIL"}
+        {isZh ? "电子邮件" : isPt ? "E-MAIL" : "EMAIL"}
       </Text>
       <View style={inputStyle("email")}>
         <TextInput
@@ -223,7 +232,7 @@ export default function RegisterScreen() {
 
       {/* Password */}
       <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 7 }}>
-        {isPt ? "SENHA" : "PASSWORD"}
+        {isZh ? "密码" : isPt ? "SENHA" : "PASSWORD"}
       </Text>
       <View style={inputStyle("password")}>
         <TextInput
@@ -243,11 +252,11 @@ export default function RegisterScreen() {
         </TouchableOpacity>
       </View>
 
-      <PasswordStrength password={password} isPt={isPt} />
+      <PasswordStrength password={password} isPt={isPt} isZh={isZh} />
 
       {/* Confirm Password */}
       <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 7 }}>
-        {isPt ? "CONFIRMAR SENHA" : "CONFIRM PASSWORD"}
+        {isZh ? "确认密码" : isPt ? "CONFIRMAR SENHA" : "CONFIRM PASSWORD"}
       </Text>
       <View style={{
         ...inputStyle("confirm"),
@@ -276,12 +285,12 @@ export default function RegisterScreen() {
 
       {!!confirm && password !== confirm && (
         <Text style={{ color: RED, fontSize: 11, fontFamily: "DMSans_500Medium", marginTop: -10, marginBottom: 12 }}>
-          {isPt ? "As senhas não coincidem" : "Passwords don't match"}
+          {isZh ? "两次密码不一致" : isPt ? "As senhas não coincidem" : "Passwords don't match"}
         </Text>
       )}
       {!!confirm && password === confirm && password.length >= 6 && (
         <Text style={{ color: GREEN, fontSize: 11, fontFamily: "DMSans_500Medium", marginTop: -10, marginBottom: 12 }}>
-          {isPt ? "Senhas coincidem ✓" : "Passwords match ✓"}
+          {isZh ? "密码一致 ✓" : isPt ? "Senhas coincidem ✓" : "Passwords match ✓"}
         </Text>
       )}
 
@@ -290,10 +299,10 @@ export default function RegisterScreen() {
         <Text style={{ fontSize: 20 }}>🎉</Text>
         <View style={{ flex: 1 }}>
           <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-            {isPt ? "Saldo inicial de $10.000" : "$10,000 starting balance"}
+            {isZh ? "$10,000 起始余额" : isPt ? "Saldo inicial de $10.000" : "$10,000 starting balance"}
           </Text>
           <Text style={{ color: TEXT_MID, fontFamily: "DMSans_400Regular", fontSize: 11, marginTop: 1 }}>
-            {isPt ? "Dinheiro simulado, risco zero" : "Simulated money, zero risk"}
+            {isZh ? "模拟资金，零风险" : isPt ? "Dinheiro simulado, risco zero" : "Simulated money, zero risk"}
           </Text>
         </View>
       </View>
@@ -309,7 +318,7 @@ export default function RegisterScreen() {
             ? <ActivityIndicator color="white" />
             : <>
                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                  {isPt ? "Criar conta" : "Create Account"}
+                  {isZh ? "创建账户" : isPt ? "Criar conta" : "Create Account"}
                 </Text>
                 <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}>→</Text>
               </>
@@ -320,7 +329,7 @@ export default function RegisterScreen() {
       {/* Divider */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
-        <Text style={{ color: TEXT_MID, fontSize: 11 }}>{isPt ? "ou" : "or"}</Text>
+        <Text style={{ color: TEXT_MID, fontSize: 11 }}>{isZh ? "或" : isPt ? "ou" : "or"}</Text>
         <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
       </View>
 
@@ -330,9 +339,9 @@ export default function RegisterScreen() {
         style={{ alignItems: "center", paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: BORDER }}
       >
         <Text style={{ color: TEXT_SUB, fontSize: 14, fontFamily: "DMSans_400Regular" }}>
-          {isPt ? "Já tem conta? " : "Have an account? "}
+          {isZh ? "已有账户？" : isPt ? "Já tem conta? " : "Have an account? "}
           <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold" }}>
-            {isPt ? "Entrar →" : "Sign in →"}
+            {isZh ? "登录 →" : isPt ? "Entrar →" : "Sign in →"}
           </Text>
         </Text>
       </TouchableOpacity>
@@ -359,20 +368,22 @@ export default function RegisterScreen() {
           </View>
 
           <Text style={{ color: TEXT, fontSize: 32, fontFamily: "DMSans_700Bold", letterSpacing: -0.8, lineHeight: 40, marginBottom: 14 }}>
-            {isPt ? "Preveja o futuro.\nDomino o mercado." : "Predict the future.\nDominate the market."}
+            {isZh ? "预测未来。\n主宰市场。" : isPt ? "Preveja o futuro.\nDomino o mercado." : "Predict the future.\nDominate the market."}
           </Text>
           <Text style={{ color: TEXT_MID, fontSize: 15, fontFamily: "DMSans_400Regular", lineHeight: 24, marginBottom: 48 }}>
-            {isPt
+            {isZh
+              ? "从$10,000模拟余额开始。零风险，真实竞争。"
+              : isPt
               ? "Comece com $10.000 de saldo simulado. Zero risco, competição real."
               : "Start with $10,000 simulated balance. Zero risk, real competition."}
           </Text>
 
           {/* Feature list */}
           {[
-            { icon: "💰", title: isPt ? "$10.000 grátis" : "$10,000 free", desc: isPt ? "Saldo de simulação imediato" : "Instant simulation balance" },
-            { icon: "🏆", title: isPt ? "Placar global" : "Global leaderboard", desc: isPt ? "Compita com jogadores do mundo" : "Compete with players worldwide" },
-            { icon: "📰", title: isPt ? "Notícias ao vivo" : "Live news feed", desc: isPt ? "Contexto em tempo real" : "Real-time market context" },
-            { icon: "🔒", title: isPt ? "Sem risco" : "Zero risk", desc: isPt ? "Nunca perde dinheiro real" : "Never lose real money" },
+            { icon: "💰", title: isZh ? "$10,000 免费" : isPt ? "$10.000 grátis" : "$10,000 free", desc: isZh ? "即时模拟余额" : isPt ? "Saldo de simulação imediato" : "Instant simulation balance" },
+            { icon: "🏆", title: isZh ? "全球排行榜" : isPt ? "Placar global" : "Global leaderboard", desc: isZh ? "与全球玩家竞争" : isPt ? "Compita com jogadores do mundo" : "Compete with players worldwide" },
+            { icon: "📰", title: isZh ? "实时新闻" : isPt ? "Notícias ao vivo" : "Live news feed", desc: isZh ? "实时市场背景" : isPt ? "Contexto em tempo real" : "Real-time market context" },
+            { icon: "🔒", title: isZh ? "零风险" : isPt ? "Sem risco" : "Zero risk", desc: isZh ? "永不损失真实资金" : isPt ? "Nunca perde dinheiro real" : "Never lose real money" },
           ].map((f, i) => (
             <View key={i} style={{ flexDirection: "row", gap: 14, marginBottom: 20, alignItems: "flex-start" }}>
               <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(124,92,252,0.12)", borderWidth: 1, borderColor: BORDER_P, alignItems: "center", justifyContent: "center" }}>
@@ -388,9 +399,9 @@ export default function RegisterScreen() {
           {/* Stats row */}
           <View style={{ flexDirection: "row", gap: 24, marginTop: 16, paddingTop: 24, borderTopWidth: 1, borderColor: BORDER }}>
             {[
-              { value: "10K+", label: isPt ? "Jogadores" : "Players" },
-              { value: "$10K", label: isPt ? "Saldo inicial" : "Start balance" },
-              { value: "100%", label: isPt ? "Grátis" : "Free" },
+              { value: "10K+", label: isZh ? "玩家" : isPt ? "Jogadores" : "Players" },
+              { value: "$10K", label: isZh ? "起始余额" : isPt ? "Saldo inicial" : "Start balance" },
+              { value: "100%", label: isZh ? "免费" : isPt ? "Grátis" : "Free" },
             ].map((s, i) => (
               <View key={i}>
                 <Text style={{ color: PURPLE, fontSize: 18, fontFamily: "DMSans_700Bold" }}>{s.value}</Text>
@@ -416,7 +427,7 @@ export default function RegisterScreen() {
               <Path d="M19 12H5M12 5l-7 7 7 7" stroke={TEXT_SUB} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
             </Svg>
             <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium" }}>
-              {isPt ? "Voltar ao app" : "Back to app"}
+              {isZh ? "返回" : isPt ? "Voltar ao app" : "Back to app"}
             </Text>
           </TouchableOpacity>
 
@@ -440,7 +451,7 @@ export default function RegisterScreen() {
           <Path d="M19 12H5M12 5l-7 7 7 7" stroke={TEXT_SUB} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
         <Text style={{ color: TEXT_SUB, fontSize: 14, fontFamily: "DMSans_500Medium" }}>
-          {isPt ? "Voltar" : "Back"}
+          {isZh ? "返回" : isPt ? "Voltar" : "Back"}
         </Text>
       </TouchableOpacity>
 
@@ -457,16 +468,16 @@ export default function RegisterScreen() {
             </View>
             <Text style={{ color: TEXT, fontSize: 30, fontFamily: "DMSans_700Bold", letterSpacing: -0.8 }}>scenara</Text>
             <Text style={{ color: TEXT_MID, fontSize: 14, fontFamily: "DMSans_400Regular", marginTop: 6 }}>
-              {isPt ? "Comece sua jornada" : "Start your journey"}
+              {isZh ? "开始你的旅程" : isPt ? "Comece sua jornada" : "Start your journey"}
             </Text>
           </View>
 
           {/* Stats strip */}
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 0, marginBottom: 28 }}>
             {[
-              { value: "$10K", label: isPt ? "Saldo Grátis" : "Free Balance" },
-              { value: isPt ? "Grátis" : "Free", label: isPt ? "Para Sempre" : "Forever" },
-              { value: "10K+", label: isPt ? "Jogadores" : "Players" },
+              { value: "$10K", label: isZh ? "免费余额" : isPt ? "Saldo Grátis" : "Free Balance" },
+              { value: isZh ? "免费" : isPt ? "Grátis" : "Free", label: isZh ? "永久" : isPt ? "Para Sempre" : "Forever" },
+              { value: "10K+", label: isZh ? "玩家" : isPt ? "Jogadores" : "Players" },
             ].map((s, i) => (
               <View key={i} style={{ flex: 1, alignItems: "center", paddingVertical: 2 }}>
                 {i > 0 && (

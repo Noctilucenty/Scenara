@@ -1,5 +1,5 @@
 /**
- * Markets Tab â€� Primary trading screen
+ * Markets Tab — Primary trading screen
  * Polymarket-style list with inline quick-bet, category filters, crowd sentiment,
  * countdown urgency, and a featured hero card.
  */
@@ -137,7 +137,7 @@ function ArcGauge({ probability, size = 52 }: { probability: number; size?: numb
   );
 }
 
-// â�€â�€ Hot badge â€� social proof cue â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
+// â�€â�€ Hot badge — social proof cue â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function HotBadge({ total, language }: { total: number; language: string }) {
   if (total < 5) return null;
   const isViral = total >= 20;
@@ -148,7 +148,7 @@ function HotBadge({ total, language }: { total: number; language: string }) {
       borderWidth: 1, borderColor: isViral ? "rgba(239,68,68,0.3)" : "rgba(251,146,60,0.28)",
       flexDirection: "row", alignItems: "center", gap: 3,
     }}>
-      <Text style={{ fontSize: 9 }}>{isViral ? "ðŸ�¥" : "🌶"}</Text>
+      <Text style={{ fontSize: 9 }}>{isViral ? "🔥" : "🌶"}</Text>
       <Text style={{ color: isViral ? RED : "#FB923C", fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.3 }}>
         {isViral
           ? (language === "pt" ? "VIRAL" : language === "zh" ? "热门" : "VIRAL")
@@ -423,7 +423,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
       refreshPortfolio();
       setTimeout(() => { setSuccess(false); onClose(); }, 2500);
     } else {
-      setError(result.error ?? (language === "pt" ? "Erro ao comprar" : "Failed to buy"));
+      setError(result.error ?? (language === "pt" ? "Erro ao comprar" : language === "zh" ? "购买失败，请重试" : "Failed to buy"));
     }
   };
 
@@ -502,7 +502,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
             />
           </View>
 
-          {/* Quick amount anchoring â€� $500 makes $100 feel small */}
+          {/* Quick amount anchoring — $500 makes $100 feel small */}
           <View style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}>
             {["10", "50", "100", "500"].map(v => (
               <TouchableOpacity key={v} onPress={() => setAmount(v)} style={{ flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: "center", backgroundColor: amount === v ? "rgba(124,92,252,0.18)" : "rgba(124,92,252,0.06)", borderWidth: 1, borderColor: amount === v ? BORDER_P : "rgba(124,92,252,0.15)" }}>
@@ -511,7 +511,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
             ))}
           </View>
 
-          {/* Payout preview â€� dopamine trigger */}
+          {/* Payout preview — dopamine trigger */}
           {amt > 0 && selScene && (
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(34,197,94,0.06)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(34,197,94,0.2)", paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12 }}>
               <View>
@@ -638,7 +638,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
       refreshPortfolio();
       setTimeout(() => setSuccess(false), 3000);
     } else {
-      setError(result.error ?? (language === "pt" ? "Erro ao comprar" : "Failed to buy"));
+      setError(result.error ?? (language === "pt" ? "Erro ao comprar" : language === "zh" ? "购买失败，请重试" : "Failed to buy"));
     }
   };
 
@@ -651,7 +651,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
         style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.12)" }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Text style={{ fontSize: 12 }}>âš¡</Text>
+          <Text style={{ fontSize: 12 }}>⚡</Text>
           <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
             {language === "pt" ? "COMPRAR" : language === "zh" ? "买入" : "BUY"}
           </Text>
@@ -786,7 +786,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
   );
 }
 
-// â�€â�€ Activity ticker â€� social proof strip â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
+// â�€â�€ Activity ticker — social proof strip â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 type ActivityItem = {
   player: string; event_title: string; scenario_title: string;
   amount_label: string; seconds_ago: number;
@@ -798,9 +798,9 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const timeLabel = (s: number) => {
-    if (s < 60)   return language === "pt" ? `${s}s atrás`                : language === "zh" ? `${s}秒��`                      : `${s}s ago`;
-    if (s < 3600) return language === "pt" ? `${Math.floor(s/60)}m atrás` : language === "zh" ? `${Math.floor(s/60)}分��`        : `${Math.floor(s/60)}m ago`;
-    return          language === "pt" ? `${Math.floor(s/3600)}h atrás`    : language === "zh" ? `${Math.floor(s/3600)}å°�时��`     : `${Math.floor(s/3600)}h ago`;
+    if (s < 60)   return language === "pt" ? `${s}s atrás`                : language === "zh" ? `${s}秒前`                      : `${s}s ago`;
+    if (s < 3600) return language === "pt" ? `${Math.floor(s/60)}m atrás` : language === "zh" ? `${Math.floor(s/60)}分钟前`        : `${Math.floor(s/60)}m ago`;
+    return          language === "pt" ? `${Math.floor(s/3600)}h atrás`    : language === "zh" ? `${Math.floor(s/3600)}小时前`     : `${Math.floor(s/3600)}h ago`;
   };
 
   useEffect(() => {
@@ -810,7 +810,7 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
     animRef.current = Animated.loop(
       Animated.timing(translateX, {
         toValue: -half,
-        duration: half * 28,   // ~28 ms per pixel â†’ smooth, not too fast
+        duration: half * 28,   // ~28 ms per pixel → smooth, not too fast
         useNativeDriver: true,
       })
     );
@@ -830,12 +830,12 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
       >
         {doubled.map((item, i) => (
           <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_500Medium" }}>âš¡</Text>
+            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_500Medium" }}>⚡</Text>
             <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_500Medium" }}>
               <Text style={{ color: TEXT_SUB }}>{item.player}</Text>
-              {" "}{language === "pt" ? "comprou" : "bought"}{" "}
+              {" "}{language === "pt" ? "comprou" : language === "zh" ? "购买了" : "bought"}{" "}
               <Text style={{ color: PURPLE_D }}>{parseAmount(item.amount_label)}</Text>
-              {" "}{language === "pt" ? "em" : "on"}{" "}
+              {" "}{language === "pt" ? "em" : language === "zh" ? "在" : "on"}{" "}
               <Text style={{ color: TEXT_SUB }}>{item.scenario_title}</Text>
               {"  "}
               <Text style={{ color: TEXT_MID, fontSize: 8 }}>{timeLabel(item.seconds_ago)}</Text>
@@ -852,15 +852,16 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
 function formatCloseDate(dateStr: string, lang = "en"): string {
   if (!dateStr) return "";
   const d = new Date(dateStr);
+  if (lang === "zh") return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
   const months = lang === "pt"
     ? ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
     : ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
-// â�€â�€ Amount label: parse "$50-$100" range â†’ single midpoint value â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
+// â�€â�€ Amount label: parse "$50-$100" range → single midpoint value â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function parseAmount(label: string): string {
-  const m = label.match(/\$(\d[\d,]*)\s*[-â€“]\s*\$(\d[\d,]*)/);
+  const m = label.match(/\$(\d[\d,]*)\s*[-—]\s*\$(\d[\d,]*)/);
   if (!m) return label;
   const lo = parseInt(m[1].replace(/,/g, ""));
   const hi = parseInt(m[2].replace(/,/g, ""));
@@ -891,7 +892,7 @@ function timeAgo(dateStr: string, lang = "en"): string {
 }
 // â�€â�€ Radar LIVE badge â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 const DOT = 7;
-const MAX_RING = DOT * 3.5; // 24.5 â€� container must fit this
+const MAX_RING = DOT * 3.5; // 24.5 — container must fit this
 function LiveBadge({ language }: { language: string }) {
   const ring1 = useRef(new Animated.Value(0)).current;
   const ring2 = useRef(new Animated.Value(0)).current;
@@ -921,11 +922,11 @@ function LiveBadge({ language }: { language: string }) {
     transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [1, 3.5] }) }],
   });
 
-  const containerSize = Math.ceil(MAX_RING) + 4; // 30px â€� rings have room to breathe
+  const containerSize = Math.ceil(MAX_RING) + 4; // 30px — rings have room to breathe
 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-      {/* Dot + pulse rings â€� container sized to fit max ring expansion */}
+      {/* Dot + pulse rings — container sized to fit max ring expansion */}
       <View style={{ width: containerSize, height: containerSize, alignItems: "center", justifyContent: "center" }}>
         <Animated.View style={ringStyle(ring1)} />
         <Animated.View style={ringStyle(ring2)} />
@@ -948,7 +949,7 @@ const SIDEBAR_SEED: Array<{ uid: number; name: string; body: string }> = [
   { uid: 105, name: "pablof",     body: "lost my last bet here but I still think Yes" },
   { uid: 106, name: "8ball_fx",   body: "the market moved 12% in 2h... insane" },
   { uid: 107, name: "quietmike",  body: "waiting for more info before I commit" },
-  { uid: 108, name: "Ana_trader", body: "already up 40% this week on these markets ðŸ�¥" },
+  { uid: 108, name: "Ana_trader", body: "already up 40% this week on these markets 🔥" },
   { uid: 109, name: "newbie99",   body: "is this safe to bet on? first time here" },
   { uid: 110, name: "markosv",    body: "people sleeping on the No side here imo" },
   { uid: 111, name: "jess_q",     body: "this aged well lmao called it yesterday" },
@@ -1015,7 +1016,7 @@ function SidebarLiveComments({ featuredEventId, language }: { featuredEventId?: 
         </View>
       </LinearGradient>
 
-      {/* Scrolling body â€� fixed height with overflow hidden */}
+      {/* Scrolling body — fixed height with overflow hidden */}
       <View style={{ height: 260, overflow: "hidden" }}>
         <Animated.View
           style={{ transform: [{ translateY }] }}
@@ -1084,7 +1085,7 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
               }}
             >
               <Text style={{ color: PURPLE_D, fontSize: 12, fontFamily: "DMSans_700Bold", minWidth: 16, paddingTop: 1 }}>{i + 1}</Text>
-              {/* Thumbnail â€� favicon from source domain, or placeholder */}
+              {/* Thumbnail — favicon from source domain, or placeholder */}
               {(() => {
                 const faviconUri = article.source_url
                   ? `https://www.google.com/s2/favicons?domain=${article.source_url}&sz=64`
@@ -1120,9 +1121,9 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={{ padding: 4 }}
               >
-                <Text style={{ color: TEXT_MID, fontSize: 12 }}>âŽ™</Text>
+                <Text style={{ color: TEXT_MID, fontSize: 12 }}>↗</Text>
               </TouchableOpacity>
-              <Text style={{ color: TEXT_MID, fontSize: 14 }}>â€º</Text>
+              <Text style={{ color: TEXT_MID, fontSize: 14 }}>›</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -1131,7 +1132,7 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
       {hotEvents.length > 0 && (
         <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
-            <Text style={{ fontSize: 12 }}>ðŸ�¥</Text>
+            <Text style={{ fontSize: 12 }}>🔥</Text>
             <Text style={{ color: TEXT, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
               {language === "pt" ? "EM ALTA" : language === "zh" ? "热门话题" : "HOT TOPICS"}
             </Text>
@@ -1157,7 +1158,7 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
                   {eventTitle(event, language)}
                 </Text>
                 <Text style={{ color: probColor, fontSize: 12, fontFamily: "DMSans_700Bold" }}>{Math.round(prob)}%</Text>
-                <Text style={{ color: TEXT_MID, fontSize: 14 }}>â€º</Text>
+                <Text style={{ color: TEXT_MID, fontSize: 14 }}>›</Text>
               </TouchableOpacity>
             );
           })}
@@ -1372,8 +1373,8 @@ function LiveStatsBar({ eventCount, language }: { eventCount: number; language: 
   const volume  = 42 + (base % 90);
 
   const stats = [
-    { value: String(traders), label: language === "pt" ? "traders" : "traders", color: BLUE },
-    { value: `$${volume}K`,   label: language === "pt" ? "volume hoje" : language === "zh" ? "今日�交�" : "vol. today",  color: GREEN },
+    { value: String(traders), label: language === "pt" ? "traders" : language === "zh" ? "交易者" : "traders", color: BLUE },
+    { value: `$${volume}K`,   label: language === "pt" ? "volume hoje" : language === "zh" ? "今日成交量" : "vol. today",  color: GREEN },
     { value: String(eventCount), label: language === "pt" ? "mercados" : language === "zh" ? "市场" : "markets",  color: PURPLE },
   ];
 
@@ -1414,9 +1415,9 @@ function TrendingPicks({ events, language, onBetPress, onCardPress }: {
   return (
     <View style={{ marginBottom: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-        <Text style={{ fontSize: 12 }}>ðŸ�¥</Text>
+        <Text style={{ fontSize: 12 }}>🔥</Text>
         <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
-          {language === "pt" ? "EM ALTA" : "TRENDING"}
+          {language === "pt" ? "EM ALTA" : language === "zh" ? "热门" : "TRENDING"}
         </Text>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>
@@ -1741,8 +1742,29 @@ export default function MarketsScreen() {
 
       fetchSentiment(all);
     } catch {
-      // Show error card only on non-silent (user-visible) loads with no cached data
-      if (!silent && events.length === 0) setLoadError(true);
+      if (!silent && events.length === 0) {
+        // Await the delay inline so the loading spinner stays visible during the retry.
+        // (setTimeout is fire-and-forget; using await here keeps finally from running early.)
+        // Render.com free-tier cold start is ~30-50s; first request times out at 40s,
+        // so a 12s pause puts the retry at ~52s — after most cold starts finish.
+        await new Promise<void>(resolve => setTimeout(resolve, 12000));
+        try {
+          const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0 };
+          if (cat !== "all") params.category = cat;
+          const res = await api.get("/events/", { params });
+          const all: EventItem[] = res.data ?? [];
+          if (all.length > 0) {
+            setEvents(all);
+            setLoadError(false);
+            if (!silent) fetchHistory(all);
+            fetchSentiment(all);
+          } else {
+            setLoadError(true);
+          }
+        } catch {
+          setLoadError(true);
+        }
+      }
     }
     finally { setLoading(false); setRefreshing(false); }
   }, [fetchSentiment, fetchHistory, hydrateFromCache, activeCategory]);
@@ -1784,7 +1806,7 @@ export default function MarketsScreen() {
       setHasMore(true);
     } catch {}
     finally { st.loadingMore = false; setLoadingMore(false); }
-  }, [fetchSentiment, fetchHistory, activeCategory]); // stable â€� no stale closures
+  }, [fetchSentiment, fetchHistory, activeCategory]); // stable — no stale closures
 
   // Keep a stable ref so useFocusEffect never recreates its callback
   const fetchEventsRef = useRef(fetchEvents);
@@ -1794,7 +1816,7 @@ export default function MarketsScreen() {
     fetchEventsRef.current();
     intervalRef.current = setInterval(() => fetchEventsRef.current(true), AUTO_REFRESH_MS);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [])); // empty deps â€� only re-runs on actual tab focus/blur
+  }, [])); // empty deps — only re-runs on actual tab focus/blur
 
   // Restore category from localStorage (web)
   useEffect(() => {
@@ -1819,7 +1841,7 @@ export default function MarketsScreen() {
   // Keep carouselIdxRef in sync
   useEffect(() => { carouselIdxRef.current = carouselIdx; }, [carouselIdx]);
 
-  // Navigate carousel by delta (+1 or -1) â€� reused by auto-advance and swipe gestures
+  // Navigate carousel by delta (+1 or -1) — reused by auto-advance and swipe gestures
   const navigateCarousel = useCallback((delta: number) => {
     const poolLen = carouselPool.length;
     if (poolLen <= 1) return;
@@ -1950,7 +1972,7 @@ export default function MarketsScreen() {
             {isAuthenticated && balanceText && (
               <View style={{ backgroundColor: "rgba(124,92,252,0.08)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: BORDER_P }}>
                 <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                  {language === "pt" ? "SALDO" : language === "zh" ? "余��" : "BALANCE"}
+                  {language === "pt" ? "SALDO" : language === "zh" ? "余额" : "BALANCE"}
                 </Text>
                 <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold" }}>{balanceText}</Text>
               </View>
@@ -1977,7 +1999,7 @@ export default function MarketsScreen() {
           </View>
         </View>
 
-        {/* Category tabs â€� counts are approximate (from current page) */}
+        {/* Category tabs — counts are approximate (from current page) */}
         <CategoryTabs
           events={events}
           active={activeCategory}
@@ -1999,13 +2021,15 @@ export default function MarketsScreen() {
           </View>
         ) : loadError ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
-            <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>âš¡</Text>
+            <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>⚡</Text>
             <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_700Bold", textAlign: "center", marginBottom: 8 }}>
               {language === "pt" ? "Falha ao carregar mercados" : language === "zh" ? "加载市场失败" : "Failed to load markets"}
             </Text>
             <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", textAlign: "center", marginBottom: 24 }}>
               {language === "pt"
                 ? "O servidor pode estar iniciando. Aguarde alguns segundos e tente novamente."
+                : language === "zh"
+                ? "服务器可能正在启动，请稍候几秒后重试。"
                 : "The server may be warming up. Wait a few seconds and try again."}
             </Text>
             <TouchableOpacity
@@ -2068,7 +2092,7 @@ export default function MarketsScreen() {
                         <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 5, padding: 1 }}>
                           <View style={{ backgroundColor: BG, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 }}>
                             <Text style={{ color: PURPLE, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                  {language === "pt" ? "? DESTAQUE" : language === "zh" ? "✦ 精选" : "? FEATURED"}
+                  {language === "pt" ? "✦ DESTAQUE" : language === "zh" ? "✦ 精选" : "✦ FEATURED"}
                             </Text>
                           </View>
                         </LinearGradient>
@@ -2083,14 +2107,14 @@ export default function MarketsScreen() {
                           featuredSlideAnim.stopAnimation();
                         }}
                         onResponderMove={e => {
-                          // Card follows finger: swipe left â†’ card moves left, swipe right â†’ card moves right
+                          // Card follows finger: swipe left → card moves left, swipe right → card moves right
                           const dx = e.nativeEvent.pageX - featuredSwipeTouchX.current;
                           featuredSlideAnim.setValue(dx * 0.85);
                         }}
                         onResponderRelease={e => {
                           const dx = e.nativeEvent.pageX - featuredSwipeTouchX.current;
                           if (Math.abs(dx) > 60) {
-                            // swipe right (dx>0) â†’ go to previous; swipe left (dx<0) â†’ go to next
+                            // swipe right (dx>0) → go to previous; swipe left (dx<0) → go to next
                             navigateCarousel(dx > 0 ? -1 : 1);
                           } else {
                             Animated.spring(featuredSlideAnim, { toValue: 0, useNativeDriver: true, friction: 8, tension: 90 }).start();
@@ -2211,7 +2235,7 @@ export default function MarketsScreen() {
                               style={{ paddingHorizontal: isWide ? 14 : 11, paddingVertical: isWide ? 8 : 7, borderRadius: 10, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.07)" }}
                             >
                               <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: isWide ? 12 : 11 }}>
-                                {language === "pt" ? "Ver ?" : language === "zh" ? "查看 →" : "View ?"}
+                                {language === "pt" ? "Ver →" : language === "zh" ? "查看 →" : "View →"}
                               </Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => handleBetPress(featured.id)} style={{ borderRadius: 10, overflow: "hidden" }}>
@@ -2267,7 +2291,7 @@ export default function MarketsScreen() {
                         </View>
                       )}
 
-                      {/* Trade panel â€� always visible below featured card */}
+                      {/* Trade panel — always visible below featured card */}
                       {featured && (
                         <SidebarTradePanel
                           key={featured.id}
@@ -2304,7 +2328,7 @@ export default function MarketsScreen() {
                     />
                   </View>
                 )}
-                {/* Trending picks strip â€� mobile only */}
+                {/* Trending picks strip — mobile only */}
                 {!isWide && rest.length > 3 && (
                   <TrendingPicks
                     events={rest.slice(0, 6)}
@@ -2343,7 +2367,7 @@ export default function MarketsScreen() {
                   </View>
                 )}
 
-                {/* Market grid â€� paginated carousel, auto-advances every 5s */}
+                {/* Market grid — paginated carousel, auto-advances every 5s */}
                 {(() => {
                   const visibleRest = (!isAuthenticated && rest.length > GUEST_CAP)
                     ? rest.slice(0, GUEST_CAP)
@@ -2449,7 +2473,7 @@ export default function MarketsScreen() {
                         ))
                       )}
 
-                      {/* Guest gate â€� fade + CTA */}
+                      {/* Guest gate — fade + CTA */}
                       {showGate && (
                         <View style={{ marginTop: -100, paddingTop: 80 }}>
                           <LinearGradient
@@ -2458,14 +2482,14 @@ export default function MarketsScreen() {
                             style={{ height: 140, marginBottom: -8 }}
                           />
                           <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 22, alignItems: "center", borderWidth: 1, borderColor: BORDER_P, marginBottom: 16 }}>
-                            <Text style={{ fontSize: 28, marginBottom: 10 }}>ðŸ�’</Text>
+                            <Text style={{ fontSize: 28, marginBottom: 10 }}>🔒</Text>
                             <Text style={{ color: TEXT, fontSize: 16, fontFamily: "DMSans_700Bold", textAlign: "center", marginBottom: 6 }}>
                               {language === "pt" ? `+${rest.length - GUEST_CAP} mercados esperando` : language === "zh" ? `+${rest.length - GUEST_CAP} 个市场等待中` : `+${rest.length - GUEST_CAP} more markets waiting`}
                             </Text>
                             <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", textAlign: "center", marginBottom: 18, lineHeight: 18 }}>
                               {language === "pt"
                                 ? "Crie uma conta gratuita para ver todos os mercados e fazer previsões."
-                                : language === "zh" ? "创建��费账户查看全部市场"
+                                : language === "zh" ? "创建免费账户查看全部市场"
                                 : "Create a free account to see all markets and start making predictions."}
                             </Text>
                             <TouchableOpacity
@@ -2474,13 +2498,13 @@ export default function MarketsScreen() {
                             >
                               <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 13, alignItems: "center" }}>
                                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>
-                                  {language === "pt" ? "âš¡ Criar conta grátis" : "âš¡ Create free account"}
+                                  {language === "pt" ? "⚡ Criar conta grátis" : language === "zh" ? "⚡ 免费注册" : "⚡ Create free account"}
                                 </Text>
                               </LinearGradient>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => router.push("/login")} style={{ marginTop: 10 }}>
                               <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular" }}>
-                                {language === "pt" ? "Já tenho conta â†’" : "Already have an account â†’"}
+                                {language === "pt" ? "Já tenho conta →" : language === "zh" ? "已有账户，去登录 →" : "Already have an account →"}
                               </Text>
                             </TouchableOpacity>
                           </View>
@@ -2497,14 +2521,14 @@ export default function MarketsScreen() {
               <View style={{ paddingVertical: 20, alignItems: "center", gap: 6 }}>
                 <ActivityIndicator color={PURPLE} size="small" />
                 <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
-                  {language === "pt" ? "Gerando novos mercados..." : language === "zh" ? "正在生�新市场..." : "Generating new markets..."}
+                  {language === "pt" ? "Gerando novos mercados..." : language === "zh" ? "正在生成新市场..." : "Generating new markets..."}
                 </Text>
               </View>
             )}
             {!hasMore && !loadingMore && events.length > 0 && (
               <View style={{ paddingVertical: 16, alignItems: "center" }}>
                 <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
-                  {language === "pt" ? "â€� Todos os mercados carregados â€�" : "â€� All markets loaded â€�"}
+                  {language === "pt" ? "— Todos os mercados carregados —" : language === "zh" ? "— 全部市场已加载 —" : "— All markets loaded —"}
                 </Text>
               </View>
             )}

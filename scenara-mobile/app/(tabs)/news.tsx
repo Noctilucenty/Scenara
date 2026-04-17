@@ -136,6 +136,13 @@ function eventTitle(e: EventItem, lang: string) {
 }
 
 function scenarioTitle(s: Scenario, lang: string) {
+  if (lang === "zh") {
+    const value = (s.title_pt || s.title || "").trim().toLowerCase();
+    if (value === "yes") return "是";
+    if (value === "no") return "否";
+    if (value === "passes") return "通过";
+    if (value === "delayed") return "推迟";
+  }
   return (lang === "pt" && s.title_pt) ? s.title_pt : s.title;
 }
 
@@ -264,7 +271,7 @@ function NewsCard({ article, onPress, language, catColor, summary, loadingSummar
 
         {/* Title */}
         <Text style={{ color: TEXT, fontSize: 15, fontFamily: "DMSans_700Bold", lineHeight: 22, marginBottom: 8 }}>
-          {article.title}
+          {toChineseFallback(article.title, language)}
         </Text>
 
         {/* AI Summary */}
@@ -290,7 +297,7 @@ function NewsCard({ article, onPress, language, catColor, summary, loadingSummar
         {/* Description fallback */}
         {!summary && !loadingSummary && article.description ? (
           <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_400Regular", lineHeight: 18, marginBottom: 6 }} numberOfLines={3}>
-            {article.description}
+            {toChineseFallback(article.description, language)}
           </Text>
         ) : null}
 
