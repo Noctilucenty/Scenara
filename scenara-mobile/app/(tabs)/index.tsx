@@ -4,7 +4,7 @@
  * countdown urgency, and a featured hero card.
  */
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView,
   StatusBar, TextInput, ActivityIndicator, RefreshControl,
@@ -1043,7 +1043,7 @@ function SidebarLiveComments({ featuredEventId, language }: { featuredEventId?: 
 }
 
 // â�€â�€ Breaking News + Hot Topics sidebar â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
-function BreakingNewsPanel({ articles, hotEvents, language }: {
+const BreakingNewsPanel = React.memo(function BreakingNewsPanel({ articles, hotEvents, language }: {
   articles: NewsArticle[];
   hotEvents: EventItem[];
   language: string;
@@ -1167,7 +1167,7 @@ function BreakingNewsPanel({ articles, hotEvents, language }: {
 
     </View>
   );
-}
+});
 
 // â�€â�€ Category tab strip â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function CategoryTabs({ events, active, onSelect, t, language }: {
@@ -1829,15 +1829,24 @@ export default function MarketsScreen() {
     } catch {}
   }, []);
 
-  // Carousel pool: featured events first, then top events
-  const featuredEvents = events.filter(e => e.is_featured);
-  const carouselPool = events.length > 0
-    ? (featuredEvents.length >= 2 ? featuredEvents.slice(0, 6) : events.slice(0, 6))
-    : [];
+  // Carousel pool: featured events first, then top events.
+  // Memoized on events so tick/betPanel/other state changes don't recompute.
+  const featuredEvents = useMemo(() => events.filter(e => e.is_featured), [events]);
+  const carouselPool = useMemo(() =>
+    events.length > 0
+      ? (featuredEvents.length >= 2 ? featuredEvents.slice(0, 6) : events.slice(0, 6))
+      : [],
+    [events, featuredEvents]
+  );
   // tick is used here so time-based displays (UrgencyBadge, countdown timers) re-render every 30s
   void tick;
   const featuredEvent = carouselPool[carouselIdx % Math.max(1, carouselPool.length)] ?? events[0];
   const featuredId = featuredEvent?.id;
+  // Memoized hot-events slice passed to BreakingNewsPanel — prevents new array ref every tick
+  const hotEventsSlice = useMemo(() => {
+    const rest = featuredEvent ? events.filter(e => e.id !== featuredEvent.id) : events;
+    return rest.slice(0, 6);
+  }, [events, featuredEvent]);
 
   // Keep carouselIdxRef in sync
   useEffect(() => { carouselIdxRef.current = carouselIdx; }, [carouselIdx]);
@@ -1910,7 +1919,7 @@ export default function MarketsScreen() {
     ? `$${Number(account.balance).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
     : null;
 
-  const handleCategorySelect = (key: string) => {
+  const handleCategorySelect = useCallback((key: string) => {
     setActiveCategory(key);
     setBetPanelId(null);
     setEvents([]);
@@ -1918,18 +1927,18 @@ export default function MarketsScreen() {
     setHasMore(true);
     fetchEvents(false, key);
     try { if (Platform.OS === "web") localStorage.setItem("scenara_cat", key); } catch {}
-  };
+  }, [fetchEvents]);
 
-  const handleCardPress = (id: number) => {
+  const handleCardPress = useCallback((id: number) => {
     router.push({ pathname: "/market-detail", params: { eventId: String(id) } });
-  };
+  }, [router]);
 
-  const handleBetPress = (id: number) => {
+  const handleBetPress = useCallback((id: number) => {
     setBetPanelId(prev => prev === id ? null : id);
     setExpandedId(null);
-  };
+  }, []);
 
-  const handleNewsPress = (article: NewsArticle) => {
+  const handleNewsPress = useCallback((article: NewsArticle) => {
     router.push({
       pathname: "/news-detail",
       params: {
@@ -1942,7 +1951,7 @@ export default function MarketsScreen() {
         source_url: article.source_url ?? "",
       },
     });
-  };
+  }, [router]);
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -2320,7 +2329,7 @@ export default function MarketsScreen() {
                     <View style={{ flex: 0.42, gap: 10 }}>
                       <BreakingNewsPanel
                         articles={newsArticles}
-                        hotEvents={rest.slice(0, 6)}
+                        hotEvents={hotEventsSlice}
                         language={language}
                       />
                     </View>

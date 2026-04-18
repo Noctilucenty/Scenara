@@ -256,12 +256,23 @@ function normalizeKey(text: string): string {
     .toLowerCase();
 }
 
+// Module-level cache — each unique string is only regex-processed once per session.
+// Event titles are finite (~100) and never change, so this is effectively free after
+// the first render pass.
+const _cache = new Map<string, string>();
+
 export function toChineseFallback(text: string, language: string): string {
   if (language !== "zh" || !text) return text;
 
+  const cached = _cache.get(text);
+  if (cached !== undefined) return cached;
+
   const key = normalizeKey(text);
   const exact = EXACT_TITLE_MAP[key];
-  if (exact) return exact;
+  if (exact) {
+    _cache.set(text, exact);
+    return exact;
+  }
 
   let result = text;
   for (const [pattern, replacement] of REPLACEMENTS) {
@@ -269,11 +280,10 @@ export function toChineseFallback(text: string, language: string): string {
   }
 
   // Only return the partially-replaced string if it's meaningfully Chinese
-  // (≥12% CJK chars of non-whitespace). Otherwise the original reads better.
+  // (≥30% CJK chars of non-whitespace). Otherwise the original reads better.
   const nonSpace = result.replace(/\s/g, "").length;
   const ratio = nonSpace > 0 ? countCJK(result) / nonSpace : 0;
-  // 30 % threshold: needs roughly 1 CJK char per 3 non-space chars to pass.
-  // This prevents "会否 Neymar play in a 巴西 club 在2026年?" from showing
-  // while still allowing short questions that are mostly translated.
-  return ratio >= 0.30 ? result : text;
+  const final = ratio >= 0.30 ? result : text;
+  _cache.set(text, final);
+  return final;
 }

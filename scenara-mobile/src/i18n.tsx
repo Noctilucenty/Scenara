@@ -142,7 +142,7 @@ const en = {
     logoutConfirm: "Are you sure you want to sign out?",
     logoutCancel: "Cancel",
     appVersion: "APP VERSION",
-    version: "Scenara v0.6",
+    version: "Scenara v0.9.4",
   },
   auth: {
     welcomeBack: "Welcome back",
@@ -313,7 +313,7 @@ const pt: typeof en = {
     logoutConfirm: "Tem certeza de que deseja sair?",
     logoutCancel: "Cancelar",
     appVersion: "VERSÃO DO APP",
-    version: "Scenara v0.6",
+    version: "Scenara v0.9.4",
   },
   auth: {
     welcomeBack: "Bem-vindo de volta",
@@ -484,7 +484,7 @@ const zh: typeof en = {
     logoutConfirm: "确定要退出登录吗？",
     logoutCancel: "取消",
     appVersion: "应用版本",
-    version: "Scenara v0.6",
+    version: "Scenara v0.9.4",
   },
   auth: {
     welcomeBack: "欢迎回来",
