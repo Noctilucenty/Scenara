@@ -1884,7 +1884,9 @@ export default function MarketsScreen() {
     if (!loading) { setMarketPageIdx(0); marketPageIdxRef.current = 0; marketSlideAnim.setValue(0); }
   }, [loading]);
 
-  // Fetch comments + related news whenever featured event changes
+  // Fetch comments + related news whenever featured event OR language changes.
+  // language is in the dep array so switching zh/en/pt re-fetches news in the
+  // correct locale (backend uses lang param to choose the right RSS feed).
   useEffect(() => {
     if (!featuredId) return;
     api.get(`/comments/event/${featuredId}`)
@@ -1896,7 +1898,7 @@ export default function MarketsScreen() {
         .then(r => setFeaturedNews(r.data?.articles ?? []))
         .catch(() => {});
     }
-  }, [featuredId]);
+  }, [featuredId, language]);
 
   if (!fontsLoaded) return null;
 

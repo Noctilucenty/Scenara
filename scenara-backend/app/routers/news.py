@@ -239,9 +239,13 @@ async def get_news_single(
 ):
     if query.strip():
         # Specific query (e.g. extracted from an event title) — use directly
-        hl   = "pt-419" if lang == "pt" else "en-US"
-        gl   = "BR"     if lang == "pt" else "US"
-        ceid = "BR:pt-419" if lang == "pt" else "US:en"
+        # Use the correct Google News locale so articles come back in the right language
+        if lang == "pt":
+            hl, gl, ceid = "pt-419", "BR", "BR:pt-419"
+        elif lang == "zh":
+            hl, gl, ceid = "zh-CN", "CN", "CN:zh-Hans"
+        else:
+            hl, gl, ceid = "en-US", "US", "US:en"
         articles = await _fetch_rss(query.strip(), hl, gl, ceid, n=max_results)
     else:
         cat_cfg  = CATEGORY_QUERIES.get(category, CATEGORY_QUERIES["all"])
