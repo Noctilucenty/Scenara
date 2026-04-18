@@ -1910,15 +1910,7 @@ export default function MarketsScreen() {
     }
   }, [featuredId, language]);
 
-  if (!fontsLoaded) return null;
-
-  const featured = featuredEvent;
-  const rest = featured ? events.filter(e => e.id !== featured.id) : events;
-
-  const balanceText = account
-    ? `$${Number(account.balance).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
-    : null;
-
+  // ── All hooks must be declared before any conditional return ──────────────
   const handleCategorySelect = useCallback((key: string) => {
     setActiveCategory(key);
     setBetPanelId(null);
@@ -1952,6 +1944,16 @@ export default function MarketsScreen() {
       },
     });
   }, [router]);
+
+  // Fonts must be loaded before rendering — safe to return after all hooks
+  if (!fontsLoaded) return null;
+
+  const featured = featuredEvent;
+  const rest = featured ? events.filter(e => e.id !== featured.id) : events;
+
+  const balanceText = account
+    ? `$${Number(account.balance).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+    : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
