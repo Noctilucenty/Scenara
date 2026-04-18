@@ -626,8 +626,8 @@ _SYNTHETIC_NAMES = [
     "James K.", "Emma S.", "Noah P.", "Olivia R.", "Liam B.",
     "Ava T.", "Ethan C.", "Sophia H.", "Mason L.", "Mia F.",
 ]
-_SYNTHETIC_AMOUNTS = ["$1–$10", "$10–$25", "$25–$50", "$50–$100"]
-_SYNTHETIC_AMOUNT_WEIGHTS = [0.20, 0.35, 0.30, 0.15]
+_SYNTHETIC_AMOUNTS = ["$8", "$10", "$12", "$15", "$18", "$20", "$25", "$30", "$50"]
+_SYNTHETIC_AMOUNT_WEIGHTS = [0.10, 0.15, 0.15, 0.18, 0.12, 0.12, 0.10, 0.05, 0.03]
 
 
 @router.get("/activity", response_model=list[ActivityItem])
@@ -663,16 +663,10 @@ def get_recent_activity(limit: int = 15, db: Session = Depends(get_db)):
         else:
             anon = parts[0][:6] + "."
 
-        # Amount bucketing — no exact amounts exposed, capped at $100 display
+        # Show specific rounded amount — cap at $50, round to nearest $5
         amt = float(p.simulated_amount)
-        if amt < 10:
-            label = "$1–$10"
-        elif amt < 25:
-            label = "$10–$25"
-        elif amt < 50:
-            label = "$25–$50"
-        else:
-            label = "$50–$100"
+        display = max(5, min(50, round(amt / 5) * 5))
+        label = f"${display}"
 
         delta = int((now - p.created_at.replace(tzinfo=None)).total_seconds())
         items.append(ActivityItem(

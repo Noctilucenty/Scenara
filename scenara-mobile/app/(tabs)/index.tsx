@@ -336,7 +336,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
             <Text style={{ color: TEXT_MID, fontSize: isWide ? 10 : 8, fontFamily: "DMSans_400Regular" }}>
               📅 {event.closes_at
-                ? (language === "pt" ? "Fecha " : language === "zh" ? "结��Ÿ " : "Ends ") + formatCloseDate(event.closes_at, language)
+                ? (language === "pt" ? "Fecha " : language === "zh" ? "结束于 " : "Ends ") + formatCloseDate(event.closes_at, language)
                 : (language === "pt" ? "Em aberto" : language === "zh" ? "无截止日期" : "Open-ended")}
             </Text>
           </View>
@@ -347,7 +347,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
               </Text>
             </View>
             <Text style={{ color: TEXT_MID, fontSize: isWide ? 10 : 8, fontFamily: "DMSans_400Regular" }}>
-              {language === "pt" ? "retorno est." : language === "zh" ? "预计���益" : "est. return"}
+              {language === "pt" ? "retorno est." : language === "zh" ? "预计收益" : "est. return"}
             </Text>
           </View>
         </View>
@@ -861,12 +861,12 @@ function formatCloseDate(dateStr: string, lang = "en"): string {
 
 // â�€â�€ Amount label: parse "$50-$100" range → single midpoint value â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function parseAmount(label: string): string {
-  const m = label.match(/\$(\d[\d,]*)\s*[-—]\s*\$(\d[\d,]*)/);
+  // Backend now sends exact values like "$15". Keep range fallback for old cached data.
+  const m = label.match(/$(d[d,]*)s*[-–—]s*$(d[d,]*)/);
   if (!m) return label;
   const lo = parseInt(m[1].replace(/,/g, ""));
   const hi = parseInt(m[2].replace(/,/g, ""));
-  const mid = Math.round((lo + hi) / 2);
-  return `$${mid.toLocaleString("en-US")}`;
+  return `$${Math.round((lo + hi) / 2)}`;
 }
 
 // â�€â�€ Time ago helper â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
@@ -1767,7 +1767,7 @@ export default function MarketsScreen() {
       }
     }
     finally { setLoading(false); setRefreshing(false); }
-  }, [fetchSentiment, fetchHistory, hydrateFromCache, activeCategory]);
+  }, [fetchSentiment, fetchHistory, hydrateFromCache, activeCategory, language]);
 
   // Keep eventsRef in sync so loadMore always reads current length
   useEffect(() => { eventsRef.current = events; }, [events]);

@@ -185,12 +185,11 @@ export default function RegisterScreen() {
       </Text>
 
       {!!error && (
-        <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 10, padding: 12, marginBottom: 16, flexDirection: "row", gap: 8, alignItems: "center" }}>
+        <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 10, padding: 12, marginBottom: 8, flexDirection: "row", gap: 8, alignItems: "center" }}>
           <Text style={{ fontSize: 14 }}>⚠️</Text>
           <Text style={{ color: RED, fontFamily: "DMSans_500Medium", fontSize: 13, flex: 1 }}>{error}</Text>
         </View>
       )}
-
       {/* Display Name */}
       <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 7 }}>
         {isZh ? "显示名称" : isPt ? "NOME DE USUÁRIO" : "DISPLAY NAME"}
