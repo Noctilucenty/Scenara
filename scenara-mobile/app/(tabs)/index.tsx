@@ -836,7 +836,7 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
               {" "}{language === "pt" ? "comprou" : language === "zh" ? "购买了" : "bought"}{" "}
               <Text style={{ color: PURPLE_D }}>{parseAmount(item.amount_label)}</Text>
               {" "}{language === "pt" ? "em" : language === "zh" ? "在" : "on"}{" "}
-              <Text style={{ color: TEXT_SUB }}>{item.scenario_title}</Text>
+              <Text style={{ color: TEXT_SUB }}>{toChineseFallback(item.scenario_title, language)}</Text>
               {"  "}
               <Text style={{ color: TEXT_MID, fontSize: 8 }}>{timeLabel(item.seconds_ago)}</Text>
             </Text>
@@ -1626,7 +1626,8 @@ export default function MarketsScreen() {
   const featuredSlideAnim = useRef(new Animated.Value(0)).current;
   const featuredOpacityAnim = useRef(new Animated.Value(1)).current;
   const carouselIdxRef = useRef(0);
-  const featuredSwipeTouchX = useRef(0);
+  const featuredSwipeTouchX    = useRef(0);
+  const featuredSwipeTouchTime = useRef(0); // for velocity-based momentum
   const scrollRef = useRef<any>(null);
   const PAGE_SIZE = 100;
   const GUEST_CAP = 100;
@@ -2105,17 +2106,22 @@ export default function MarketsScreen() {
                         onStartShouldSetResponder={() => true}
                         onMoveShouldSetResponder={() => true}
                         onResponderGrant={e => {
-                          featuredSwipeTouchX.current = e.nativeEvent.pageX;
+                          featuredSwipeTouchX.current    = e.nativeEvent.pageX;
+                          featuredSwipeTouchTime.current = Date.now();
                           featuredSlideAnim.stopAnimation();
                         }}
                         onResponderMove={e => {
-                          // Card follows finger: swipe left → card moves left, swipe right → card moves right
+                          // Card follows finger with slight resistance
                           const dx = e.nativeEvent.pageX - featuredSwipeTouchX.current;
                           featuredSlideAnim.setValue(dx * 0.85);
                         }}
                         onResponderRelease={e => {
                           const dx = e.nativeEvent.pageX - featuredSwipeTouchX.current;
-                          if (Math.abs(dx) > 60) {
+                          const dt = Math.max(1, Date.now() - featuredSwipeTouchTime.current);
+                          // velocity in px/ms — fast flick = momentum navigation
+                          const velocity = Math.abs(dx) / dt;
+                          const isMomentum = velocity > 0.25 && Math.abs(dx) > 12;
+                          if (Math.abs(dx) > 50 || isMomentum) {
                             // swipe right (dx>0) → go to previous; swipe left (dx<0) → go to next
                             navigateCarousel(dx > 0 ? -1 : 1);
                           } else {
