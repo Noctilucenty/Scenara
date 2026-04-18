@@ -3,7 +3,7 @@ import { API_BASE_URL } from "../config/api";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 40000, // 40s — allows Render.com free-tier cold start (~30-50s)
+  timeout: 60000, // 60s — allows Render.com free-tier cold start (can reach 50s+)
   headers: {
     "Content-Type": "application/json",
   },

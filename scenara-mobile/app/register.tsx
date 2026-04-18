@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
   StatusBar, KeyboardAvoidingView, Platform,
@@ -13,6 +13,7 @@ import {
 
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
+import { api } from "@/src/api/client";
 
 const IS_WEB   = Platform.OS === "web";
 const BG       = "#08090C";
@@ -109,6 +110,16 @@ export default function RegisterScreen() {
   const emailRef   = useRef<TextInput>(null);
   const passRef    = useRef<TextInput>(null);
   const confirmRef = useRef<TextInput>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Proactively wake up the Render cold-start server when the screen mounts
+  // so it's ready by the time the user fills the form and hits submit.
+  useEffect(() => {
+    api.get("/health").catch(() => {});
+    return () => {
+      if (retryTimerRef.current) clearInterval(retryTimerRef.current);
+    };
+  }, []);
 
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   if (!fontsLoaded) return null;
@@ -116,7 +127,51 @@ export default function RegisterScreen() {
   const isPt = language === "pt";
   const isZh = language === "zh";
 
-  const handleRegister = async () => {
+  const attemptRegister = async (retriesLeft: number) => {
+    setLoading(true);
+    const result = await register(email.trim().toLowerCase(), password, displayName.trim());
+    if (result.ok) {
+      setLoading(false);
+      router.replace("/(tabs)");
+      return;
+    }
+    const raw = (result.error ?? "").toLowerCase();
+    const isWarmUp = raw.includes("timeout") || raw.includes("network") || raw.includes("network error");
+
+    if (isWarmUp && retriesLeft > 0) {
+      let sec = 12;
+      const countdownMsg = () =>
+        isZh ? `服务器启动中，${sec}秒后自动重试…` :
+        isPt ? `Servidor iniciando. Tentando novamente em ${sec}s…` :
+               `Server is warming up. Retrying in ${sec}s…`;
+      setError(countdownMsg());
+      setLoading(false);
+      if (retryTimerRef.current) clearInterval(retryTimerRef.current);
+      retryTimerRef.current = setInterval(() => {
+        sec--;
+        if (sec <= 0) {
+          clearInterval(retryTimerRef.current!);
+          retryTimerRef.current = null;
+          setError("");
+          attemptRegister(retriesLeft - 1);
+        } else {
+          setError(countdownMsg());
+        }
+      }, 1000);
+      return;
+    }
+
+    setLoading(false);
+    if (isWarmUp) {
+      setError(isZh ? "服务器正在启动，请稍后重试。" : isPt ? "Servidor iniciando. Tente novamente em breve." : "Server is warming up. Please try again in a moment.");
+    } else if (raw.includes("already") || raw.includes("exist") || raw.includes("registrado") || raw.includes("cadastrado") || raw.includes("duplicate")) {
+      setError(isZh ? "该邮箱已被注册，请直接登录。" : isPt ? "E-mail já cadastrado. Faça login." : "Email already registered. Please sign in instead.");
+    } else {
+      setError(result.error ?? (isZh ? "注册失败，请重试。" : isPt ? "Erro ao criar conta." : "Registration failed."));
+    }
+  };
+
+  const handleRegister = () => {
     setError("");
     if (!displayName.trim()) {
       setError(isZh ? "请输入显示名称。" : isPt ? "Nome de usuário é obrigatório." : "Display name is required.");
@@ -134,21 +189,7 @@ export default function RegisterScreen() {
       setError(isZh ? "两次密码不一致。" : isPt ? "As senhas não coincidem." : "Passwords do not match.");
       return;
     }
-    setLoading(true);
-    const result = await register(email.trim().toLowerCase(), password, displayName.trim());
-    setLoading(false);
-    if (!result.ok) {
-      const raw = (result.error ?? "").toLowerCase();
-      if (raw.includes("timeout") || raw.includes("network") || raw.includes("network error")) {
-        setError(isZh ? "服务器正在启动，请30秒后重试。" : isPt ? "Servidor iniciando. Tente novamente em 30 segundos." : "Server is warming up. Please try again in 30 seconds.");
-      } else if (raw.includes("already") || raw.includes("exist") || raw.includes("registrado") || raw.includes("cadastrado") || raw.includes("duplicate")) {
-        setError(isZh ? "该邮箱已被注册，请直接登录。" : isPt ? "E-mail já cadastrado. Faça login." : "Email already registered. Please sign in instead.");
-      } else {
-        setError(result.error ?? (isZh ? "注册失败，请重试。" : isPt ? "Erro ao criar conta." : "Registration failed."));
-      }
-      return;
-    }
-    router.replace("/(tabs)");
+    attemptRegister(2);
   };
 
   const inputStyle = (name: string) => ({
