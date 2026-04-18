@@ -327,7 +327,7 @@ export default function MarketDetailScreen() {
                 <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1.2, marginBottom: 10 }}>
                   {language === "pt" ? "HISTÓRICO DE PROBABILIDADE" : language === "zh" ? "概率历史" : "PROBABILITY HISTORY"}
                 </Text>
-                <ProbabilityChart scenarios={history} height={160} compact={false} width={chartWidth > 0 ? chartWidth : undefined} />
+                <ProbabilityChart scenarios={history} height={160} compact={false} width={chartWidth > 0 ? chartWidth : undefined} language={language} />
               </View>
             )}
 

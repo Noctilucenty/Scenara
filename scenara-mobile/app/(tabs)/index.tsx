@@ -314,7 +314,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
         {/* Mini probability chart */}
         {hasChart && cardWidth > 0 && (
           <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)" }}>
-            <ProbabilityChart scenarios={history!} height={70} compact width={cardWidth - 28} />
+            <ProbabilityChart scenarios={history!} height={70} compact width={cardWidth - 28} language={language} />
           </View>
         )}
 
@@ -2189,6 +2189,7 @@ export default function MarketsScreen() {
                                 height={isWide ? 150 : 110}
                                 compact={false}
                                 width={featuredChartWidth > 0 ? featuredChartWidth : undefined}
+                                language={language}
                               />
                             </View>
                           )}

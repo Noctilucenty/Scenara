@@ -30,7 +30,19 @@ type Props = {
   height?: number;
   compact?: boolean;
   width?: number;
+  language?: string;
 };
+
+/** Translate raw scenario_title ("Yes" / "No") for the legend / tooltip */
+function translateScenLabel(raw: string, language?: string): string {
+  if (language !== "zh") return raw;
+  const lower = raw.trim().toLowerCase();
+  if (lower === "yes") return "是";
+  if (lower === "no") return "否";
+  if (lower === "passes") return "通过";
+  if (lower === "delayed") return "推迟";
+  return raw;
+}
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -40,7 +52,7 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function ProbabilityChart({ scenarios, height = 120, compact = true, width: propWidth }: Props) {
+export function ProbabilityChart({ scenarios, height = 120, compact = true, width: propWidth, language }: Props) {
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
 
   const screenWidth = Dimensions.get("window").width;
@@ -122,7 +134,9 @@ export function ProbabilityChart({ scenarios, height = 120, compact = true, widt
   if (!hasData) {
     return (
       <View style={{ height: H, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ color: TEXT_MID, fontSize: 11 }}>Awaiting chart data...</Text>
+        <Text style={{ color: TEXT_MID, fontSize: 11 }}>
+          {language === "zh" ? "等待图表数据…" : language === "pt" ? "Aguardando dados…" : "Awaiting chart data..."}
+        </Text>
       </View>
     );
   }
@@ -188,7 +202,7 @@ export function ProbabilityChart({ scenarios, height = 120, compact = true, widt
             <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: i < tooltip.points.length - 1 ? 5 : 0 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: pt.color }} />
-                <Text style={{ color: "#94A3B8", fontSize: 10, maxWidth: 80 }} numberOfLines={1}>{pt.title.split("—")[0].trim()}</Text>
+                <Text style={{ color: "#94A3B8", fontSize: 10, maxWidth: 80 }} numberOfLines={1}>{translateScenLabel(pt.title.split("—")[0].trim(), language)}</Text>
               </View>
               <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 12, marginLeft: 8 }}>{pt.prob.toFixed(1)}%</Text>
             </View>
@@ -200,7 +214,7 @@ export function ProbabilityChart({ scenarios, height = 120, compact = true, widt
         {scenarios.map((s, i) => (
           <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
             <View style={{ width: 20, height: 2.5, borderRadius: 2, backgroundColor: SCENARIO_COLORS[i % SCENARIO_COLORS.length] }} />
-            <Text style={{ color: TEXT_MID, fontSize: 10 }} numberOfLines={1}>{s.scenario_title.split("—")[0].trim()}</Text>
+            <Text style={{ color: TEXT_MID, fontSize: 10 }} numberOfLines={1}>{translateScenLabel(s.scenario_title.split("—")[0].trim(), language)}</Text>
           </View>
         ))}
       </View>
