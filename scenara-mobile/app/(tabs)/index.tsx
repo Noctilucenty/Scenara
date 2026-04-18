@@ -87,7 +87,38 @@ const NEWS_STOP = new Set([
   "her","their","our","over","under","end","end","out","up","down",
   "into","onto","than","then","else","ever","hour","hours","week","weeks",
   "next","past","remain","hold","keep","drop","rise","fall","move",
+  "exceed","single","inflows","inflow","outflow","outflows","pass",
 ]);
+
+// When lang=zh, translate extracted English keywords → Chinese so Google News
+// returns articles from Chinese-language publishers instead of English ones.
+const ZH_KEYWORD_MAP: Record<string, string> = {
+  // Crypto
+  "ethereum": "以太坊", "eth": "以太坊", "bitcoin": "比特币", "btc": "比特币",
+  "xrp": "瑞波币", "crypto": "加密货币", "blockchain": "区块链", "etf": "ETF",
+  "defi": "去中心化金融", "nft": "NFT", "altcoin": "山寨币",
+  // Finance / macro
+  "fed": "美联储", "inflation": "通货膨胀", "tariffs": "关税", "tariff": "关税",
+  "nasdaq": "纳斯达克", "stocks": "股市", "gdp": "GDP", "recession": "经济衰退",
+  "interest": "利率", "rates": "利率", "bonds": "债券", "markets": "市场",
+  // Geopolitics / people
+  "ukraine": "乌克兰", "russia": "俄罗斯", "israel": "以色列", "hamas": "哈马斯",
+  "trump": "特朗普", "biden": "拜登", "china": "中国", "taiwan": "台湾",
+  "nato": "北约", "iran": "伊朗", "ceasefire": "停火", "war": "战争",
+  // Tech
+  "openai": "OpenAI", "apple": "苹果", "google": "谷歌", "meta": "Meta",
+  "tesla": "特斯拉", "microsoft": "微软", "nvidia": "英伟达", "huawei": "华为",
+  "iphone": "iPhone", "gpt": "GPT", "robotaxi": "无人出租车",
+  // Brazil / sports
+  "brazil": "巴西", "lula": "卢拉", "bolsonaro": "博索纳罗",
+  "flamengo": "弗拉门戈", "neymar": "内马尔", "petrobras": "巴西石油",
+  "ufc": "UFC", "nba": "NBA", "olympics": "奥运会",
+  // General
+  "blackrock": "贝莱德", "election": "选举", "congress": "国会",
+  "senate": "参议院", "grammy": "格莱美", "netflix": "Netflix",
+  "climate": "气候", "cancer": "癌症", "vaccine": "疫苗",
+};
+
 function extractNewsQuery(event: EventItem, lang: string): string {
   const title = (lang === "pt" && event.title_pt ? event.title_pt : event.title);
   const words = title
@@ -97,8 +128,14 @@ function extractNewsQuery(event: EventItem, lang: string): string {
       const lw = w.toLowerCase();
       return w.length >= 3 && !NEWS_STOP.has(lw) && !/^\d+$/.test(w);
     });
+  const top = words.slice(0, 3);
+  if (lang === "zh") {
+    // Translate to Chinese keywords so Google News returns Chinese-language articles
+    const zhWords = top.map(w => ZH_KEYWORD_MAP[w.toLowerCase()] ?? w);
+    return zhWords.join(" ") || event.category;
+  }
   // Prefer short unique terms; cap at 3 to keep the query tight
-  return words.slice(0, 3).join(" ") || event.category;
+  return top.join(" ") || event.category;
 }
 
 // â�€â�€ Mini arc gauge â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
