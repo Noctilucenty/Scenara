@@ -103,6 +103,7 @@ export default function RegisterScreen() {
   const [confirm, setConfirm]         = useState("");
   const [error, setError]             = useState("");
   const [loading, setLoading]         = useState(false);
+  const [serverReady, setServerReady] = useState(false);
   const [showPass, setShowPass]       = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [focused, setFocused]         = useState<string | null>(null);
@@ -112,10 +113,12 @@ export default function RegisterScreen() {
   const confirmRef = useRef<TextInput>(null);
   const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Proactively wake up the Render cold-start server when the screen mounts
-  // so it's ready by the time the user fills the form and hits submit.
+  // Ping /health on mount to wake Render's cold server.
+  // Button stays disabled until this resolves so the server is warm before submit.
   useEffect(() => {
-    api.get("/health").catch(() => {});
+    api.get("/health")
+      .catch(() => {})
+      .finally(() => setServerReady(true));
     return () => {
       if (retryTimerRef.current) clearInterval(retryTimerRef.current);
     };
@@ -348,13 +351,20 @@ export default function RegisterScreen() {
       </View>
 
       {/* Submit */}
-      <TouchableOpacity onPress={handleRegister} disabled={loading} style={{ borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
+      <TouchableOpacity onPress={handleRegister} disabled={loading || !serverReady} style={{ borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
         <LinearGradient
-          colors={loading ? ["#111", "#111"] : [BLUE, PURPLE, PINK]}
+          colors={loading || !serverReady ? ["#111", "#111"] : [BLUE, PURPLE, PINK]}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           style={{ paddingVertical: 16, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}
         >
-          {loading
+          {!serverReady
+            ? <>
+                <ActivityIndicator color="white" size="small" />
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontFamily: "DMSans_500Medium", fontSize: 14 }}>
+                  {isZh ? "连接中…" : isPt ? "Conectando…" : "Connecting…"}
+                </Text>
+              </>
+            : loading
             ? <ActivityIndicator color="white" />
             : <>
                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
