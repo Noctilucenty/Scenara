@@ -59,7 +59,9 @@ def _migrate_brazil_category() -> None:
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, version="0.6.0", debug=settings.app_debug)
 
-    cors_allow_origins = [o.strip() for o in settings.cors_allow_origins.split(",") if o.strip()]
+    raw = settings.cors_allow_origins.strip()
+    # "*" means allow all origins; otherwise parse comma-separated list
+    cors_allow_origins = ["*"] if raw == "*" else [o.strip() for o in raw.split(",") if o.strip()]
 
     app.add_middleware(
         CORSMiddleware,
