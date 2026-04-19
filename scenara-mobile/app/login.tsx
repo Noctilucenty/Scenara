@@ -141,6 +141,8 @@ export default function LoginScreen() {
       </Text>
       <View style={inputStyle("email")}>
         <TextInput
+          id="email"
+          autoComplete="email"
           value={email} onChangeText={v => { setEmail(v); setError(""); }}
           placeholder="you@example.com" placeholderTextColor={TEXT_MID}
           keyboardType="email-address" autoCapitalize="none" autoCorrect={false}
@@ -156,6 +158,8 @@ export default function LoginScreen() {
       </Text>
       <View style={inputStyle("password")}>
         <TextInput
+          id="current-password"
+          autoComplete="current-password"
           ref={passRef}
           value={password} onChangeText={v => { setPassword(v); setError(""); }}
           placeholder="••••••••" placeholderTextColor={TEXT_MID}

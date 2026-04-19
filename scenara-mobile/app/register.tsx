@@ -241,6 +241,8 @@ export default function RegisterScreen() {
       </Text>
       <View style={inputStyle("name")}>
         <TextInput
+          id="display-name"
+          autoComplete="name"
           value={displayName}
           onChangeText={v => { setDisplayName(v); setError(""); }}
           placeholder={isZh ? "您在排行榜上的名字" : isPt ? "Como aparecerá no ranking" : "How you'll appear on the leaderboard"}
@@ -259,6 +261,8 @@ export default function RegisterScreen() {
       </Text>
       <View style={inputStyle("email")}>
         <TextInput
+          id="email"
+          autoComplete="email"
           ref={emailRef}
           value={email}
           onChangeText={v => { setEmail(v); setError(""); }}
@@ -280,6 +284,8 @@ export default function RegisterScreen() {
       </Text>
       <View style={inputStyle("password")}>
         <TextInput
+          id="new-password"
+          autoComplete="new-password"
           ref={passRef}
           value={password}
           onChangeText={v => { setPassword(v); setError(""); }}
@@ -311,6 +317,8 @@ export default function RegisterScreen() {
           : focused === "confirm" ? PURPLE : BORDER,
       }}>
         <TextInput
+          id="confirm-password"
+          autoComplete="new-password"
           ref={confirmRef}
           value={confirm}
           onChangeText={v => { setConfirm(v); setError(""); }}
