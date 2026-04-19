@@ -13,8 +13,16 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (!error.response) {
+      // Distinguish a true axios timeout (ECONNABORTED) from other failures
+      // like CORS, connection refused, or no internet. This lets callers
+      // decide whether to retry (timeout = server cold) vs show a real error.
+      const isTimeout =
+        error.code === "ECONNABORTED" ||
+        (error.message ?? "").toLowerCase().includes("timeout");
+
       return Promise.reject({
-        message: "Network error or timeout",
+        message: isTimeout ? "Request timed out" : "Network error",
+        isTimeout,
         originalError: error,
       });
     }

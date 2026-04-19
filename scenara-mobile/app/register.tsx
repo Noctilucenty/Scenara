@@ -139,7 +139,8 @@ export default function RegisterScreen() {
       return;
     }
     const raw = (result.error ?? "").toLowerCase();
-    const isWarmUp = raw.includes("timeout") || raw.includes("network") || raw.includes("network error");
+    // Only treat definitive timeouts as a cold-start — not CORS / connection-refused
+    const isWarmUp = raw === "request timed out" || raw.includes("timed out");
 
     if (isWarmUp && retriesLeft > 0) {
       let sec = 12;
