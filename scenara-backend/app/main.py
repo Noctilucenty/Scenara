@@ -82,6 +82,7 @@ def create_app() -> FastAPI:
         logger.info("[Startup] Scenara backend v0.6.0 ready.")
 
     @app.get("/", tags=["health"])
+    @app.head("/", tags=["health"])
     def health():
         return {"status": "ok", "name": settings.app_name, "version": "0.6.0"}
 
