@@ -36,6 +36,24 @@ def _migrate_is_admin_column() -> None:
         logger.info("[Migration] Added is_admin column to users.")
 
 
+def _migrate_user_columns() -> None:
+    """Idempotent: add any missing columns to the users table."""
+    from sqlalchemy import text as sql_text, inspect
+    insp = inspect(engine)
+    cols = [c["name"] for c in insp.get_columns("users")]
+
+    with engine.begin() as conn:
+        if "last_login_at" not in cols:
+            conn.execute(sql_text("ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP NULL DEFAULT NULL"))
+            logger.info("[Migration] Added last_login_at column to users.")
+        if "updated_at" not in cols:
+            conn.execute(sql_text("ALTER TABLE users ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT NOW()"))
+            logger.info("[Migration] Added updated_at column to users.")
+        if "display_name" not in cols:
+            conn.execute(sql_text("ALTER TABLE users ADD COLUMN display_name VARCHAR(100) NOT NULL DEFAULT ''"))
+            logger.info("[Migration] Added display_name column to users.")
+
+
 def _migrate_brazil_category() -> None:
     """One-time idempotent migration: set category='brazil' for all Brazil-specific events."""
     from sqlalchemy import text as sql_text
@@ -76,6 +94,7 @@ def create_app() -> FastAPI:
     async def _startup() -> None:
         Base.metadata.create_all(bind=engine)
         _migrate_is_admin_column()
+        _migrate_user_columns()
         _migrate_brazil_category()
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
