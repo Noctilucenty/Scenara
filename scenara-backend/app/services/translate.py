@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import logging
 import httpx
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def translate_batch(texts: list[str], target: str = "zh-CN") -> list[str | None]:
     """Translate a list of strings in one API call. Returns None for each item if API key is missing or on error."""
     if not settings.google_translate_api_key:
+        logger.warning("TRANSLATE: google_translate_api_key is not set — skipping translation")
         return [None] * len(texts)
 
     non_empty = [(i, t) for i, t in enumerate(texts) if t and t.strip()]
@@ -28,11 +32,13 @@ def translate_batch(texts: list[str], target: str = "zh-CN") -> list[str | None]
             r.raise_for_status()
             translations = r.json()["data"]["translations"]
             if len(translations) != len(non_empty):
-                return result  # partial response — return what we have (all None)
+                logger.error("TRANSLATE: API returned %d results for %d inputs", len(translations), len(non_empty))
+                return result
             for j, (i, _) in enumerate(non_empty):
                 result[i] = translations[j]["translatedText"]
-    except Exception:
-        pass
+            logger.info("TRANSLATE: successfully translated %d strings to %s", len(non_empty), target)
+    except Exception as e:
+        logger.error("TRANSLATE: failed — %s", e)
     return result
 
 
