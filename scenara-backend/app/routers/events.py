@@ -251,8 +251,7 @@ def search_events(
     if category and category != "all":
         query = query.filter(Event.category == category)
     events = query.order_by(Event.created_at.desc()).limit(30).all()
-    if lang == "zh":
-        _fill_zh_translations(events, db)
+    _fill_zh_translations(events, db)
     return events
 
 
@@ -276,8 +275,7 @@ def list_events(
     if category and category != "all":
         base_q = base_q.filter(Event.category == category)
         events = base_q.order_by(Event.id.desc()).offset(offset).limit(limit).all()
-        if lang == "zh":
-            _fill_zh_translations(events, db)
+        _fill_zh_translations(events, db)
         return events
 
     # For "all" categories: interleave via round-robin row-number window function.
@@ -314,8 +312,7 @@ def list_events(
         .all()
     )
     events.sort(key=lambda e: id_order.get(e.id, 999))
-    if lang == "zh":
-        _fill_zh_translations(events, db)
+    _fill_zh_translations(events, db)
     return events
 
 
@@ -329,8 +326,7 @@ def get_event(event_id: int, lang: str = Query(default="en"), db: Session = Depe
     )
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    if lang == "zh":
-        _fill_zh_translations([event], db)
+    _fill_zh_translations([event], db)
     return event
 
 
