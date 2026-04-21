@@ -49,6 +49,7 @@ class ScenarioOut(BaseModel):
     id: int
     title: str
     title_pt: str | None = None
+    title_zh: str | None = None
     description: str | None
     probability: float
     sort_order: int
@@ -61,8 +62,10 @@ class EventOut(BaseModel):
     slug: str
     title: str
     title_pt: str | None
+    title_zh: str | None
     description: str | None
     description_pt: str | None
+    description_zh: str | None
     category: str
     source: str | None
     status: str
@@ -115,6 +118,43 @@ class EventHistoryOut(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _fill_zh_translations(events: list, db: Session) -> None:
+    """Batch-translate any events/scenarios missing zh fields and cache results in DB."""
+    from app.services.translate import translate_batch
+
+    texts: list[str] = []
+    targets: list[tuple] = []  # (obj, field)
+
+    for event in events:
+        if not event.title_zh and event.title:
+            texts.append(event.title)
+            targets.append((event, "title_zh"))
+        if not event.description_zh and event.description:
+            texts.append(event.description)
+            targets.append((event, "description_zh"))
+        for scenario in event.scenarios:
+            if not scenario.title_zh and scenario.title:
+                texts.append(scenario.title)
+                targets.append((scenario, "title_zh"))
+
+    if not texts:
+        return
+
+    translated = translate_batch(texts)
+    changed = False
+    for (obj, field), value in zip(targets, translated):
+        if value:
+            setattr(obj, field, value)
+            changed = True
+
+    if changed:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
 
 def _log_probability(
     db: Session,
@@ -193,6 +233,7 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
 def search_events(
     q: str = Query(..., min_length=1),
     category: str | None = Query(None),
+    lang: str = Query(default="en"),
     db: Session = Depends(get_db),
 ):
     """Search open events by title keyword."""
@@ -202,12 +243,17 @@ def search_events(
         or_(
             Event.title.ilike(f"%{q}%"),
             Event.title_pt.ilike(f"%{q}%"),
+            Event.title_zh.ilike(f"%{q}%"),
             Event.description.ilike(f"%{q}%"),
+            Event.description_zh.ilike(f"%{q}%"),
         )
     )
     if category and category != "all":
         query = query.filter(Event.category == category)
-    return query.order_by(Event.created_at.desc()).limit(30).all()
+    events = query.order_by(Event.created_at.desc()).limit(30).all()
+    if lang == "zh":
+        _fill_zh_translations(events, db)
+    return events
 
 
 @router.get("/", response_model=list[EventOut])
@@ -218,6 +264,7 @@ def list_events(
     category: Optional[str] = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    lang: str = Query(default="en"),
 ):
     from sqlalchemy import func
 
@@ -228,7 +275,10 @@ def list_events(
         base_q = base_q.filter(Event.is_featured.is_(True))
     if category and category != "all":
         base_q = base_q.filter(Event.category == category)
-        return base_q.order_by(Event.id.desc()).offset(offset).limit(limit).all()
+        events = base_q.order_by(Event.id.desc()).offset(offset).limit(limit).all()
+        if lang == "zh":
+            _fill_zh_translations(events, db)
+        return events
 
     # For "all" categories: interleave via round-robin row-number window function.
     # Step 1: get ordered IDs using window function
@@ -264,11 +314,13 @@ def list_events(
         .all()
     )
     events.sort(key=lambda e: id_order.get(e.id, 999))
+    if lang == "zh":
+        _fill_zh_translations(events, db)
     return events
 
 
 @router.get("/{event_id}", response_model=EventOut)
-def get_event(event_id: int, db: Session = Depends(get_db)):
+def get_event(event_id: int, lang: str = Query(default="en"), db: Session = Depends(get_db)):
     event = (
         db.query(Event)
         .options(joinedload(Event.scenarios))
@@ -277,6 +329,8 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
     )
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+    if lang == "zh":
+        _fill_zh_translations([event], db)
     return event
 
 

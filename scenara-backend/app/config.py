@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     drivewealth_app_secret: str | None = None
     drivewealth_use_mock: bool = True
 
+    # ---------- Google Translate ----------
+    google_translate_api_key: str | None = None
+
     # ---------- CORS ----------
     # Default "*" allows all origins (safe for this app — JWT-protected, no real money).
     # On Render.com: set CORS_ALLOW_ORIGINS env var to "*" or a comma-separated list.

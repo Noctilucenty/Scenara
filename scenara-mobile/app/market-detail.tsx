@@ -53,24 +53,29 @@ const CAT_META: Record<string, { icon: string; color: string }> = {
   weather:       { icon: "🌦",  color: "#7DD3FC" },
 };
 
-type Scenario = { id: number; title: string; title_pt: string | null; probability: number; status: string };
+type Scenario = { id: number; title: string; title_pt: string | null; title_zh: string | null; probability: number; status: string };
 type EventDetail = {
-  id: number; title: string; title_pt: string | null;
-  description: string | null; description_pt: string | null;
+  id: number; title: string; title_pt: string | null; title_zh: string | null;
+  description: string | null; description_pt: string | null; description_zh: string | null;
   category: string; status: string; closes_at: string | null; scenarios: Scenario[];
 };
 
 function scenarioTitle(s: Scenario, lang: string) {
-  return toChineseFallback(lang === "pt" && s.title_pt ? s.title_pt : s.title, lang);
+  if (lang === "zh") return s.title_zh || toChineseFallback(s.title, lang);
+  if (lang === "pt") return s.title_pt || s.title;
+  return s.title;
 }
 
-function eventTitle(title: string, titlePt: string | null, lang: string) {
-  return toChineseFallback(lang === "pt" && titlePt ? titlePt : title, lang);
+function eventTitle(title: string, titlePt: string | null, lang: string, titleZh?: string | null) {
+  if (lang === "zh") return titleZh || toChineseFallback(title, lang);
+  if (lang === "pt") return titlePt || title;
+  return title;
 }
 
-function eventDescription(description: string | null, descriptionPt: string | null, lang: string) {
-  const value = lang === "pt" && descriptionPt ? descriptionPt : (description ?? "");
-  return toChineseFallback(value, lang);
+function eventDescription(description: string | null, descriptionPt: string | null, lang: string, descriptionZh?: string | null) {
+  if (lang === "zh") return descriptionZh || toChineseFallback(description ?? "", lang);
+  if (lang === "pt") return descriptionPt || description || "";
+  return description || "";
 }
 
 function articleTitle(title: string, lang: string) {
@@ -167,7 +172,7 @@ export default function MarketDetailScreen() {
   useEffect(() => {
     if (!eventId) return;
     Promise.all([
-      api.get(`/events/${eventId}`),
+      api.get(`/events/${eventId}`, { params: { lang: language } }),
       api.get(`/events/${eventId}/history`),
     ]).then(([eventRes, histRes]) => {
       const found = eventRes.data;
@@ -243,7 +248,7 @@ export default function MarketDetailScreen() {
   );
 
   const cm = CAT_META[event.category] ?? { icon: "◈", color: PURPLE };
-  const title = eventTitle(event.title, event.title_pt, language);
+  const title = eventTitle(event.title, event.title_pt, language, event.title_zh);
   const desc = eventDescription(event.description, event.description_pt, language);
   const resolved = event.status === "resolved";
   const selScene = event.scenarios.find(s => s.id === selId);

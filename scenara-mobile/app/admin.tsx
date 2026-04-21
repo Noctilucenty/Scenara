@@ -24,9 +24,9 @@ const RED     = "#EF4444";
 const YELLOW  = "#F59E0B";
 const SCENARIO_COLORS = [GREEN, RED, PURPLE, BLUE, YELLOW];
 
-type Scenario = { id: number; title: string; title_pt: string | null; probability: number; sort_order: number };
+type Scenario = { id: number; title: string; title_pt: string | null; title_zh: string | null; probability: number; sort_order: number };
 type PendingEvent = {
-  id: number; title: string; title_pt: string | null;
+  id: number; title: string; title_pt: string | null; title_zh: string | null;
   category: string; closes_at: string | null; status: string; is_featured: boolean;
   scenarios: Scenario[];
 };
@@ -82,8 +82,8 @@ export default function AdminScreen() {
   const resolve = (event: PendingEvent, scenarioId: number) => {
     const scenario = event.scenarios.find(s => s.id === scenarioId);
     const note = noteText[event.id] || "";
-    const title = language === "pt" && event.title_pt ? event.title_pt : event.title;
-    const scenarioLabel = language === "pt" && scenario?.title_pt ? scenario.title_pt : scenario?.title;
+    const title = language === "zh" ? (event.title_zh || event.title) : language === "pt" ? (event.title_pt || event.title) : event.title;
+    const scenarioLabel = language === "zh" ? (scenario?.title_zh || scenario?.title) : language === "pt" ? (scenario?.title_pt || scenario?.title) : scenario?.title;
 
     const confirm = () => {
       setResolving(event.id);
@@ -115,7 +115,7 @@ export default function AdminScreen() {
   };
 
   const voidEvent = (event: PendingEvent) => {
-    const title = language === "pt" && event.title_pt ? event.title_pt : event.title;
+    const title = language === "zh" ? (event.title_zh || event.title) : language === "pt" ? (event.title_pt || event.title) : event.title;
     const confirm = () => {
       setResolving(event.id);
       api.post(`/admin/events/${event.id}/void`, { note: "Voided by admin" })
@@ -233,7 +233,7 @@ function EventCard({
   onVoid(e: PendingEvent): void; resolving: boolean;
   noteText: string; onNoteChange(t: string): void;
 }) {
-  const title = language === "pt" && event.title_pt ? event.title_pt : event.title;
+  const title = language === "zh" ? (event.title_zh || event.title) : language === "pt" ? (event.title_pt || event.title) : event.title;
   const tl = timeLeft(event.closes_at);
   const isExpired = !!(event.closes_at && new Date(event.closes_at) < new Date());
   const catColor = categoryColor(event.category);
@@ -276,7 +276,7 @@ function EventCard({
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: SCENARIO_COLORS[i % SCENARIO_COLORS.length] }} />
                 <Text style={{ color: TEXT, fontFamily: "DMSans_600Medium" ?? "DMSans_500Medium", fontSize: 13 }}>
-                  {language === "pt" && s.title_pt ? s.title_pt : s.title}
+                  {language === "zh" ? (s.title_zh || s.title) : language === "pt" ? (s.title_pt || s.title) : s.title}
                 </Text>
               </View>
               <Text style={{ color: SCENARIO_COLORS[i % SCENARIO_COLORS.length], fontFamily: "DMSans_700Bold", fontSize: 14 }}>

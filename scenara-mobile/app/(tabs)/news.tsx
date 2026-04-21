@@ -42,6 +42,7 @@ type Scenario = {
   id: number;
   title: string;
   title_pt: string | null;
+  title_zh: string | null;
   probability: number;
 };
 
@@ -49,6 +50,7 @@ type EventItem = {
   id: number;
   title: string;
   title_pt: string | null;
+  title_zh: string | null;
   category: string;
   status: string;
   scenarios: Scenario[];
@@ -131,19 +133,23 @@ function timeAgo(dateStr: string, lang: string): string {
 }
 
 function eventTitle(e: EventItem, lang: string) {
-  const title = (lang === "pt" && e.title_pt) ? e.title_pt : e.title;
-  return toChineseFallback(title, lang);
+  if (lang === "zh") return e.title_zh || toChineseFallback(e.title, lang);
+  if (lang === "pt") return e.title_pt || e.title;
+  return e.title;
 }
 
 function scenarioTitle(s: Scenario, lang: string) {
   if (lang === "zh") {
+    if (s.title_zh) return s.title_zh;
     const value = (s.title_pt || s.title || "").trim().toLowerCase();
     if (value === "yes") return "是";
     if (value === "no") return "否";
     if (value === "passes") return "通过";
     if (value === "delayed") return "推迟";
+    return toChineseFallback(s.title, lang);
   }
-  return (lang === "pt" && s.title_pt) ? s.title_pt : s.title;
+  if (lang === "pt") return s.title_pt || s.title;
+  return s.title;
 }
 
 // ── Sparkline mini chart ──────────────────────────────────────────────────────
