@@ -51,21 +51,9 @@ const SLIDES = {
       title: "How predictions work",
       body: "Follow three simple steps to start predicting",
       steps: [
-        {
-          n: "1",
-          title: "Pick an event",
-          desc: "Politics, crypto, sports, tech and more",
-        },
-        {
-          n: "2",
-          title: "Choose your outcome",
-          desc: "Yes or No, with live probabilities",
-        },
-        {
-          n: "3",
-          title: "Set your amount",
-          desc: "Bet from your $10,000 simulation balance",
-        },
+        { n: "1", title: "Pick an event", desc: "Politics, crypto, sports, tech and more" },
+        { n: "2", title: "Choose your outcome", desc: "Yes or No, with live probabilities" },
+        { n: "3", title: "Set your amount", desc: "Bet from your $10,000 simulation balance" },
       ],
     },
     {
@@ -73,16 +61,8 @@ const SLIDES = {
       title: "Win and climb the ranks",
       body: "Correct predictions earn real payouts. Build streaks and rise on the leaderboard.",
       wins: [
-        {
-          event: "Will BTC be above $70k?",
-          choice: "Chose: Yes",
-          pnl: "+$184",
-        },
-        {
-          event: "Lula approval above 40%?",
-          choice: "Chose: No",
-          pnl: "+$92",
-        },
+        { event: "Will BTC be above $70k?", choice: "Chose: Yes", pnl: "+$184" },
+        { event: "Lula approval above 40%?", choice: "Chose: No", pnl: "+$92" },
       ],
     },
   ],
@@ -98,21 +78,9 @@ const SLIDES = {
       title: "Como as previsões funcionam",
       body: "Siga três passos simples para começar",
       steps: [
-        {
-          n: "1",
-          title: "Escolha um evento",
-          desc: "Política, cripto, esportes, tecnologia e mais",
-        },
-        {
-          n: "2",
-          title: "Escolha o resultado",
-          desc: "Sim ou Não, com probabilidades ao vivo",
-        },
-        {
-          n: "3",
-          title: "Defina o valor",
-          desc: "Aposte com seu saldo de $10.000",
-        },
+        { n: "1", title: "Escolha um evento", desc: "Política, cripto, esportes, tecnologia e mais" },
+        { n: "2", title: "Escolha o resultado", desc: "Sim ou Não, com probabilidades ao vivo" },
+        { n: "3", title: "Defina o valor", desc: "Aposte com seu saldo de $10.000" },
       ],
     },
     {
@@ -120,16 +88,35 @@ const SLIDES = {
       title: "Ganhe e suba no ranking",
       body: "Previsões corretas rendem pagamentos reais. Construa sequências e suba no ranking.",
       wins: [
-        {
-          event: "O BTC vai ficar acima de $70k?",
-          choice: "Escolheu: Sim",
-          pnl: "+$184",
-        },
-        {
-          event: "Aprovação do Lula acima de 40%?",
-          choice: "Escolheu: Não",
-          pnl: "+$92",
-        },
+        { event: "O BTC vai ficar acima de $70k?", choice: "Escolheu: Sim", pnl: "+$184" },
+        { event: "Aprovação do Lula acima de 40%?", choice: "Escolheu: Não", pnl: "+$92" },
+      ],
+    },
+  ],
+  zh: [
+    {
+      icon: "logo",
+      title: "欢迎使用 Scenara",
+      body: "模拟预测市场，让您预测真实世界事件并与其他玩家竞争。",
+      extra: "balance",
+    },
+    {
+      icon: "chart",
+      title: "预测如何运作",
+      body: "按照三个简单步骤开始预测",
+      steps: [
+        { n: "1", title: "选择事件", desc: "政治、加密货币、体育、科技等" },
+        { n: "2", title: "选择结果", desc: "是或否，附有实时概率" },
+        { n: "3", title: "设置金额", desc: "使用您的 $10,000 模拟余额下注" },
+      ],
+    },
+    {
+      icon: "star",
+      title: "赢得胜利，攀登排行榜",
+      body: "正确预测可获得真实奖励。积累连胜并跻身排行榜榜首。",
+      wins: [
+        { event: "BTC 会突破 $70k 吗？", choice: "选择：是", pnl: "+$184" },
+        { event: "卢拉支持率超过 40%？", choice: "选择：否", pnl: "+$92" },
       ],
     },
   ],
@@ -198,9 +185,9 @@ export function markOnboardingDone(): void {
 function LanguageSelectScreen({
   onSelect,
 }: {
-  onSelect(lang: "en" | "pt"): void;
+  onSelect(lang: "en" | "pt" | "zh"): void;
 }) {
-  const [selected, setSelected] = useState<"en" | "pt" | null>(null);
+  const [selected, setSelected] = useState<"en" | "pt" | "zh" | null>(null);
 
   return (
     <View
@@ -247,24 +234,15 @@ function LanguageSelectScreen({
             marginTop: 6,
           }}
         >
-          Choose your language · Escolha seu idioma
+          Choose your language · Escolha seu idioma · 选择语言
         </Text>
       </View>
 
       <View style={{ width: "100%", gap: 14, marginBottom: 40 }}>
         {[
-          {
-            lang: "en" as const,
-            flag: "🇺🇸",
-            label: "English",
-            sub: "United States",
-          },
-          {
-            lang: "pt" as const,
-            flag: "🇧🇷",
-            label: "Português",
-            sub: "Brasil",
-          },
+          { lang: "en" as const, flag: "🇺🇸", label: "English", sub: "United States" },
+          { lang: "pt" as const, flag: "🇧🇷", label: "Português", sub: "Brasil" },
+          { lang: "zh" as const, flag: "🇨🇳", label: "中文", sub: "中国大陆" },
         ].map((opt) => {
           const isSelected = selected === opt.lang;
 
@@ -361,7 +339,7 @@ function LanguageSelectScreen({
               letterSpacing: 0.3,
             }}
           >
-            {selected === "pt" ? "Continuar" : "Continue"}
+            {selected === "pt" ? "Continuar" : selected === "zh" ? "继续" : "Continue"}
           </Text>
         </LinearGradient>
       </TouchableOpacity>
@@ -385,11 +363,11 @@ export default function OnboardingScreen() {
 
   if (!fontsLoaded) return null;
 
-  const slides = SLIDES[language as "en" | "pt"] ?? SLIDES.en;
+  const slides = SLIDES[language as keyof typeof SLIDES] ?? SLIDES.en;
   const slide = slides[cur];
   const isLast = cur === slides.length - 1;
 
-  const handleLangSelect = (lang: "en" | "pt") => {
+  const handleLangSelect = (lang: "en" | "pt" | "zh") => {
     setLanguage(lang);
     setCur(0);
     setStage("slides");
@@ -411,12 +389,10 @@ export default function OnboardingScreen() {
 
   const nextLabel =
     language === "pt"
-      ? isLast
-        ? "Começar"
-        : "Próximo"
-      : isLast
-        ? "Get started"
-        : "Next";
+      ? isLast ? "Começar" : "Próximo"
+      : language === "zh"
+      ? isLast ? "开始" : "下一步"
+      : isLast ? "Get started" : "Next";
 
   return (
     <View
@@ -490,7 +466,7 @@ export default function OnboardingScreen() {
                       fontSize: 14,
                     }}
                   >
-                    {language === "pt" ? "Pular" : "Skip"}
+                    {language === "pt" ? "Pular" : language === "zh" ? "跳过" : "Skip"}
                   </Text>
                 </TouchableOpacity>
               ) : (
@@ -623,9 +599,7 @@ export default function OnboardingScreen() {
                       marginBottom: 8,
                     }}
                   >
-                    {language === "pt"
-                      ? "SEU SALDO INICIAL"
-                      : "YOUR STARTING BALANCE"}
+                    {language === "pt" ? "SEU SALDO INICIAL" : language === "zh" ? "您的初始余额" : "YOUR STARTING BALANCE"}
                   </Text>
 
                   <Text
@@ -647,9 +621,7 @@ export default function OnboardingScreen() {
                       marginTop: 6,
                     }}
                   >
-                    {language === "pt"
-                      ? "Sem dinheiro real envolvido"
-                      : "No real money involved"}
+                    {language === "pt" ? "Sem dinheiro real envolvido" : language === "zh" ? "无真实资金参与" : "No real money involved"}
                   </Text>
                 </View>
               )}
@@ -785,9 +757,7 @@ export default function OnboardingScreen() {
                         textAlign: "center",
                       }}
                     >
-                      {language === "pt"
-                        ? "Suba no ranking e compare com outros jogadores"
-                        : "Rise on the leaderboard and compete with others"}
+                      {language === "pt" ? "Suba no ranking e compare com outros jogadores" : language === "zh" ? "攀登排行榜，与其他玩家竞争" : "Rise on the leaderboard and compete with others"}
                     </Text>
                   </View>
                 </View>

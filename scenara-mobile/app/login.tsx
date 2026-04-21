@@ -64,7 +64,7 @@ export default function LoginScreen() {
   const { width: winW } = useWindowDimensions();
   const isWide = winW >= 700;
   const { login } = useTrading();
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
@@ -77,10 +77,11 @@ export default function LoginScreen() {
   if (!fontsLoaded) return null;
 
   const isPt = language === "pt";
+  const isZh = isZh;
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      setError(isPt ? "Preencha e-mail e senha." : "Please enter your email and password.");
+      setError(t.auth.fillCredentials);
       return;
     }
     setLoading(true);
@@ -88,7 +89,7 @@ export default function LoginScreen() {
     const result = await login(email.trim().toLowerCase(), password);
     setLoading(false);
     if (!result.ok) {
-      setError(result.error ?? (isPt ? "Credenciais inválidas." : "Invalid credentials."));
+      setError(result.error ?? t.auth.invalidCredentials);
       return;
     }
     router.replace("/(tabs)");
@@ -121,10 +122,10 @@ export default function LoginScreen() {
       />
 
       <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", marginBottom: 4 }}>
-        {isPt ? "Entrar" : "Sign in"}
+        {t.auth.signInBtn}
       </Text>
       <Text style={{ color: TEXT_MID, fontSize: 13, fontFamily: "DMSans_400Regular", marginBottom: 22 }}>
-        {isPt ? "Acesse sua conta Scenara" : "Access your Scenara account"}
+        {t.auth.accessAccount}
       </Text>
 
       {/* Error */}
@@ -137,7 +138,7 @@ export default function LoginScreen() {
 
       {/* Email */}
       <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 7 }}>
-        {isPt ? "E-MAIL" : "EMAIL"}
+        {t.auth.email}
       </Text>
       <View style={inputStyle("email")}>
         <TextInput
@@ -154,7 +155,7 @@ export default function LoginScreen() {
 
       {/* Password */}
       <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_700Bold", letterSpacing: 0.8, marginBottom: 7 }}>
-        {isPt ? "SENHA" : "PASSWORD"}
+        {t.auth.password}
       </Text>
       <View style={inputStyle("password")}>
         <TextInput
@@ -176,7 +177,7 @@ export default function LoginScreen() {
       {/* Forgot password */}
       <TouchableOpacity style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4 }}>
         <Text style={{ color: PURPLE, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
-          {isPt ? "Esqueceu a senha?" : "Forgot password?"}
+          {t.auth.forgotPassword}
         </Text>
       </TouchableOpacity>
 
@@ -191,7 +192,7 @@ export default function LoginScreen() {
             ? <ActivityIndicator color="white" />
             : <>
                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                  {isPt ? "Entrar" : "Sign in"}
+                  {t.auth.signInBtn}
                 </Text>
                 <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}>→</Text>
               </>
@@ -202,7 +203,7 @@ export default function LoginScreen() {
       {/* Divider */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
-        <Text style={{ color: TEXT_MID, fontSize: 11 }}>{isPt ? "ou" : "or"}</Text>
+        <Text style={{ color: TEXT_MID, fontSize: 11 }}>{t.auth.or}</Text>
         <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
       </View>
 
@@ -212,9 +213,9 @@ export default function LoginScreen() {
         style={{ alignItems: "center", paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: BORDER }}
       >
         <Text style={{ color: TEXT_SUB, fontSize: 14, fontFamily: "DMSans_400Regular" }}>
-          {isPt ? "Não tem conta? " : "No account? "}
+          {t.auth.noAccount}{" "}
           <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold" }}>
-            {isPt ? "Criar grátis →" : "Create free →"}
+            {t.auth.createFree}
           </Text>
         </Text>
       </TouchableOpacity>
@@ -241,20 +242,18 @@ export default function LoginScreen() {
           </View>
 
           <Text style={{ color: TEXT, fontSize: 32, fontFamily: "DMSans_700Bold", letterSpacing: -0.8, lineHeight: 40, marginBottom: 14 }}>
-            {isPt ? "Bem-vindo de\nvolta." : "Welcome\nback."}
+            {t.auth.welcomeBack + "."}
           </Text>
           <Text style={{ color: TEXT_MID, fontSize: 15, fontFamily: "DMSans_400Regular", lineHeight: 24, marginBottom: 48 }}>
-            {isPt
-              ? "Continue prevendo. Acompanhe seu desempenho e suba no ranking."
-              : "Keep predicting. Track your edge and climb the leaderboard."}
+            {t.auth.keepPredicting}
           </Text>
 
           {/* Feature list */}
           {[
-            { icon: "📊", title: isPt ? "Mercados ao vivo" : "Live markets", desc: isPt ? "Eventos acontecendo agora" : "Events happening right now" },
-            { icon: "💼", title: isPt ? "Seu portfólio" : "Your portfolio", desc: isPt ? "Acompanhe todas as posições" : "Track all your positions" },
-            { icon: "🏆", title: isPt ? "Ranking global" : "Global leaderboard", desc: isPt ? "Veja onde você está" : "See where you stand" },
-            { icon: "📰", title: isPt ? "Notícias em tempo real" : "Real-time news", desc: isPt ? "Contexto para cada mercado" : "Context for every market" },
+            { icon: "📊", title: isPt ? "Mercados ao vivo" : isZh ? "实时市场" : "Live markets", desc: isPt ? "Eventos acontecendo agora" : isZh ? "正在发生的实时事件" : "Events happening right now" },
+            { icon: "💼", title: isPt ? "Seu portfólio" : isZh ? "您的投资组合" : "Your portfolio", desc: isPt ? "Acompanhe todas as posições" : isZh ? "追踪所有持仓" : "Track all your positions" },
+            { icon: "🏆", title: isPt ? "Ranking global" : isZh ? "全球排行榜" : "Global leaderboard", desc: isPt ? "Veja onde você está" : isZh ? "查看您的排名" : "See where you stand" },
+            { icon: "📰", title: isPt ? "Notícias em tempo real" : isZh ? "实时新闻" : "Real-time news", desc: isPt ? "Contexto para cada mercado" : isZh ? "每个市场的背景信息" : "Context for every market" },
           ].map((f, i) => (
             <View key={i} style={{ flexDirection: "row", gap: 14, marginBottom: 20, alignItems: "flex-start" }}>
               <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(124,92,252,0.12)", borderWidth: 1, borderColor: BORDER_P, alignItems: "center", justifyContent: "center" }}>
@@ -270,9 +269,9 @@ export default function LoginScreen() {
           {/* Stats row */}
           <View style={{ flexDirection: "row", gap: 24, marginTop: 16, paddingTop: 24, borderTopWidth: 1, borderColor: BORDER }}>
             {[
-              { value: "10K+", label: isPt ? "Jogadores" : "Players" },
-              { value: "$10K", label: isPt ? "Saldo inicial" : "Start balance" },
-              { value: "100%", label: isPt ? "Grátis" : "Free" },
+              { value: "10K+", label: t.common.players },
+              { value: "$10K", label: t.common.startBalance },
+              { value: "100%", label: t.common.free },
             ].map((s, i) => (
               <View key={i}>
                 <Text style={{ color: PURPLE, fontSize: 18, fontFamily: "DMSans_700Bold" }}>{s.value}</Text>
@@ -298,7 +297,7 @@ export default function LoginScreen() {
               <Path d="M19 12H5M12 5l-7 7 7 7" stroke={TEXT_SUB} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
             </Svg>
             <Text style={{ color: TEXT_SUB, fontSize: 13, fontFamily: "DMSans_500Medium" }}>
-              {isPt ? "Voltar ao app" : "Back to app"}
+              {t.auth.backToApp}
             </Text>
           </TouchableOpacity>
 
@@ -322,7 +321,7 @@ export default function LoginScreen() {
           <Path d="M19 12H5M12 5l-7 7 7 7" stroke={TEXT_SUB} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
         <Text style={{ color: TEXT_SUB, fontSize: 14, fontFamily: "DMSans_500Medium" }}>
-          {isPt ? "Voltar" : "Back"}
+          {t.auth.back}
         </Text>
       </TouchableOpacity>
 
@@ -339,16 +338,16 @@ export default function LoginScreen() {
             </View>
             <Text style={{ color: TEXT, fontSize: 30, fontFamily: "DMSans_700Bold", letterSpacing: -0.8 }}>scenara</Text>
             <Text style={{ color: TEXT_MID, fontSize: 14, fontFamily: "DMSans_400Regular", marginTop: 6 }}>
-              {isPt ? "Bem-vindo de volta" : "Welcome back"}
+              {t.auth.welcomeBack}
             </Text>
           </View>
 
           {/* Stats strip */}
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 0, marginBottom: 32 }}>
             {[
-              { value: "10K+", label: isPt ? "Jogadores" : "Players" },
-              { value: isPt ? "Grátis" : "Free", label: isPt ? "Sempre" : "Always" },
-              { value: "$10K", label: isPt ? "Saldo Inicial" : "Start Balance" },
+              { value: "10K+", label: t.common.players },
+              { value: t.common.free, label: t.common.always },
+              { value: "$10K", label: t.common.startBalance },
             ].map((s, i) => (
               <View key={i} style={{ flex: 1, alignItems: "center", paddingVertical: 2 }}>
                 {i > 0 && (

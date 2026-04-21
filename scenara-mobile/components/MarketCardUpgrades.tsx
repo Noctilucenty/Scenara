@@ -20,15 +20,19 @@ import { ProbabilityChart, ScenarioHistory } from "@/components/ProbabilityChart
 
 // ── Types (copy from index.tsx — shared) ──────────────────────────────────────
 
-type Scenario  = { id: number; title: string; title_pt?: string | null; probability: number; sort_order: number; status: string };
-type EventItem = { id: number; slug: string; title: string; title_pt?: string | null; description?: string | null; description_pt?: string | null; category: string; status: string; resolution_note?: string | null; is_featured: boolean; closes_at?: string | null; resolved_at?: string | null; scenarios: Scenario[] };
+type Scenario  = { id: number; title: string; title_pt?: string | null; title_zh?: string | null; probability: number; sort_order: number; status: string };
+type EventItem = { id: number; slug: string; title: string; title_pt?: string | null; title_zh?: string | null; description?: string | null; description_pt?: string | null; description_zh?: string | null; category: string; status: string; resolution_note?: string | null; is_featured: boolean; closes_at?: string | null; resolved_at?: string | null; scenarios: Scenario[] };
 
 function eventTitle(event: EventItem, lang: string): string {
-  return lang === "pt" && (event as any).title_pt ? (event as any).title_pt : event.title;
+  if (lang === "zh") return event.title_zh || event.title;
+  if (lang === "pt") return event.title_pt || event.title;
+  return event.title;
 }
 function scenarioTitle(s: Scenario | undefined | null, lang: string): string {
   if (!s) return "";
-  return lang === "pt" && s.title_pt ? s.title_pt : s.title;
+  if (lang === "zh") return s.title_zh || s.title;
+  if (lang === "pt") return s.title_pt || s.title;
+  return s.title;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -125,11 +129,11 @@ export const EventGridCard = React.memo(function EventGridCard({ event, history,
           <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: resolved ? C.TEXT_MID : C.GREEN }} />
           <Text style={{ color: resolved ? C.TEXT_MID : C.GREEN, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>
             {resolved
-              ? (language === "pt" ? "ENCERRADO" : "CLOSED")
+              ? (language === "pt" ? "ENCERRADO" : language === "zh" ? "已关闭" : "CLOSED")
               // countdown if available, otherwise LIVE
-              : countdown && countdown !== (language === "pt" ? "Encerrado" : "Closed")
+              : countdown && countdown !== (language === "pt" ? "Encerrado" : language === "zh" ? "已关闭" : "Closed")
                 ? countdown.toUpperCase()
-                : (language === "pt" ? "● AO VIVO" : "● LIVE")}
+                : (language === "pt" ? "● AO VIVO" : language === "zh" ? "● 直播" : "● LIVE")}
           </Text>
         </View>
         {!resolved && (
@@ -285,7 +289,7 @@ export function PayoutPreviewRow({
     }}>
       <View>
         <Text style={{ color: C.TEXT_MID, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-          {language === "pt" ? "RETORNO POTENCIAL" : "POTENTIAL PAYOUT"}
+          {language === "pt" ? "RETORNO POTENCIAL" : language === "zh" ? "潜在收益" : "POTENTIAL PAYOUT"}
         </Text>
         <Text style={{ color: C.GREEN, fontFamily: "DMSans_700Bold", fontSize: 20, marginTop: 2 }}>
           ${payout.toFixed(2)}
@@ -293,7 +297,7 @@ export function PayoutPreviewRow({
       </View>
       <View style={{ alignItems: "flex-end" }}>
         <Text style={{ color: C.TEXT_MID, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-          {language === "pt" ? "LUCRO" : "PROFIT"}
+          {language === "pt" ? "LUCRO" : language === "zh" ? "利润" : "PROFIT"}
         </Text>
         <Text style={{ color: C.GREEN, fontFamily: "DMSans_700Bold", fontSize: 16, marginTop: 2 }}>
           +${profit.toFixed(2)}

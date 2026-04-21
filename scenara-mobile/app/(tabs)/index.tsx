@@ -40,12 +40,12 @@ const AUTO_REFRESH_MS = 25_000;
 // â�€â�€ Types â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 type NewsArticle = { title: string; source: string; published: string; url: string; image?: string; description?: string; source_url?: string; };
 type Scenario = {
-  id: number; title: string; title_pt: string | null;
+  id: number; title: string; title_pt: string | null; title_zh: string | null;
   probability: number; sort_order: number; status: string;
 };
 type EventItem = {
-  id: number; title: string; title_pt: string | null;
-  description: string | null; description_pt: string | null;
+  id: number; title: string; title_pt: string | null; title_zh: string | null;
+  description: string | null; description_pt: string | null; description_zh: string | null;
   category: string; status: string; is_featured: boolean;
   closes_at: string | null; scenarios: Scenario[];
 };
@@ -53,18 +53,22 @@ type SentimentItem = { scenario_id: number; player_count: number; percentage: nu
 
 // â�€â�€ Helpers â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function eventTitle(e: EventItem, lang: string) {
-  const title = lang === "pt" && e.title_pt ? e.title_pt : e.title;
-  return toChineseFallback(title, lang);
+  if (lang === "zh") return e.title_zh || toChineseFallback(e.title, lang);
+  if (lang === "pt") return e.title_pt || e.title;
+  return e.title;
 }
 function scenarioTitle(s: Scenario, lang: string) {
   if (lang === "zh") {
+    if (s.title_zh) return s.title_zh;
     const value = (s.title_pt || s.title || "").trim().toLowerCase();
     if (value === "yes") return "是";
     if (value === "no") return "否";
     if (value === "passes") return "通过";
     if (value === "delayed") return "推迟";
+    return toChineseFallback(s.title, lang);
   }
-  return toChineseFallback(lang === "pt" && s.title_pt ? s.title_pt : s.title, lang);
+  if (lang === "pt") return s.title_pt || s.title;
+  return s.title;
 }
 
 function articleTitle(title: string, lang: string) {
@@ -1755,7 +1759,7 @@ export default function MarketsScreen() {
       setLoadError(false);
     }
     try {
-      const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0 };
+      const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0, lang: language };
       if (cat !== "all") params.category = cat;
       const res = await api.get("/events/", { params });
       const all: EventItem[] = res.data ?? [];
@@ -1787,7 +1791,7 @@ export default function MarketsScreen() {
         // so a 12s pause puts the retry at ~52s — after most cold starts finish.
         await new Promise<void>(resolve => setTimeout(resolve, 12000));
         try {
-          const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0 };
+          const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0, lang: language };
           if (cat !== "all") params.category = cat;
           const res = await api.get("/events/", { params });
           const all: EventItem[] = res.data ?? [];
@@ -1816,7 +1820,7 @@ export default function MarketsScreen() {
     st.loadingMore = true;
     setLoadingMore(true);
     try {
-      const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: eventsRef.current.length };
+      const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: eventsRef.current.length, lang: language };
       if (activeCategory !== "all") params.category = activeCategory;
       let res = await api.get("/events/", { params });
       let page: EventItem[] = res.data ?? [];

@@ -211,17 +211,24 @@ async def get_news(
     max_results: int = Query(10, le=20),
 ):
     cat_cfg = CATEGORY_QUERIES.get(category, CATEGORY_QUERIES["all"])
-    # Fetch both PT and EN and merge
-    pt_cfg = cat_cfg.get("pt", _DEFAULT_QUERY)
     en_cfg = cat_cfg.get("en", _DEFAULT_QUERY)
 
-    pt_arts, en_arts = await asyncio.gather(
-        _fetch_rss(*pt_cfg, n=max_results),
-        _fetch_rss(*en_cfg, n=max_results),
-    )
+    if lang == "zh":
+        zh_cfg = cat_cfg.get("zh", _DEFAULT_QUERY)
+        primary_arts, en_arts = await asyncio.gather(
+            _fetch_rss(*zh_cfg, n=max_results),
+            _fetch_rss(*en_cfg, n=max_results),
+        )
+    else:
+        pt_cfg = cat_cfg.get("pt", _DEFAULT_QUERY)
+        primary_arts, en_arts = await asyncio.gather(
+            _fetch_rss(*pt_cfg, n=max_results),
+            _fetch_rss(*en_cfg, n=max_results),
+        )
+
     merged, seen = [], set()
-    for i in range(max(len(pt_arts), len(en_arts))):
-        for a in ([pt_arts[i]] if i < len(pt_arts) else []) + \
+    for i in range(max(len(primary_arts), len(en_arts))):
+        for a in ([primary_arts[i]] if i < len(primary_arts) else []) + \
                  ([en_arts[i]] if i < len(en_arts) else []):
             t = a.get("title", "")
             if t and t not in seen:

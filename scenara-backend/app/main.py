@@ -54,6 +54,24 @@ def _migrate_user_columns() -> None:
             logger.info("[Migration] Added display_name column to users.")
 
 
+def _migrate_zh_columns() -> None:
+    """Idempotent: add Chinese translation columns to events and scenarios if missing."""
+    from sqlalchemy import text as sql_text, inspect
+    insp = inspect(engine)
+    event_cols = [c["name"] for c in insp.get_columns("events")]
+    scenario_cols = [c["name"] for c in insp.get_columns("scenarios")]
+    with engine.begin() as conn:
+        if "title_zh" not in event_cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN title_zh VARCHAR(255) NULL"))
+            logger.info("[Migration] Added title_zh to events.")
+        if "description_zh" not in event_cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN description_zh TEXT NULL"))
+            logger.info("[Migration] Added description_zh to events.")
+        if "title_zh" not in scenario_cols:
+            conn.execute(sql_text("ALTER TABLE scenarios ADD COLUMN title_zh VARCHAR(255) NULL"))
+            logger.info("[Migration] Added title_zh to scenarios.")
+
+
 def _migrate_brazil_category() -> None:
     """One-time idempotent migration: set category='brazil' for all Brazil-specific events."""
     from sqlalchemy import text as sql_text
@@ -95,6 +113,7 @@ def create_app() -> FastAPI:
         Base.metadata.create_all(bind=engine)
         _migrate_is_admin_column()
         _migrate_user_columns()
+        _migrate_zh_columns()
         _migrate_brazil_category()
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
