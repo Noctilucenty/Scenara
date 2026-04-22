@@ -108,6 +108,40 @@ def create_app() -> FastAPI:
         max_age=86400,
     )
 
+    async def _backfill_zh_translations() -> None:
+        """Background task: translate all events/scenarios missing title_zh."""
+        def _run() -> None:
+            from app.db import SessionLocal
+            from app.models.event import Event
+            from sqlalchemy.orm import joinedload
+            from app.routers.events import _fill_zh_translations
+            db = SessionLocal()
+            try:
+                batch_size = 50
+                offset = 0
+                total = 0
+                while True:
+                    events = (
+                        db.query(Event)
+                        .options(joinedload(Event.scenarios))
+                        .filter(Event.title_zh.is_(None))
+                        .limit(batch_size)
+                        .offset(offset)
+                        .all()
+                    )
+                    if not events:
+                        break
+                    _fill_zh_translations(events, db)
+                    total += len(events)
+                    offset += batch_size
+                logger.info("[ZH Backfill] Done — processed %d events.", total)
+            except Exception as e:
+                logger.error("[ZH Backfill] Failed: %s", e)
+            finally:
+                db.close()
+
+        await asyncio.to_thread(_run)
+
     @app.on_event("startup")
     async def _startup() -> None:
         Base.metadata.create_all(bind=engine)
@@ -117,6 +151,7 @@ def create_app() -> FastAPI:
         _migrate_brazil_category()
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
+        asyncio.create_task(_backfill_zh_translations())
         logger.info("[Startup] Scenara backend v0.6.0 ready.")
 
     @app.get("/", tags=["health"])
