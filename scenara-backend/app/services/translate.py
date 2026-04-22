@@ -6,11 +6,37 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Google Translation API v2 limit is 5000 chars per request.
+# Stay well under it to leave room for encoding overhead.
+_MAX_CHARS_PER_CHUNK = 3000
+
+
+def _api_call(texts: list[str], target: str) -> list[str | None]:
+    """Single API call for a small list of strings. Returns None on any error."""
+    result: list[str | None] = [None] * len(texts)
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            r = client.post(
+                "https://translation.googleapis.com/language/translate/v2",
+                params={"key": settings.google_translate_api_key},
+                json={"q": texts, "target": target, "format": "text"},
+            )
+            r.raise_for_status()
+            translations = r.json()["data"]["translations"]
+            if len(translations) != len(texts):
+                logger.error("TRANSLATE: API returned %d results for %d inputs", len(translations), len(texts))
+                return result
+            for i, t in enumerate(translations):
+                result[i] = t["translatedText"]
+    except Exception as e:
+        logger.error("TRANSLATE: API call failed — %s", e)
+    return result
+
 
 def translate_batch(texts: list[str], target: str = "zh-CN") -> list[str | None]:
-    """Translate a list of strings in one API call. Returns None for each item if API key is missing or on error."""
+    """Translate a list of strings, chunked to stay within API character limits."""
     if not settings.google_translate_api_key:
-        logger.warning("TRANSLATE: google_translate_api_key is not set — skipping translation")
+        logger.warning("TRANSLATE: google_translate_api_key is not set — skipping")
         return [None] * len(texts)
 
     non_empty = [(i, t) for i, t in enumerate(texts) if t and t.strip()]
@@ -18,31 +44,39 @@ def translate_batch(texts: list[str], target: str = "zh-CN") -> list[str | None]
         return [None] * len(texts)
 
     result: list[str | None] = [None] * len(texts)
-    try:
-        with httpx.Client(timeout=15.0) as client:
-            r = client.post(
-                "https://translation.googleapis.com/language/translate/v2",
-                params={"key": settings.google_translate_api_key},
-                json={
-                    "q": [t for _, t in non_empty],
-                    "target": target,
-                    "format": "text",
-                },
-            )
-            r.raise_for_status()
-            translations = r.json()["data"]["translations"]
-            if len(translations) != len(non_empty):
-                logger.error("TRANSLATE: API returned %d results for %d inputs", len(translations), len(non_empty))
-                return result
-            for j, (i, _) in enumerate(non_empty):
-                result[i] = translations[j]["translatedText"]
-            logger.info("TRANSLATE: successfully translated %d strings to %s", len(non_empty), target)
-    except Exception as e:
-        logger.error("TRANSLATE: failed — %s", e)
+
+    # Split non_empty into chunks that stay under the character limit
+    chunks: list[list[tuple[int, str]]] = []
+    current_chunk: list[tuple[int, str]] = []
+    current_chars = 0
+    for idx, text in non_empty:
+        text_len = len(text)
+        if current_chunk and current_chars + text_len > _MAX_CHARS_PER_CHUNK:
+            chunks.append(current_chunk)
+            current_chunk = []
+            current_chars = 0
+        current_chunk.append((idx, text))
+        current_chars += text_len
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    total_translated = 0
+    for chunk in chunks:
+        indices = [i for i, _ in chunk]
+        chunk_texts = [t for _, t in chunk]
+        translated = _api_call(chunk_texts, target)
+        for i, val in zip(indices, translated):
+            result[i] = val
+            if val:
+                total_translated += 1
+
+    if total_translated:
+        logger.info("TRANSLATE: translated %d/%d strings to %s across %d chunk(s)",
+                    total_translated, len(non_empty), target, len(chunks))
     return result
 
 
 def translate_text(text: str, target: str = "zh-CN") -> str | None:
-    """Translate a single string. Returns None on error or if API key is missing."""
+    """Translate a single string."""
     results = translate_batch([text], target=target)
     return results[0]
