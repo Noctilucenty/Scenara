@@ -33,7 +33,7 @@ const GREEN    = "#22C55E";
 const RED      = "#EF4444";
 
 const GRAD_BRAND = [BLUE, PURPLE, PINK] as const;
-const AUTO_REFRESH_MS = 30_000;
+const AUTO_REFRESH_MS = 60_000;
 const { width: SCREEN_W } = Dimensions.get("window");
 const IS_WEB = Platform.OS === "web";
 const MAX_W = Math.min(SCREEN_W, 900);

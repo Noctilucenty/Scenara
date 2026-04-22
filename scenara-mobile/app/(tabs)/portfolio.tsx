@@ -29,7 +29,7 @@ const { BG, CARD, SURFACE, BLUE, PURPLE, PURPLE_DIM: PURPLE_D,
         TEXT, TEXT_SUB, TEXT_MID, BORDER, BORDER_P, GREEN, RED } = C;
 const BLUE_A = "#60A5FA";
 
-const AUTO_REFRESH_MS = 30_000;
+const AUTO_REFRESH_MS = 60_000;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

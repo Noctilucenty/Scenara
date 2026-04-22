@@ -35,7 +35,10 @@ const { BG, CARD, SURFACE, BLUE, PURPLE, PURPLE_DIM: PURPLE_D,
         TEXT, TEXT_SUB, TEXT_MID, BORDER, BORDER_P, GREEN, RED } = C;
 
 const SCREEN_W = Dimensions.get("window").width;
-const AUTO_REFRESH_MS = 25_000;
+// Event list barely changes between loads (new markets every ~hour), so polling
+// hard is pure waste — 90s is plenty for "feels live" without thrashing the UI.
+// Switching tabs already refetches via useFocusEffect.
+const AUTO_REFRESH_MS = 90_000;
 
 // â�€â�€ Types â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 type NewsArticle = { title: string; source: string; published: string; url: string; image?: string; description?: string; source_url?: string; };

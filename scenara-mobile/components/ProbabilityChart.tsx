@@ -52,7 +52,7 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function ProbabilityChart({ scenarios, height = 120, compact = true, width: propWidth, language }: Props) {
+function ProbabilityChartImpl({ scenarios, height = 120, compact = true, width: propWidth, language }: Props) {
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
 
   const screenWidth = Dimensions.get("window").width;
@@ -221,3 +221,22 @@ export function ProbabilityChart({ scenarios, height = 120, compact = true, widt
     </View>
   );
 }
+
+/**
+ * Fingerprint of a scenarios array: scenario count + last point timestamps.
+ * Lets us skip re-render when parent re-renders but the underlying chart data
+ * is identical — e.g. typing in the amount input on market-detail.
+ */
+function fingerprintScenarios(scenarios: ScenarioHistory[]): string {
+  return scenarios
+    .map(s => `${s.scenario_id}:${s.points.length}:${s.points.at(-1)?.recorded_at ?? ""}:${s.points.at(-1)?.probability ?? ""}`)
+    .join("|");
+}
+
+export const ProbabilityChart = React.memo(ProbabilityChartImpl, (prev, next) => {
+  if (prev.height !== next.height) return false;
+  if (prev.width !== next.width) return false;
+  if (prev.compact !== next.compact) return false;
+  if (prev.language !== next.language) return false;
+  return fingerprintScenarios(prev.scenarios) === fingerprintScenarios(next.scenarios);
+});
