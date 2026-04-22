@@ -121,7 +121,9 @@ class EventHistoryOut(BaseModel):
 
 def _fill_zh_translations(events: list, db: Session) -> None:
     """Batch-translate any events/scenarios missing zh fields and cache results in DB."""
+    import logging
     from app.services.translate import translate_batch
+    _log = logging.getLogger(__name__)
 
     texts: list[str] = []
     targets: list[tuple] = []  # (obj, field)
@@ -139,19 +141,35 @@ def _fill_zh_translations(events: list, db: Session) -> None:
                 targets.append((scenario, "title_zh"))
 
     if not texts:
+        _log.debug("[ZH fill] %d events — all already have title_zh, skipping API call.", len(events))
         return
 
+    _log.info("[ZH fill] %d events came in, %d strings need translation. Calling API...",
+              len(events), len(texts))
     translated = translate_batch(texts)
-    changed = False
+
+    changed = 0
+    failed = 0
     for (obj, field), value in zip(targets, translated):
         if value:
+            # Guard: if Google returned the original English text unchanged (common for
+            # un-translatable tokens like "$60 – $75"), don't cache it — we'd never retry.
+            original = getattr(obj, field.replace("_zh", ""))
+            if value.strip() == (original or "").strip():
+                failed += 1
+                continue
             setattr(obj, field, value)
-            changed = True
+            changed += 1
+        else:
+            failed += 1
+
+    _log.info("[ZH fill] Done — %d translated, %d failed/skipped.", changed, failed)
 
     if changed:
         try:
             db.commit()
-        except Exception:
+        except Exception as e:
+            _log.error("[ZH fill] DB commit failed: %s", e)
             db.rollback()
             raise
 

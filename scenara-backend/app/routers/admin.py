@@ -138,3 +138,71 @@ def void_event_endpoint(
 def admin_me(_admin: User = Depends(get_admin_user)):
     """Check if current user is admin — used by the frontend to show/hide admin UI."""
     return {"is_admin": True, "user_id": _admin.id, "email": _admin.email}
+
+
+@router.post("/retranslate-zh")
+def retranslate_zh(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """Force re-translation of all events/scenarios: clear title_zh/description_zh,
+    then run the backfill loop. Use this when translations are stuck or wrong."""
+    from app.models.scenario import Scenario
+    from app.routers.events import _fill_zh_translations
+
+    n_events = db.query(Event).update(
+        {Event.title_zh: None, Event.description_zh: None},
+        synchronize_session=False,
+    )
+    n_scenarios = db.query(Scenario).update(
+        {Scenario.title_zh: None},
+        synchronize_session=False,
+    )
+    db.commit()
+
+    total = 0
+    batch_size = 50
+    while True:
+        events = (
+            db.query(Event)
+            .options(joinedload(Event.scenarios))
+            .filter(Event.title_zh.is_(None))
+            .limit(batch_size)
+            .all()
+        )
+        if not events:
+            break
+        _fill_zh_translations(events, db)
+        total += len(events)
+
+    return {
+        "ok": True,
+        "cleared_events": n_events,
+        "cleared_scenarios": n_scenarios,
+        "retranslated_events": total,
+    }
+
+
+@router.get("/zh-status")
+def zh_status(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """Diagnostic: how many events/scenarios are missing title_zh?"""
+    from app.models.scenario import Scenario
+    total_events = db.query(Event).count()
+    missing_events = db.query(Event).filter(Event.title_zh.is_(None)).count()
+    total_scenarios = db.query(Scenario).count()
+    missing_scenarios = db.query(Scenario).filter(Scenario.title_zh.is_(None)).count()
+    # Return 10 example untranslated event titles so we can see what's stuck
+    examples = (
+        db.query(Event.id, Event.title)
+        .filter(Event.title_zh.is_(None))
+        .limit(10)
+        .all()
+    )
+    return {
+        "events": {"total": total_events, "missing_zh": missing_events},
+        "scenarios": {"total": total_scenarios, "missing_zh": missing_scenarios},
+        "example_untranslated": [{"id": i, "title": t} for i, t in examples],
+    }

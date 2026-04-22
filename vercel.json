@@ -1,3 +1,9 @@
 {
-  "rootDirectory": "scenara-mobile"
+  "buildCommand": "cd scenara-mobile && npm install && npx expo export --platform web",
+  "outputDirectory": "scenara-mobile/dist",
+  "installCommand": "echo 'install handled inside buildCommand'",
+  "framework": null,
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
