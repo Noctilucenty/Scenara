@@ -1408,10 +1408,13 @@ function LiveStatsBar({ eventCount, language }: { eventCount: number; language: 
     return () => anim.stop();
   }, []);
 
-  // Deterministic but "live-looking" fake stats based on time + event count
+  // Deterministic but "live-looking" fake stats based on time + event count.
+  // Traders drifts between ~820 and ~1540, volume between $90K and $310K.
+  // The slow sine wave makes it feel alive rather than random-flicker.
   const base = Math.floor(Date.now() / 60000);
-  const traders = 140 + (base % 180);
-  const volume  = 42 + (base % 90);
+  const tide = Math.sin(base / 37) * 0.5 + 0.5;  // 0..1, slowly oscillating
+  const traders = 820 + Math.floor(tide * 720) + (base % 23);
+  const volume  = 90  + Math.floor(tide * 220) + (base % 11);
 
   const stats = [
     { value: String(traders), label: language === "pt" ? "traders" : language === "zh" ? "交易者" : "traders", color: BLUE },

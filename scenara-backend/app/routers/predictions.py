@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
@@ -619,41 +619,75 @@ class ActivityItem(BaseModel):
 
 
 _SYNTHETIC_NAMES = [
+    # Brazilian
     "Lucas M.", "Sofia R.", "Gabriel T.", "Ana C.", "Pedro H.",
     "Isabella F.", "Mateus S.", "Juliana B.", "Rafael O.", "Camila N.",
     "Bruno L.", "Fernanda P.", "Diego A.", "Larissa G.", "Vitor E.",
     "Mariana K.", "Felipe W.", "Beatriz D.", "Thiago V.", "Natalia Z.",
+    "Caio A.", "Helena S.", "Gustavo R.", "Letícia M.", "Arthur P.",
+    "Valentina L.", "Enzo C.", "Manuela B.", "Davi F.", "Alice O.",
+    "Heitor G.", "Laura T.", "Murilo K.", "Yasmin V.", "Leonardo D.",
+    # English / international
     "James K.", "Emma S.", "Noah P.", "Olivia R.", "Liam B.",
     "Ava T.", "Ethan C.", "Sophia H.", "Mason L.", "Mia F.",
+    "Lucas W.", "Isla R.", "Oliver N.", "Chloe D.", "Henry J.",
+    "Aria C.", "Jack M.", "Zoe V.", "Owen B.", "Nora P.",
+    "Aiden S.", "Grace K.", "Leo T.", "Ruby A.", "Max H.",
+    # Asian / Chinese pinyin
+    "Wei L.", "Xin Y.", "Jun Z.", "Mei H.", "Hao C.",
+    "Lin W.", "Rui S.", "Jia T.", "Bo X.", "Yan Q.",
+    "Min K.", "Zhe P.", "Ning F.", "Kai J.", "Fei O.",
+    # Crypto-twitter style aliases (anonymized look)
+    "0xAlex", "trader_v", "moonbo1", "btc_maxi", "degen_z",
+    "yoloKid", "chain.x", "whaIe88", "flash_t", "alpha_j",
 ]
-_SYNTHETIC_AMOUNTS = ["$8", "$10", "$12", "$15", "$18", "$20", "$25", "$30", "$50"]
-_SYNTHETIC_AMOUNT_WEIGHTS = [0.10, 0.15, 0.15, 0.18, 0.12, 0.12, 0.10, 0.05, 0.03]
+# Amounts: wider range, most bets small (retail-heavy), occasional whale
+_SYNTHETIC_AMOUNTS = ["$5", "$10", "$15", "$20", "$25", "$40", "$60", "$100", "$150", "$250"]
+_SYNTHETIC_AMOUNT_WEIGHTS = [0.10, 0.18, 0.18, 0.14, 0.12, 0.10, 0.08, 0.06, 0.03, 0.01]
 
 
 @router.get("/activity", response_model=list[ActivityItem])
 def get_recent_activity(limit: int = 15, db: Session = Depends(get_db)):
-    """Returns the last N bets (anonymized) for the social proof activity ticker."""
-    import random, hashlib
+    """Returns the last N bets (anonymized) for the social proof activity ticker.
 
+    To prevent one power-user from dominating the feed, we fetch a wider pool of
+    recent bets and cap each user to MAX_PER_USER rows before returning.
+    """
+    import random
+
+    MAX_PER_USER = 2
+    # Only surface real bets from the last 48h — older bets make the "live" feed
+    # look like an archive (e.g. "590h ago"). Anything older gets synthetic padding.
+    cutoff = datetime.utcnow() - timedelta(hours=48)
+
+    # Fetch a wider pool so we still have variety after the per-user cap
     recent = (
         db.query(models.Prediction)
         .options(
             joinedload(models.Prediction.scenario).joinedload(models.Scenario.event),
             joinedload(models.Prediction.user),
         )
+        .filter(models.Prediction.created_at >= cutoff)
         .order_by(models.Prediction.created_at.desc())
-        .limit(limit)
+        .limit(limit * 6)
         .all()
     )
 
     now = datetime.utcnow()
     items = []
+    per_user_count: dict[int, int] = {}
     for p in recent:
         user = p.user
         scenario = p.scenario
         event = scenario.event if scenario else None
         if not user or not scenario or not event:
             continue
+
+        # Cap: at most N bets from the same user so the ticker stays varied
+        seen = per_user_count.get(user.id, 0)
+        if seen >= MAX_PER_USER:
+            continue
+        per_user_count[user.id] = seen + 1
 
         # Anonymize: "Alexander" → "Alex T."
         name = (user.display_name or user.email.split("@")[0])
@@ -663,9 +697,9 @@ def get_recent_activity(limit: int = 15, db: Session = Depends(get_db)):
         else:
             anon = parts[0][:6] + "."
 
-        # Show specific rounded amount — cap at $50, round to nearest $5
+        # Show specific rounded amount — cap at $250, round to nearest $5
         amt = float(p.simulated_amount)
-        display = max(5, min(50, round(amt / 5) * 5))
+        display = max(5, min(250, round(amt / 5) * 5))
         label = f"${display}"
 
         delta = int((now - p.created_at.replace(tzinfo=None)).total_seconds())
@@ -676,6 +710,9 @@ def get_recent_activity(limit: int = 15, db: Session = Depends(get_db)):
             amount_label=label,
             seconds_ago=max(delta, 5),
         ))
+
+        if len(items) >= limit:
+            break
 
     # Pad with synthetic activity when real data is sparse
     if len(items) < limit:
@@ -702,8 +739,9 @@ def get_recent_activity(limit: int = 15, db: Session = Depends(get_db)):
                     continue
                 name = name_pool[i % len(name_pool)]
                 label = rng.choices(_SYNTHETIC_AMOUNTS, weights=_SYNTHETIC_AMOUNT_WEIGHTS, k=1)[0]
-                # Spread fake timestamps across the past 6 hours
-                fake_delta = rng.randint(120, 21600)
+                # Spread fake timestamps across the past 30 minutes so the ticker
+                # feels live (5s - 30min ago instead of "590h ago" like stale real bets)
+                fake_delta = rng.randint(5, 1800)
                 items.append(ActivityItem(
                     player=name,
                     event_title=ev.title[:50],
