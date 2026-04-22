@@ -124,7 +124,7 @@ const ZH_KEYWORD_MAP: Record<string, string> = {
 };
 
 function extractNewsQuery(event: EventItem, lang: string): string {
-  const title = (lang === "pt" && event.title_pt ? event.title_pt : event.title);
+  const title = lang === "zh" ? (event.title_zh || event.title) : lang === "pt" ? (event.title_pt || event.title) : event.title;
   const words = title
     .replace(/[%$€£@#&*()+=\[\]{}<>?!,.:;'"\/\\|-]/g, " ")
     .split(/\s+/)
@@ -1739,7 +1739,7 @@ export default function MarketsScreen() {
   const hydrateFromCache = useCallback((cat: string) => {
     if (Platform.OS !== "web") return false;
     try {
-      const raw = localStorage.getItem(`${EVENTS_CACHE_KEY}_${cat}`);
+      const raw = localStorage.getItem(`${EVENTS_CACHE_KEY}_${cat}_${language}`);
       if (!raw) return false;
       const { data, ts } = JSON.parse(raw) as { data: EventItem[]; ts: number };
       if (Date.now() - ts > EVENTS_CACHE_TTL || !data?.length) return false;
@@ -1749,7 +1749,7 @@ export default function MarketsScreen() {
       fetchSentiment(data);
       return true;
     } catch { return false; }
-  }, [fetchHistory, fetchSentiment]);
+  }, [fetchHistory, fetchSentiment, language]);
 
   const fetchEvents = useCallback(async (silent = false, cat = activeCategory) => {
     // On fresh (non-silent) load: show cached data immediately while fetching
@@ -1769,7 +1769,7 @@ export default function MarketsScreen() {
       setHasMore(initialHasMore);
       // Cache events for next cold start
       if (Platform.OS === "web") {
-        try { localStorage.setItem(`${EVENTS_CACHE_KEY}_${cat}`, JSON.stringify({ data: all, ts: Date.now() })); } catch {}
+        try { localStorage.setItem(`${EVENTS_CACHE_KEY}_${cat}_${language}`, JSON.stringify({ data: all, ts: Date.now() })); } catch {}
       }
       // Only fetch history on first load (not silent auto-refresh)
       if (!silent) fetchHistory(all);

@@ -118,22 +118,22 @@ def create_app() -> FastAPI:
             db = SessionLocal()
             try:
                 batch_size = 50
-                offset = 0
                 total = 0
                 while True:
+                    # Always offset=0: each translated batch is removed from the
+                    # title_zh IS NULL filter, so the next query naturally advances.
                     events = (
                         db.query(Event)
                         .options(joinedload(Event.scenarios))
                         .filter(Event.title_zh.is_(None))
                         .limit(batch_size)
-                        .offset(offset)
                         .all()
                     )
                     if not events:
                         break
                     _fill_zh_translations(events, db)
                     total += len(events)
-                    offset += batch_size
+                    logger.info("[ZH Backfill] Translated batch of %d (total so far: %d).", len(events), total)
                 logger.info("[ZH Backfill] Done — processed %d events.", total)
             except Exception as e:
                 logger.error("[ZH Backfill] Failed: %s", e)
