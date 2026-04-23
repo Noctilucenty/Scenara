@@ -147,6 +147,7 @@ export default function RootLayout() {
           <Stack.Screen name="onboarding"     options={{ animation: "fade" }} />
           <Stack.Screen name="news-detail"    options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="market-detail"  options={{ animation: "slide_from_right" }} />
+          <Stack.Screen name="user-profile"   options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="how-it-works"   options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="terms"          options={{ animation: "slide_from_right" }} />
         </Stack>

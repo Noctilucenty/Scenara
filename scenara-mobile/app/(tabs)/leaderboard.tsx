@@ -38,6 +38,8 @@ type LeaderboardEntry = {
   balance: number; total_pnl: number; total_predictions: number;
   won_count: number; lost_count: number; win_rate: number;
   current_streak: number; best_streak: number;
+  is_following?: boolean;        // backend-decorated when viewer_id passed
+  follower_count?: number;
 };
 type LeaderboardData = { entries: LeaderboardEntry[]; total_users: number };
 
@@ -56,14 +58,27 @@ function streakBadge(n: number) {
   return "";
 }
 
-function EntryRow({ entry, isMe, t }: { entry: LeaderboardEntry; isMe: boolean; t: any }) {
+function EntryRow({
+  entry, isMe, t, canFollow, onToggleFollow,
+}: {
+  entry: LeaderboardEntry;
+  isMe: boolean;
+  t: any;
+  canFollow: boolean;
+  onToggleFollow: (uid: number, nowFollowing: boolean) => void;
+}) {
   const pnlPos = entry.total_pnl >= 0;
   const rank   = rankMeta(entry.rank);
   const badge  = streakBadge(entry.current_streak);
   const isTop3 = entry.rank <= 3;
+  const following = !!entry.is_following;
+
+  const openProfile = () => {
+    router.push({ pathname: "/user-profile", params: { id: String(entry.user_id) } });
+  };
 
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: isMe ? "rgba(124,92,252,0.07)" : CARD, borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: isMe ? BORDER_P : isTop3 ? "rgba(124,92,252,0.12)" : BORDER }}>
+    <TouchableOpacity activeOpacity={0.85} onPress={openProfile} style={{ flexDirection: "row", alignItems: "center", backgroundColor: isMe ? "rgba(124,92,252,0.07)" : CARD, borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: isMe ? BORDER_P : isTop3 ? "rgba(124,92,252,0.12)" : BORDER }}>
       <View style={{ width: 44, alignItems: "center" }}>
         {rank.colors ? (
           <LinearGradient colors={rank.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
@@ -86,11 +101,25 @@ function EntryRow({ entry, isMe, t }: { entry: LeaderboardEntry; isMe: boolean; 
         <Text style={{ color: TEXT_MID, fontSize: 12, marginTop: 3, fontFamily: "DMSans_400Regular" }}>{entry.won_count}W · {entry.lost_count}L · {entry.win_rate}% {t.rankings.winRate.toLowerCase()}</Text>
         {entry.current_streak >= 2 && <Text style={{ color: "#FB923C", fontSize: 11, marginTop: 2, fontFamily: "DMSans_500Medium" }}>🔥 {entry.current_streak} streak</Text>}
       </View>
-      <View style={{ alignItems: "flex-end" }}>
+      <View style={{ alignItems: "flex-end", gap: 6 }}>
         <Text style={{ color: pnlPos ? (isTop3 ? BLUE : PURPLE) : RED, fontFamily: "DMSans_700Bold", fontSize: 16 }}>{pnlPos ? "+" : ""}{entry.total_pnl.toFixed(2)}</Text>
-        <Text style={{ color: TEXT_MID, fontSize: 11, marginTop: 3 }}>${entry.balance.toLocaleString("en-US", { maximumFractionDigits: 0 })}</Text>
+        <Text style={{ color: TEXT_MID, fontSize: 11 }}>${entry.balance.toLocaleString("en-US", { maximumFractionDigits: 0 })}</Text>
+        {canFollow && !isMe && (
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation(); onToggleFollow(entry.user_id, !following); }}
+            style={{
+              marginTop: 2, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8,
+              backgroundColor: following ? "rgba(255,255,255,0.04)" : "rgba(124,92,252,0.14)",
+              borderWidth: 1, borderColor: following ? BORDER : BORDER_P,
+            }}
+          >
+            <Text style={{ color: following ? TEXT_MID : PURPLE, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>
+              {following ? "FOLLOWING" : "+ FOLLOW"}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -177,10 +206,44 @@ export default function LeaderboardScreen() {
 
   const load = useCallback(async (sort: SortOption) => {
     setLoading(true); setError("");
-    try { const res = await api.get(`/accounts/leaderboard?sort_by=${sort}&limit=50`); setData(res.data); }
+    try {
+      // Pass viewer_id so the backend decorates each row with is_following.
+      // Omitting the param gives the public (unauthenticated) view.
+      const qs = userId ? `&viewer_id=${userId}` : "";
+      const res = await api.get(`/accounts/leaderboard?sort_by=${sort}&limit=50${qs}`);
+      setData(res.data);
+    }
     catch { setError(t.rankings.noTraders); }
     finally { setLoading(false); }
-  }, [t]);
+  }, [t, userId]);
+
+  // Optimistic follow/unfollow: flip local state first, rollback on error.
+  // Avoids waiting for the round-trip and avoids refetching the whole board.
+  const toggleFollow = useCallback(async (targetId: number, nowFollowing: boolean) => {
+    if (!isAuthenticated) { router.push("/register"); return; }
+    setData(prev => prev ? {
+      ...prev,
+      entries: prev.entries.map(e =>
+        e.user_id === targetId
+          ? { ...e, is_following: nowFollowing, follower_count: Math.max(0, (e.follower_count ?? 0) + (nowFollowing ? 1 : -1)) }
+          : e,
+      ),
+    } : prev);
+    try {
+      if (nowFollowing) await api.post(`/social/users/${targetId}/follow`);
+      else              await api.delete(`/social/users/${targetId}/follow`);
+    } catch {
+      // Rollback on failure
+      setData(prev => prev ? {
+        ...prev,
+        entries: prev.entries.map(e =>
+          e.user_id === targetId
+            ? { ...e, is_following: !nowFollowing, follower_count: Math.max(0, (e.follower_count ?? 0) + (nowFollowing ? -1 : 1)) }
+            : e,
+        ),
+      } : prev);
+    }
+  }, [isAuthenticated]);
 
   useFocusEffect(useCallback(() => {
     load(sortBy);
@@ -238,7 +301,16 @@ export default function LeaderboardScreen() {
       {loading && <View style={{ alignItems: "center", paddingVertical: 20 }}><ActivityIndicator color={PURPLE} /></View>}
       {error ? <View style={{ marginBottom: 12, backgroundColor: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.2)", borderWidth: 1, padding: 12, borderRadius: 12 }}><Text style={{ color: RED, fontSize: 13 }}>{error}</Text></View> : null}
 
-      {data?.entries.map(entry => <EntryRow key={entry.user_id} entry={entry} isMe={entry.user_id === userId} t={t} />)}
+      {data?.entries.map(entry => (
+        <EntryRow
+          key={entry.user_id}
+          entry={entry}
+          isMe={entry.user_id === userId}
+          t={t}
+          canFollow={isAuthenticated}
+          onToggleFollow={toggleFollow}
+        />
+      ))}
 
       {data?.entries.length === 0 && !loading && (
         <View style={{ alignItems: "center", paddingTop: 60 }}>
