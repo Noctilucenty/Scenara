@@ -115,6 +115,10 @@ class PortfolioSummaryOut(BaseModel):
     current_streak: int
     best_streak: int
     win_rate: float
+    # Gamification
+    xp: int = 0
+    level: int = 1
+    xp_to_next_level: int = 0
     # Performance insights
     accuracy_score: float      # calibration score 0-100
     percentile_rank: float     # what % of users this user beats
@@ -350,6 +354,13 @@ def create_prediction(
     # This happens AFTER odds are locked so the bettor keeps their entry price
     _shift_market(db, scenario, float(entry_amount))
 
+    # Award XP for the placed bet. Engagement metric — given on *every* bet
+    # (win or lose), so participation is rewarded. See services/xp.py.
+    from app.services.xp import xp_for_bet
+    awarded = xp_for_bet(float(entry_amount))
+    if awarded > 0:
+        current_user.xp = (current_user.xp or 0) + awarded
+
     db.commit()
     db.refresh(prediction)
     return prediction
@@ -450,6 +461,8 @@ def get_portfolio_summary(user_id: int, db: Session = Depends(get_db)):
     worst_pnl = round(min(settled_pnls), 2) if settled_pnls else 0.0
     avg_pnl = round(sum(settled_pnls) / len(settled_pnls), 2) if settled_pnls else 0.0
 
+    from app.services.xp import level_from_xp, xp_needed_for_next_level
+    user_xp = int(user.xp or 0)
     return PortfolioSummaryOut(
         user_id=user_id,
         balance=balance,
@@ -463,6 +476,9 @@ def get_portfolio_summary(user_id: int, db: Session = Depends(get_db)):
         current_streak=user.current_streak or 0,
         best_streak=user.best_streak or 0,
         win_rate=win_rate,
+        xp=user_xp,
+        level=level_from_xp(user_xp),
+        xp_to_next_level=xp_needed_for_next_level(user_xp),
         accuracy_score=accuracy_score,
         percentile_rank=percentile_rank,
         avg_entry_prob=avg_entry_prob,

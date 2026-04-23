@@ -36,6 +36,10 @@ class User(Base):
     current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     best_streak: Mapped[int]    = mapped_column(Integer, default=0, nullable=False)
 
+    # Total XP earned across the platform. Awarded on every prediction placed
+    # (amount // 5). Never decreases. Drives the level badge (sqrt curve).
+    xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)

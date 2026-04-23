@@ -12,6 +12,7 @@ import {
 import { api } from "@/src/api/client";
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
+import { LevelBadge } from "@/components/LevelBadge";
 
 // ── Theme (matches leaderboard + news-detail) ───────────────────────────────
 const BG       = "#08090C";
@@ -44,6 +45,8 @@ type TraderProfile = {
   win_rate: number;
   current_streak: number;
   best_streak: number;
+  level?: number;
+  xp?: number;
 };
 
 type TraderCard = {
@@ -209,7 +212,10 @@ export default function UserProfileScreen() {
                   <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 24 }}>{initial}</Text>
                 </LinearGradient>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 20 }}>{profile.display_name}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 20 }}>{profile.display_name}</Text>
+                    <LevelBadge level={profile.level} size="md" />
+                  </View>
                   <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", marginTop: 2 }}>@{profile.email_prefix}</Text>
                   {profile.current_streak >= 2 && (
                     <Text style={{ color: "#FB923C", fontSize: 12, fontFamily: "DMSans_500Medium", marginTop: 6 }}>

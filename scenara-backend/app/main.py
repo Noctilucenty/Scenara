@@ -53,6 +53,9 @@ def _migrate_user_columns() -> None:
         if "display_name" not in cols:
             conn.execute(sql_text("ALTER TABLE users ADD COLUMN display_name VARCHAR(100) NOT NULL DEFAULT ''"))
             logger.info("[Migration] Added display_name column to users.")
+        if "xp" not in cols:
+            conn.execute(sql_text("ALTER TABLE users ADD COLUMN xp INTEGER NOT NULL DEFAULT 0"))
+            logger.info("[Migration] Added xp column to users.")
 
 
 def _migrate_zh_columns() -> None:
@@ -71,6 +74,47 @@ def _migrate_zh_columns() -> None:
         if "title_zh" not in scenario_cols:
             conn.execute(sql_text("ALTER TABLE scenarios ADD COLUMN title_zh VARCHAR(255) NULL"))
             logger.info("[Migration] Added title_zh to scenarios.")
+
+
+def _backfill_xp() -> None:
+    """
+    Idempotent: retroactively award XP to users who placed bets before XP existed.
+
+    Matches the live award rule (services.xp.xp_for_bet):
+      xp = floor(amount / 5)  for each bet >= $5, summed per user.
+
+    Targets only users whose xp = 0 AND who have at least one prediction — i.e.
+    users that have never had XP awarded. New users who join post-migration
+    will start with xp=0 and accrue through normal play.
+    """
+    from sqlalchemy import text as sql_text
+    with engine.begin() as conn:
+        # Any candidates? If not, skip entirely to keep startup fast.
+        probe = conn.execute(sql_text(
+            "SELECT COUNT(*) FROM users u "
+            "WHERE u.xp = 0 "
+            "AND EXISTS (SELECT 1 FROM predictions p WHERE p.user_id = u.id)"
+        )).scalar() or 0
+        if probe == 0:
+            return
+
+        # Per-user sum(floor(amount/5)) over all their predictions.
+        # Use FLOOR() because Postgres integer division rounds toward zero for
+        # positive numbers anyway, but being explicit prevents surprises if
+        # simulated_amount is stored as a DECIMAL/NUMERIC type.
+        conn.execute(sql_text("""
+            UPDATE users
+            SET xp = sub.total_xp
+            FROM (
+                SELECT user_id, FLOOR(SUM(FLOOR(simulated_amount / 5)))::INTEGER AS total_xp
+                FROM predictions
+                WHERE simulated_amount >= 5
+                GROUP BY user_id
+            ) AS sub
+            WHERE users.id = sub.user_id
+              AND users.xp = 0
+        """))
+    logger.info("[Migration] Backfilled XP for %d legacy users.", probe)
 
 
 def _migrate_brazil_category() -> None:
@@ -153,6 +197,7 @@ def create_app() -> FastAPI:
         _migrate_user_columns()
         _migrate_zh_columns()
         _migrate_brazil_category()
+        _backfill_xp()
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
         asyncio.create_task(_backfill_zh_translations())

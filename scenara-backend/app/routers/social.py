@@ -61,6 +61,9 @@ class TraderProfile(BaseModel):
     win_rate: float
     current_streak: int
     best_streak: int
+    # Gamification
+    level: int = 1
+    xp: int = 0
 
 
 class FeedItem(BaseModel):
@@ -232,6 +235,8 @@ def get_trader_profile(
 
     stats = _user_stats_map(db, [user.id]).get(user.id, {})
 
+    from app.services.xp import level_from_xp
+    user_xp = int(user.xp or 0)
     return TraderProfile(
         id=user.id,
         display_name=user.display_name or _email_prefix(user),
@@ -248,6 +253,8 @@ def get_trader_profile(
         win_rate=float(stats.get("win_rate", 0.0)),
         current_streak=int(user.current_streak or 0),
         best_streak=int(user.best_streak or 0),
+        xp=user_xp,
+        level=level_from_xp(user_xp),
     )
 
 

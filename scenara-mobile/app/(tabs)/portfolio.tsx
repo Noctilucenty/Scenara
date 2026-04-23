@@ -13,6 +13,7 @@ import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
 import { api } from "@/src/api/client";
 import { router } from "expo-router";
+import { LevelBadge } from "@/components/LevelBadge";
 
 // ── Import from centralized theme (no more scattered color constants) ──────────
 import {
@@ -36,6 +37,7 @@ const AUTO_REFRESH_MS = 60_000;
 type PortfolioSummary = {
   current_streak: number; best_streak: number; win_rate: number;
   accuracy_score: number; percentile_rank: number; best_pnl: number; worst_pnl: number;
+  xp: number; level: number; xp_to_next_level: number;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -299,6 +301,9 @@ export default function PortfolioScreen() {
         percentile_rank: res.data.percentile_rank ?? 0,
         best_pnl:        res.data.best_pnl        ?? 0,
         worst_pnl:       res.data.worst_pnl       ?? 0,
+        xp:                res.data.xp                ?? 0,
+        level:             res.data.level             ?? 1,
+        xp_to_next_level:  res.data.xp_to_next_level  ?? 0,
       });
     } catch { }
   }, [userId]);
@@ -394,7 +399,15 @@ export default function PortfolioScreen() {
         {/* Header */}
         <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.1)" }}>
           <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 2 }}>{t.common.scenara}</Text>
-          <Text style={{ color: TEXT, fontSize: 26, fontFamily: "DMSans_700Bold", letterSpacing: -0.5, marginTop: 4 }}>{t.portfolio.title}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 }}>
+            <Text style={{ color: TEXT, fontSize: 26, fontFamily: "DMSans_700Bold", letterSpacing: -0.5 }}>{t.portfolio.title}</Text>
+            {summary && <LevelBadge level={summary.level} size="md" />}
+          </View>
+          {summary && summary.xp_to_next_level > 0 && (
+            <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_500Medium", marginTop: 4 }}>
+              {summary.xp} XP · {summary.xp_to_next_level} {language === "pt" ? "para o próximo nível" : language === "zh" ? "距下一级" : "to next level"}
+            </Text>
+          )}
           {/* Grade label — identity hook (port from Claude's getGrade) */}
           {summary && summary.accuracy_score > 0 && (
             <View style={{ marginTop: 8 }}>

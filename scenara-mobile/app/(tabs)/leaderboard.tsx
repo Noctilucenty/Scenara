@@ -14,6 +14,7 @@ import { api } from "@/src/api/client";
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
 import { router } from "expo-router";
+import { LevelBadge } from "@/components/LevelBadge";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
@@ -40,6 +41,8 @@ type LeaderboardEntry = {
   current_streak: number; best_streak: number;
   is_following?: boolean;        // backend-decorated when viewer_id passed
   follower_count?: number;
+  level?: number;                // 1, 2, 3... from sqrt XP curve
+  xp?: number;
 };
 type LeaderboardData = { entries: LeaderboardEntry[]; total_users: number };
 
@@ -89,8 +92,9 @@ function EntryRow({
         )}
       </View>
       <View style={{ flex: 1, paddingHorizontal: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={{ color: isMe ? BLUE : isTop3 ? TEXT : TEXT_SUB, fontFamily: "DMSans_700Bold", fontSize: 15 }}>{entry.display_name}</Text>
+          <LevelBadge level={entry.level ?? 1} />
           {isMe && (
             <View style={{ backgroundColor: "rgba(79,142,247,0.15)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 }}>
               <Text style={{ color: BLUE, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>{t.rankings.youBadge}</Text>

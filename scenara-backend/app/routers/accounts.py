@@ -40,6 +40,8 @@ class LeaderboardEntry(BaseModel):
     best_streak: int
     is_following: bool = False   # whether the calling user follows this one
     follower_count: int = 0      # for "popular trader" sorting later
+    level: int = 1               # derived from user.xp via sqrt curve
+    xp: int = 0
 
 
 class LeaderboardOut(BaseModel):
@@ -112,6 +114,7 @@ def get_leaderboard(
             models.User.display_name,
             models.User.current_streak,
             models.User.best_streak,
+            models.User.xp,
             balance_col,
             func.coalesce(pred_agg.c.total_predictions, 0).label("total_predictions"),
             won_count_col,
@@ -138,10 +141,12 @@ def get_leaderboard(
 
     rows = base_q.all()
 
+    from app.services.xp import level_from_xp
     entries = []
     for row in rows:
         settled = (row.won_count or 0) + (row.lost_count or 0)
         win_rate = round(((row.won_count or 0) / settled) * 100, 1) if settled > 0 else 0.0
+        user_xp = int(row.xp or 0)
         entries.append(LeaderboardEntry(
             rank=0,
             user_id=row.id,
@@ -155,6 +160,8 @@ def get_leaderboard(
             win_rate=win_rate,
             current_streak=row.current_streak or 0,
             best_streak=row.best_streak or 0,
+            xp=user_xp,
+            level=level_from_xp(user_xp),
         ))
 
     # win_rate sort requires Python-side re-sort (depends on two columns: win_rate + won_count)
