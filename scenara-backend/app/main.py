@@ -17,6 +17,7 @@ from app.routers.comments import router as comments_router
 from app.routers.push import router as push_router
 from app.routers.voting import router as voting_router
 from app.routers.admin import router as admin_router
+from app.routers.social import router as social_router
 from app.models.user import User
 
 from app.services.event_generator import run_snapshot, run_event_generator, start_scheduler
@@ -144,6 +145,9 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def _startup() -> None:
+        # Ensure the user_follows table's model class is imported before create_all
+        # so it's included in Base.metadata (not just auto-imported by routers).
+        from app.models import user_follow  # noqa: F401
         Base.metadata.create_all(bind=engine)
         _migrate_is_admin_column()
         _migrate_user_columns()
@@ -197,6 +201,7 @@ def create_app() -> FastAPI:
     app.include_router(push_router,        prefix="/push",        tags=["push"])
     app.include_router(voting_router,      prefix="/voting",      tags=["voting"])
     app.include_router(admin_router,       prefix="/admin",       tags=["admin"])
+    app.include_router(social_router,      prefix="/social",      tags=["social"])
 
     return app
 

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
@@ -34,8 +36,10 @@ class LeaderboardEntry(BaseModel):
     won_count: int
     lost_count: int
     win_rate: float
-    current_streak: int       # NEW
-    best_streak: int          # NEW
+    current_streak: int
+    best_streak: int
+    is_following: bool = False   # whether the calling user follows this one
+    follower_count: int = 0      # for "popular trader" sorting later
 
 
 class LeaderboardOut(BaseModel):
@@ -73,8 +77,10 @@ def get_leaderboard(
     db: Session = Depends(get_db),
     sort_by: str = Query(default="pnl", enum=["pnl", "balance", "win_rate"]),
     limit: int = Query(default=20, ge=1, le=100),
+    viewer_id: Optional[int] = Query(default=None, description="If provided, returns is_following per row"),
 ):
     from sqlalchemy import func, case
+    from app.models import UserFollow
 
     # Single query: aggregate predictions per user
     pred_agg = (
@@ -160,4 +166,31 @@ def get_leaderboard(
 
     total_users = len(entries)
     entries = entries[:limit]
+
+    # Decorate with social data (follower count, is_following) — only for the
+    # trimmed top-N to keep it cheap. Two aggregate queries + one conditional.
+    top_ids = [e.user_id for e in entries]
+    if top_ids:
+        fc_rows = (
+            db.query(UserFollow.followee_id, func.count(UserFollow.id))
+            .filter(UserFollow.followee_id.in_(top_ids))
+            .group_by(UserFollow.followee_id)
+            .all()
+        )
+        fc_map = {uid: int(cnt) for uid, cnt in fc_rows}
+
+        following_set: set[int] = set()
+        if viewer_id is not None:
+            following_set = {
+                r[0] for r in db.query(UserFollow.followee_id)
+                .filter(
+                    UserFollow.follower_id == viewer_id,
+                    UserFollow.followee_id.in_(top_ids),
+                ).all()
+            }
+
+        for e in entries:
+            e.follower_count = fc_map.get(e.user_id, 0)
+            e.is_following = e.user_id in following_set
+
     return LeaderboardOut(entries=entries, total_users=total_users)
