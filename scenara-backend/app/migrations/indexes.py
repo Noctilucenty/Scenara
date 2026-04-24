@@ -103,6 +103,25 @@ def ensure_indexes(engine) -> None:
             skipped += 1
             logger.warning("[Indexes] Skipped %s (%s): %s", name, dialect, e)
 
+    # Postgres-only: GIN full-text index powering /events/search. The index
+    # expression MUST match the one used in the query (setweight + same
+    # coalesce chain) or Postgres won't use it. SQLite has no tsvector, so
+    # we skip on local dev — search falls back to ILIKE there.
+    if dialect == "postgresql":
+        fts_sql = (
+            "CREATE INDEX IF NOT EXISTS ix_events_fts ON events USING GIN ("
+            "(setweight(to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(title_pt,'') || ' ' || coalesce(title_zh,'')), 'A') || "
+            "setweight(to_tsvector('simple', coalesce(description,'') || ' ' || coalesce(description_pt,'') || ' ' || coalesce(description_zh,'')), 'B'))"
+            ")"
+        )
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(fts_sql))
+            created += 1
+        except Exception as e:
+            skipped += 1
+            logger.warning("[Indexes] Skipped ix_events_fts: %s", e)
+
     logger.info(
         "[Indexes] Ensured %d index(es) (%d skipped) on %s.",
         created, skipped, dialect,

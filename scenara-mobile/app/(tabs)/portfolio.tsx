@@ -593,7 +593,7 @@ export default function PortfolioScreen() {
               <TouchableOpacity onPress={() => router.push("/(tabs)")} style={{ borderRadius: 12, overflow: "hidden" }}>
                 <LinearGradient colors={GRAD.BP} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 12, paddingHorizontal: 28 }}>
                   <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>
-                    {language === "pt" ? "Ver mercados →" : language === "zh" ? "查看市场 →" : "Browse Markets →"}
+                    {t.common.browseMarkets}
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>

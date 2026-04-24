@@ -249,26 +249,73 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)):
 
 @router.get("/search", response_model=list[EventOut])
 def search_events(
-    q: str = Query(..., min_length=1),
+    q: str = Query(..., min_length=1, max_length=100),
     category: str | None = Query(None),
     lang: str = Query(default="en"),
+    include_closed: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
-    """Search open events by title keyword."""
-    from sqlalchemy import or_
-    query = db.query(Event).options(joinedload(Event.scenarios)).filter(
-        Event.status == "open",
-        or_(
-            Event.title.ilike(f"%{q}%"),
-            Event.title_pt.ilike(f"%{q}%"),
-            Event.title_zh.ilike(f"%{q}%"),
-            Event.description.ilike(f"%{q}%"),
-            Event.description_zh.ilike(f"%{q}%"),
+    """Search events by keyword across all three language title/description columns.
+
+    On PostgreSQL we use a tsvector full-text index with ts_rank ordering —
+    relevance-first, then recency. On SQLite (local dev) we fall back to the
+    simple ILIKE path since tsvector isn't available.
+
+    Why the `simple` text-search config:
+      We store en/pt/zh text in the same row; an English stemmer would butcher
+      Portuguese accents and vice-versa. The `simple` config just tokenizes +
+      lowercases, which is the right cross-language compromise.
+
+    Ranking weights:
+      title  (A) — strongest signal; what users actually scan for
+      description (B) — supporting keywords
+    """
+    from sqlalchemy import or_, text as sql_text
+    from app.db import engine
+
+    dialect = engine.dialect.name
+    status_filter = [] if include_closed else [Event.status == "open"]
+
+    if dialect == "postgresql":
+        # plainto_tsquery is injection-safe: it treats the input as plain text,
+        # stripping tsquery operators. No need to sanitize q.
+        fts_expr = (
+            "setweight(to_tsvector('simple', coalesce(title,'') || ' ' || coalesce(title_pt,'') || ' ' || coalesce(title_zh,'')), 'A') || "
+            "setweight(to_tsvector('simple', coalesce(description,'') || ' ' || coalesce(description_pt,'') || ' ' || coalesce(description_zh,'')), 'B')"
         )
-    )
-    if category and category != "all":
-        query = query.filter(Event.category == category)
-    events = query.order_by(Event.created_at.desc()).limit(30).all()
+        rank_sql = sql_text(f"ts_rank(({fts_expr}), plainto_tsquery('simple', :q)) AS rank")
+        match_sql = sql_text(f"({fts_expr}) @@ plainto_tsquery('simple', :q)")
+        query = (
+            db.query(Event, rank_sql)
+            .options(joinedload(Event.scenarios))
+            .filter(*status_filter)
+            .filter(match_sql)
+            .params(q=q)
+        )
+        if category and category != "all":
+            query = query.filter(Event.category == category)
+        # Rank first, then recency tiebreaker. ts_rank returns 0 for terms not
+        # found which shouldn't happen after the @@ filter, but the order_by
+        # is tolerant either way.
+        rows = query.order_by(sql_text("rank DESC"), Event.created_at.desc()).limit(30).all()
+        events = [row[0] for row in rows]
+    else:
+        # SQLite fallback — no tsvector, so we do the ILIKE union and order
+        # by recency. Correctness matches the prior behavior.
+        query = db.query(Event).options(joinedload(Event.scenarios)).filter(
+            *status_filter,
+            or_(
+                Event.title.ilike(f"%{q}%"),
+                Event.title_pt.ilike(f"%{q}%"),
+                Event.title_zh.ilike(f"%{q}%"),
+                Event.description.ilike(f"%{q}%"),
+                Event.description_zh.ilike(f"%{q}%"),
+            ),
+        )
+        if category and category != "all":
+            query = query.filter(Event.category == category)
+        events = query.order_by(Event.created_at.desc()).limit(30).all()
+
     _fill_zh_translations(events, db)
     return events
 

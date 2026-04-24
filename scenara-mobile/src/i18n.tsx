@@ -186,6 +186,19 @@ const en = {
     free: "Free",
     always: "Always",
     startBalance: "Start Balance",
+    // Cross-screen CTAs / action labels — centralized so we stop inlining
+    // `language === "pt" ? ... : language === "zh" ? ...` for the same words.
+    retry: "Retry",
+    confirm: "Confirm",
+    cancel: "Cancel",
+    save: "Save",
+    close: "Close",
+    browseMarkets: "Browse Markets →",
+    loadFailed: "Failed to load",
+    serverWarming: "The server may be warming up. Wait a few seconds and try again.",
+    noResults: "No results",
+    search: "Search",
+    searchPlaceholder: "Search markets...",
   },
 };
 
@@ -370,6 +383,17 @@ const pt: typeof en = {
     free: "Grátis",
     always: "Sempre",
     startBalance: "Saldo Inicial",
+    retry: "Tentar novamente",
+    confirm: "Confirmar",
+    cancel: "Cancelar",
+    save: "Salvar",
+    close: "Fechar",
+    browseMarkets: "Ver mercados →",
+    loadFailed: "Falha ao carregar",
+    serverWarming: "O servidor pode estar iniciando. Aguarde alguns segundos e tente novamente.",
+    noResults: "Sem resultados",
+    search: "Buscar",
+    searchPlaceholder: "Buscar mercados...",
   },
 };
 
@@ -554,6 +578,17 @@ const zh: typeof en = {
     free: "免费",
     always: "永久",
     startBalance: "起始余额",
+    retry: "重试",
+    confirm: "确认",
+    cancel: "取消",
+    save: "保存",
+    close: "关闭",
+    browseMarkets: "查看市场 →",
+    loadFailed: "加载失败",
+    serverWarming: "服务器可能正在启动，请稍候几秒后重试。",
+    noResults: "无结果",
+    search: "搜索",
+    searchPlaceholder: "搜索市场...",
   },
 };
 

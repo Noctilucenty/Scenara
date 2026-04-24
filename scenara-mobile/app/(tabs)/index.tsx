@@ -28,6 +28,7 @@ import {
 } from "@/src/theme";
 import { ProbabilityChart, ScenarioHistory } from "@/components/ProbabilityChart";
 import { MarketsGridSkeleton } from "@/components/Skeleton";
+import { SearchBar } from "@/components/SearchBar";
 import { shareContent } from "@/src/utils/useShare";
 import { toChineseFallback } from "@/src/utils/zhFallback";
 
@@ -2121,6 +2122,12 @@ export default function MarketsScreen() {
           language={language}
         />
 
+        {/* Search — debounced full-text across titles/descriptions. Scoped to
+            the active category so switching tabs auto-narrows the search. */}
+        <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+          <SearchBar category={activeCategory} />
+        </View>
+
         {/* Live stats bar */}
         <LiveStatsBar eventCount={events.length} language={language} />
 
@@ -2139,14 +2146,10 @@ export default function MarketsScreen() {
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
             <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>⚡</Text>
             <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_700Bold", textAlign: "center", marginBottom: 8 }}>
-              {language === "pt" ? "Falha ao carregar mercados" : language === "zh" ? "加载市场失败" : "Failed to load markets"}
+              {t.common.loadFailed}
             </Text>
             <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular", textAlign: "center", marginBottom: 24 }}>
-              {language === "pt"
-                ? "O servidor pode estar iniciando. Aguarde alguns segundos e tente novamente."
-                : language === "zh"
-                ? "服务器可能正在启动，请稍候几秒后重试。"
-                : "The server may be warming up. Wait a few seconds and try again."}
+              {t.common.serverWarming}
             </Text>
             <TouchableOpacity
               onPress={() => fetchEvents()}
@@ -2158,7 +2161,7 @@ export default function MarketsScreen() {
                 style={{ paddingHorizontal: 28, paddingVertical: 12 }}
               >
                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>
-                  {language === "pt" ? "Tentar novamente" : language === "zh" ? "é‡试" : "Retry"}
+                  {t.common.retry}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
