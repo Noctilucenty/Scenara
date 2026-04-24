@@ -15,6 +15,7 @@ import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
 import { router } from "expo-router";
 import { LevelBadge } from "@/components/LevelBadge";
+import { LeaderboardSkeleton } from "@/components/Skeleton";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
@@ -302,8 +303,14 @@ export default function LeaderboardScreen() {
         </View>
       ) : null}
 
-      {loading && <View style={{ alignItems: "center", paddingVertical: 20 }}><ActivityIndicator color={PURPLE} /></View>}
+      {/* Initial-load skeleton — only shown when no data is cached yet.
+          Subsequent refreshes (period change, pull-to-refresh) keep the
+          existing rows visible; we don't wipe the UI to show a skeleton. */}
+      {loading && !data && <LeaderboardSkeleton rows={8} />}
       {error ? <View style={{ marginBottom: 12, backgroundColor: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.2)", borderWidth: 1, padding: 12, borderRadius: 12 }}><Text style={{ color: RED, fontSize: 13 }}>{error}</Text></View> : null}
+
+      {/* Small inline spinner while refetching with cached data still visible. */}
+      {loading && data && <View style={{ alignItems: "center", paddingVertical: 12 }}><ActivityIndicator color={PURPLE} /></View>}
 
       {data?.entries.map(entry => (
         <EntryRow

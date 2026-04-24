@@ -14,6 +14,7 @@ import { useLanguage } from "@/src/i18n";
 import { api } from "@/src/api/client";
 import { router } from "expo-router";
 import { LevelBadge } from "@/components/LevelBadge";
+import { PortfolioSkeleton } from "@/components/Skeleton";
 
 // ── Import from centralized theme (no more scattered color constants) ──────────
 import {
@@ -417,6 +418,14 @@ export default function PortfolioScreen() {
         </View>
 
         <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+
+          {/* Initial-load skeleton. Shown only when we have nothing to render
+              yet. Once data arrives (even partially — summary OR predictions)
+              the real UI takes over and subsequent refreshes use the inline
+              spinner at the bottom of the list. */}
+          {loadingPortfolio && !summary && predictions.length === 0 && (
+            <PortfolioSkeleton />
+          )}
 
           {/* Streak milestone celebration banner */}
           {summary && cs >= 3 && !streakDismissed && (() => {

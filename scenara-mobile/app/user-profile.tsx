@@ -13,6 +13,7 @@ import { api } from "@/src/api/client";
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
 import { LevelBadge } from "@/components/LevelBadge";
+import { ProfileSkeleton } from "@/components/Skeleton";
 
 // ── Theme (matches leaderboard + news-detail) ───────────────────────────────
 const BG       = "#08090C";
@@ -185,9 +186,12 @@ export default function UserProfileScreen() {
         </View>
 
         {loading && (
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-            <ActivityIndicator color={PURPLE} />
-          </View>
+          // Shape-matching skeleton so the avatar + stat tiles don't jump in
+          // when the /users/:id response lands. The identity hit matters more
+          // on this screen than anywhere else — it's the social layer.
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+            <ProfileSkeleton />
+          </ScrollView>
         )}
 
         {error && !loading && (

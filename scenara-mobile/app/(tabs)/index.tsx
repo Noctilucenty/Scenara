@@ -27,6 +27,7 @@ import {
   C, GRAD, SCENARIO_COLORS, CATEGORY_META, catMeta, timeUntil,
 } from "@/src/theme";
 import { ProbabilityChart, ScenarioHistory } from "@/components/ProbabilityChart";
+import { MarketsGridSkeleton } from "@/components/Skeleton";
 import { shareContent } from "@/src/utils/useShare";
 import { toChineseFallback } from "@/src/utils/zhFallback";
 
@@ -2128,9 +2129,12 @@ export default function MarketsScreen() {
 
         {/* Body */}
         {loading ? (
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-            <ActivityIndicator color={PURPLE} size="large" />
-          </View>
+          // Skeleton grid mirrors the real layout so the eye pre-loads
+          // spacing + card shapes. Matches gridCols exactly so there's no
+          // reflow jank when real markets land.
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <MarketsGridSkeleton count={gridCols * 3} columns={gridCols} />
+          </ScrollView>
         ) : loadError ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
             <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>⚡</Text>
