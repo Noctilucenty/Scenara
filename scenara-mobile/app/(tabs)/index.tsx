@@ -1661,13 +1661,10 @@ export default function MarketsScreen() {
   }, []);
 
   const [carouselIdx, setCarouselIdx] = useState(0);
-  const [marketPageIdx, setMarketPageIdx] = useState(0);
-  const [marketPageWidth, setMarketPageWidth] = useState(0);
-  const marketSlideAnim = useRef(new Animated.Value(0)).current;
-  const marketPageIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const marketPageCountRef = useRef(0);
-  const marketPageIdxRef = useRef(0);
-  const marketPageWidthRef = useRef(0);
+  // Paginated-carousel state for the markets grid was removed: on web we now
+  // render the entire list as one flex-wrap grid and rely on ScrollView's
+  // onScroll + loadMore() to stream new markets in. Keeping only the featured
+  // hero-card carousel state below.
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const carouselRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const featuredSlideAnim = useRef(new Animated.Value(0)).current;
@@ -1820,9 +1817,18 @@ export default function MarketsScreen() {
   // Keep eventsRef in sync so loadMore always reads current length
   useEffect(() => { eventsRef.current = events; }, [events]);
 
+  // Cooldown ref: when the backend has nothing new, we pause loadMore for a
+  // short window instead of permanently giving up. The event generator
+  // refreshes crypto/static events in the background, so a later scroll will
+  // pick up new data. This keeps the feed feeling infinite and avoids
+  // the "— All markets loaded —" dead-end the user didn't want.
+  const loadMoreCooldownUntilRef = useRef(0);
+  const LOAD_MORE_COOLDOWN_MS = 10_000;
+
   const loadMore = useCallback(async () => {
     const st = scrollStateRef.current;
-    if (st.loadingMore || !st.hasMore) return;
+    if (st.loadingMore) return;
+    if (Date.now() < loadMoreCooldownUntilRef.current) return;
     st.loadingMore = true;
     setLoadingMore(true);
     try {
@@ -1839,8 +1845,10 @@ export default function MarketsScreen() {
       }
 
       if (page.length === 0) {
-        st.hasMore = false;
-        setHasMore(false);
+        // No new events right now — cool down for a few seconds, then allow
+        // loadMore to try again. hasMore stays true so the footer never shows
+        // a terminal state; the next scroll past the threshold will retry.
+        loadMoreCooldownUntilRef.current = Date.now() + LOAD_MORE_COOLDOWN_MS;
         return;
       }
       setEvents(prev => {
@@ -1932,14 +1940,7 @@ export default function MarketsScreen() {
   // Reset carousel when events reload
   useEffect(() => { setCarouselIdx(0); carouselIdxRef.current = 0; featuredSlideAnim.setValue(0); featuredOpacityAnim.setValue(1); }, [events.length === 0]);
 
-  // Keep refs in sync for stale-closure-safe access inside setInterval
-  useEffect(() => { marketPageIdxRef.current = marketPageIdx; }, [marketPageIdx]);
-  useEffect(() => { marketPageWidthRef.current = marketPageWidth; }, [marketPageWidth]);
-
-// Reset market page on fresh load
-  useEffect(() => {
-    if (!loading) { setMarketPageIdx(0); marketPageIdxRef.current = 0; marketSlideAnim.setValue(0); }
-  }, [loading]);
+  // (Removed: the market-page index/width sync effects — no longer paginated.)
 
   // Fetch comments + related news whenever featured event OR language changes.
   // language is in the dep array so switching zh/en/pt re-fetches news in the
@@ -2434,86 +2435,45 @@ export default function MarketsScreen() {
                   </View>
                 )}
 
-                {/* Market grid — paginated carousel, auto-advances every 5s */}
+                {/* Market grid — continuous infinite feed.
+                    On multi-column web layouts we used to paginate the grid into
+                    pages with indicator dots (1/N, slide animation). The user
+                    reported it as "feels like pages". Now we render the entire
+                    visible list as one flex-wrap grid, so the ScrollView's
+                    onScroll handler triggers loadMore() smoothly and the page
+                    simply grows longer as new markets stream in. */}
                 {(() => {
                   const visibleRest = (!isAuthenticated && rest.length > GUEST_CAP)
                     ? rest.slice(0, GUEST_CAP)
                     : rest;
                   const showGate = !isAuthenticated && rest.length > GUEST_CAP;
-                  const CARDS_PER_PAGE = gridCols * 2;
-                  const pages: EventItem[][] = [];
-                  for (let i = 0; i < visibleRest.length; i += CARDS_PER_PAGE) {
-                    pages.push(visibleRest.slice(i, i + CARDS_PER_PAGE));
-                  }
-                  marketPageCountRef.current = pages.length;
-
-                  const goToPage = (i: number) => {
-                    const w = marketPageWidthRef.current;
-                    if (w === 0) return;
-                    // Phase 1: slide current page out to the right
-                    Animated.timing(marketSlideAnim, { toValue: w, duration: 380, useNativeDriver: false }).start(() => {
-                      setMarketPageIdx(i);
-                      marketPageIdxRef.current = i;
-                      // Snap new page in from the left
-                      marketSlideAnim.setValue(-w);
-                      // Phase 2: slide in from left to center
-                      Animated.timing(marketSlideAnim, { toValue: 0, duration: 380, useNativeDriver: false }).start();
-                    });
-                  };
 
                   return (
                     <>
                       {gridCols > 1 ? (
-                        <View
-                          onLayout={e => {
-                            const w = e.nativeEvent.layout.width;
-                            if (w > 0 && w !== marketPageWidth) setMarketPageWidth(w);
-                          }}
-                          style={{ overflow: "hidden" }}
-                        >
-                          <Animated.View style={{ transform: [{ translateX: marketSlideAnim }] }}>
-                            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                              {(pages[marketPageIdx] ?? []).map(event => (
-                                <View key={event.id} style={{ width: cardPct as any }}>
-                                  <MarketCard
-                                    event={event}
-                                    onPress={() => handleCardPress(event.id)}
-                                    onBetPress={() => handleBetPress(event.id)}
-                                    language={language}
-                                    sentiment={sentimentCache[event.id] ?? null}
-                                    history={historyCache[event.id]}
-                                    t={t}
-                                  />
-                                  {betPanelId === event.id && (
-                                    <BetPanel
-                                      event={event} language={language} t={t}
-                                      onClose={() => setBetPanelId(null)}
-                                      isAuthenticated={isAuthenticated} userId={userId}
-                                      placePrediction={placePrediction} refreshPortfolio={refreshPortfolio}
-                                      sentimentCache={sentimentCache}
-                                    />
-                                  )}
-                                </View>
-                              ))}
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                          {visibleRest.map(event => (
+                            <View key={event.id} style={{ width: cardPct as any }}>
+                              <MarketCard
+                                event={event}
+                                onPress={() => handleCardPress(event.id)}
+                                onBetPress={() => handleBetPress(event.id)}
+                                language={language}
+                                sentiment={sentimentCache[event.id] ?? null}
+                                history={historyCache[event.id]}
+                                t={t}
+                              />
+                              {betPanelId === event.id && (
+                                <BetPanel
+                                  event={event} language={language} t={t}
+                                  onClose={() => setBetPanelId(null)}
+                                  isAuthenticated={isAuthenticated} userId={userId}
+                                  placePrediction={placePrediction} refreshPortfolio={refreshPortfolio}
+                                  sentimentCache={sentimentCache}
+                                />
+                              )}
                             </View>
-                          </Animated.View>
-
-                          {/* Page indicator dots */}
-                          {pages.length > 1 && (
-                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 14 }}>
-                              {pages.map((_, i) => (
-                                <TouchableOpacity key={i} onPress={() => goToPage(i)}>
-                                  <View style={{
-                                    width: i === marketPageIdx ? 20 : 6, height: 6, borderRadius: 3,
-                                    backgroundColor: i === marketPageIdx ? PURPLE : "rgba(124,92,252,0.25)",
-                                  }} />
-                                </TouchableOpacity>
-                              ))}
-                              <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular", marginLeft: 6 }}>
-                                {marketPageIdx + 1}/{pages.length}
-                              </Text>
-                            </View>
-                          )}
+                          ))}
                         </View>
                       ) : (
                         visibleRest.map(event => (
@@ -2592,13 +2552,9 @@ export default function MarketsScreen() {
                 </Text>
               </View>
             )}
-            {!hasMore && !loadingMore && events.length > 0 && (
-              <View style={{ paddingVertical: 16, alignItems: "center" }}>
-                <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
-                  {language === "pt" ? "— Todos os mercados carregados —" : language === "zh" ? "— 全部市场已加载 —" : "— All markets loaded —"}
-                </Text>
-              </View>
-            )}
+            {/* No terminal "all markets loaded" footer — the feed is continuous.
+                When the backend has nothing new, loadMore quietly cools down
+                for a few seconds and the next scroll retries. */}
           </ScrollView>
         )}
       </SafeAreaView>
