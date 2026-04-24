@@ -6,6 +6,12 @@ import { TradingProvider, useTrading } from "@/src/session/TradingContext";
 import { LanguageProvider, useLanguage } from "@/src/i18n";
 import { hasSeenOnboarding } from "./onboarding";
 import { api } from "@/src/api/client";
+import { initSentry } from "@/src/observability/sentry";
+
+// Initialize Sentry at module load — before any component renders. This
+// way, a render-phase throw in the very first component (like the TDZ
+// login bug from earlier) is still captured.
+initSentry();
 
 const PURPLE   = "#7C5CFC";
 const PURPLE_D = "#4A3699";

@@ -118,6 +118,13 @@ def get_current_user(
     user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    # Tag the Sentry scope so any subsequent error in this request is linked
+    # to the user. No-op when Sentry is disabled.
+    try:
+        from app.observability import set_user_context
+        set_user_context(user.id, user.email)
+    except Exception:
+        pass
     return user
 
 
@@ -131,7 +138,14 @@ def get_current_user_optional(
     try:
         payload = decode_token(token)
         user_id = int(payload.get("sub", 0))
-        return db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+        user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+        if user:
+            try:
+                from app.observability import set_user_context
+                set_user_context(user.id, user.email)
+            except Exception:
+                pass
+        return user
     except Exception:
         return None
 

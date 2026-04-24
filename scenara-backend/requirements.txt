@@ -37,3 +37,6 @@ websockets==16.0
 
 
 psycopg2-binary==2.9.11
+
+# Observability
+sentry-sdk[fastapi]==2.18.0

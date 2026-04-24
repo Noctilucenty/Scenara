@@ -1,11 +1,16 @@
 import asyncio
 import logging
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import Base, engine
+from app.observability import init_sentry
+
+# Initialize Sentry FIRST — before any other imports that might emit errors
+# we want captured. Safe no-op when SENTRY_DSN is unset.
+init_sentry()
 
 from app.routers.users import router as users_router
 from app.routers.events import router as events_router
@@ -235,6 +240,14 @@ def create_app() -> FastAPI:
     async def trigger_auto_resolve(current_user: User = Depends(get_current_user)):
         await run_auto_resolver()
         return {"ok": True, "message": "Auto-resolution complete"}
+
+    @app.get("/admin/sentry-test", tags=["admin"])
+    def sentry_test(current_user: User = Depends(get_current_user)):
+        """Deliberately throw to verify Sentry capture end-to-end.
+        Admin-only. The 500 response is expected — check the Sentry dashboard."""
+        if not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Admin only")
+        raise RuntimeError("Sentry verification — this should appear in the Sentry dashboard")
 
     app.include_router(auth_router,        prefix="/auth",        tags=["auth"])
     app.include_router(users_router,       prefix="/users",       tags=["users"])

@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     # ---------- Google Translate ----------
     google_translate_api_key: str | None = None
 
+    # ---------- Observability (Sentry) ----------
+    # Set SENTRY_DSN env var to enable error reporting. Leave unset to disable entirely.
+    # Release tag defaults to the Render git commit SHA when deployed, falling back to "local".
+    sentry_dsn: str | None = None
+    sentry_traces_sample_rate: float = 0.1  # 10% APM sampling to stay within free tier
+    sentry_profiles_sample_rate: float = 0.1
+
     # ---------- CORS ----------
     # Default "*" allows all origins (safe for this app — JWT-protected, no real money).
     # On Render.com: set CORS_ALLOW_ORIGINS env var to "*" or a comma-separated list.

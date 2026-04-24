@@ -5,6 +5,7 @@ import React, {
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { api } from "../api/client";
+import { setSentryUser } from "../observability/sentry";
 
 // Register Expo push token with backend
 async function registerPushToken(): Promise<void> {
@@ -239,6 +240,12 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (userId) refreshPortfolio();
   }, [userId]);
+
+  // Sync Sentry user scope with auth state. One effect covers hydrate,
+  // login, register, and logout — any path that changes authUser.
+  useEffect(() => {
+    setSentryUser(authUser?.id ?? null, authUser?.email ?? null);
+  }, [authUser?.id, authUser?.email]);
 
   const placePrediction = useCallback(async (
     scenarioId: number, amount: number
