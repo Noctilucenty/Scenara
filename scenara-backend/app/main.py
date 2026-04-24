@@ -203,6 +203,9 @@ def create_app() -> FastAPI:
         _migrate_zh_columns()
         _migrate_brazil_category()
         _backfill_xp()
+        # Indexes run after column migrations so every index target exists.
+        from app.migrations.indexes import ensure_indexes
+        ensure_indexes(engine)
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
         asyncio.create_task(_backfill_zh_translations())

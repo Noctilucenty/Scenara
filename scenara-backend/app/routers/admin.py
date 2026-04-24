@@ -183,6 +183,96 @@ def retranslate_zh(
     }
 
 
+@router.get("/db/explain/{query_name}")
+def db_explain(
+    query_name: str,
+    user_id: int = 1,
+    event_id: int = 1,
+    scenario_id: int = 1,
+    category: str = "world",
+    _admin: User = Depends(get_admin_user),
+):
+    """Run EXPLAIN ANALYZE against one of our hot queries.
+
+    We keep a WHITELIST of query shapes (no user-supplied SQL — EXPLAIN ANALYZE
+    runs the query for real, and identifier parameters can't be bound). Use the
+    optional query-string args to probe a specific user/event, otherwise
+    defaults to id=1 — fine for plan-shape inspection.
+
+    Use this to verify an index is actually hit after deploying new indexes:
+      GET /admin/db/explain/portfolio?user_id=42
+    If you see 'Index Scan using ix_predictions_user_created' → the new index
+    is doing its job. 'Seq Scan' → Postgres thinks seq scan is cheaper (tiny
+    table) OR the index wasn't created — check startup logs.
+    """
+    from app.db import engine
+    from app.migrations.indexes import explain_query
+
+    # Curated shapes matching the indexes we just added — one per index.
+    queries: dict[str, tuple[str, dict]] = {
+        "portfolio": (
+            "SELECT id, user_id, scenario_id, created_at FROM predictions "
+            "WHERE user_id = :user_id ORDER BY created_at DESC LIMIT 50",
+            {"user_id": user_id},
+        ),
+        "settled_predictions": (
+            "SELECT id, user_id, settled_at FROM predictions "
+            "WHERE status = 'settled' ORDER BY settled_at DESC LIMIT 100",
+            {},
+        ),
+        "recent_bets": (
+            "SELECT id, user_id, created_at FROM predictions "
+            "ORDER BY created_at DESC LIMIT 50",
+            {},
+        ),
+        "markets_by_category": (
+            "SELECT id, slug, title, closes_at FROM events "
+            "WHERE status = 'open' AND category = :category LIMIT 50",
+            {"category": category},
+        ),
+        "closing_soon": (
+            "SELECT id, slug, title, closes_at FROM events "
+            "WHERE status = 'open' ORDER BY closes_at ASC LIMIT 20",
+            {},
+        ),
+        "featured": (
+            "SELECT id, slug, title FROM events "
+            "WHERE status = 'open' AND is_featured = true "
+            "ORDER BY created_at DESC LIMIT 10",
+            {},
+        ),
+        "event_comments": (
+            "SELECT id, user_id, body, created_at FROM comments "
+            "WHERE event_id = :event_id ORDER BY created_at DESC LIMIT 50",
+            {"event_id": event_id},
+        ),
+        "scenario_history": (
+            "SELECT probability, recorded_at FROM scenario_probability_history "
+            "WHERE scenario_id = :scenario_id ORDER BY recorded_at ASC",
+            {"scenario_id": scenario_id},
+        ),
+    }
+
+    if query_name not in queries:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown query '{query_name}'. Available: {sorted(queries.keys())}",
+        )
+
+    sql, params = queries[query_name]
+    try:
+        plan = explain_query(engine, sql, params)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"EXPLAIN failed: {e}")
+
+    return {
+        "query_name": query_name,
+        "sql": sql,
+        "params": params,
+        "plan": plan,
+    }
+
+
 @router.get("/zh-status")
 def zh_status(
     db: Session = Depends(get_db),
