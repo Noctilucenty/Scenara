@@ -77,7 +77,7 @@ export default function LoginScreen() {
   if (!fontsLoaded) return null;
 
   const isPt = language === "pt";
-  const isZh = isZh;
+  const isZh = language === "zh";
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {

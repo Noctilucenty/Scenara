@@ -9,7 +9,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView,
   StatusBar, TextInput, ActivityIndicator, RefreshControl,
   Platform, Dimensions, Animated, Easing, KeyboardAvoidingView, Image,
-  useWindowDimensions,
+  useWindowDimensions, Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
@@ -1628,7 +1628,7 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
 export default function MarketsScreen() {
   const router = useRouter();
   const { t, language } = useLanguage();
-  const { isAuthenticated, userId, account, placePrediction, refreshPortfolio } = useTrading();
+  const { isAuthenticated, userId, account, placePrediction, refreshPortfolio, logout } = useTrading();
   const { open: openSidebar } = React.useContext(SidebarContext);
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const { width: winW } = useWindowDimensions();
@@ -2032,12 +2032,62 @@ export default function MarketsScreen() {
 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             {isAuthenticated && balanceText && (
-              <View style={{ backgroundColor: "rgba(124,92,252,0.08)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: BORDER_P }}>
-                <Text style={{ color: TEXT_MID, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
-                  {language === "pt" ? "SALDO" : language === "zh" ? "余额" : "BALANCE"}
-                </Text>
-                <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold" }}>{balanceText}</Text>
-              </View>
+              <>
+                {/* Prominent balance — no caption, just the number.
+                    Matches Polymarket/Kalshi. The brand gradient pill frames
+                    it as the primary signal of the header. */}
+                <View style={{
+                  backgroundColor: "rgba(124,92,252,0.10)",
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: BORDER_P,
+                }}>
+                  <Text style={{
+                    color: TEXT,
+                    fontSize: isWide ? 22 : 18,
+                    fontFamily: "DMSans_700Bold",
+                    letterSpacing: -0.5,
+                  }}>
+                    {balanceText}
+                  </Text>
+                </View>
+                {/* Sign out — icon-only with confirm dialog. Prevents the
+                    destructive "accidental tap" while keeping the header
+                    uncluttered. Alert.alert is a no-op on web, so on web we
+                    fall back to window.confirm for the same UX. */}
+                <TouchableOpacity
+                  onPress={() => {
+                    const doLogout = async () => { await logout(); router.replace("/(tabs)"); };
+                    const title = language === "pt" ? "Sair?" : language === "zh" ? "退出登录？" : "Sign out?";
+                    const msg   = language === "pt" ? "Você precisará fazer login de novo." : language === "zh" ? "您将需要重新登录。" : "You'll need to sign back in.";
+                    if (Platform.OS === "web") {
+                      if (typeof window !== "undefined" && window.confirm(`${title}\n\n${msg}`)) doLogout();
+                    } else {
+                      Alert.alert(title, msg, [
+                        { text: language === "pt" ? "Cancelar" : language === "zh" ? "取消" : "Cancel", style: "cancel" },
+                        { text: language === "pt" ? "Sair" : language === "zh" ? "退出" : "Sign out", style: "destructive", onPress: doLogout },
+                      ]);
+                    }
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={{
+                    width: 38, height: 38, borderRadius: 10,
+                    borderWidth: 1, borderColor: BORDER_P,
+                    backgroundColor: "rgba(124,92,252,0.06)",
+                    alignItems: "center", justifyContent: "center",
+                  }}
+                  accessibilityLabel={language === "pt" ? "Sair" : language === "zh" ? "退出登录" : "Sign out"}
+                >
+                  {/* Standard "log out" glyph: door + arrow exiting right */}
+                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                    <Path d="M15 3H19a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" stroke={TEXT_SUB} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                    <Path d="M10 17l5-5-5-5" stroke={TEXT_SUB} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                    <Path d="M15 12H3" stroke={TEXT_SUB} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </TouchableOpacity>
+              </>
             )}
             {!isAuthenticated && (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
