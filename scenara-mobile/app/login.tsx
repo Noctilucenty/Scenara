@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop, Circle } from "react-native-svg";
-import { router, useLocalSearchParams, useLinkProps } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
@@ -61,6 +61,7 @@ function ScenaraLogo({ size = 52 }: { size?: number }) {
 }
 
 export default function LoginScreen() {
+  "use no memo"; // opt out of React Compiler — formContent memoization breaks nav handlers
   const { width: winW } = useWindowDimensions();
   const isWide = winW >= 700;
   const { login } = useTrading();
@@ -74,7 +75,6 @@ export default function LoginScreen() {
   const [showPass, setShowPass] = useState(false);
   const [focused, setFocused]   = useState<string | null>(null);
   const passRef = useRef<TextInput>(null);
-  const forgotLinkProps = useLinkProps({ href: "/forgot-password" as any });
 
   // Show success banner when arriving from a completed password reset.
   useEffect(() => {
@@ -195,9 +195,9 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Forgot password — useLinkProps wires href + onPress correctly on web and native */}
+      {/* Forgot password */}
       <TouchableOpacity
-        {...forgotLinkProps}
+        onPress={() => router.push("/forgot-password" as any)}
         style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4 }}
       >
         <Text style={{ color: PURPLE, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
