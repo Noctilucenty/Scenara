@@ -37,8 +37,9 @@ const BORDER_P = "rgba(124,92,252,0.25)";
 const RED     = "#EF4444";
 
 export default function ForgotPasswordScreen() {
+  "use no memo";
   const { language } = useLanguage();
-  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
+  useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold }); // trigger load; don't gate on it
 
   const [email, setEmail]     = useState("");
   const [loading, setLoading] = useState(false);
@@ -72,8 +73,6 @@ export default function ForgotPasswordScreen() {
       setLoading(false);
     }
   };
-
-  if (!fontsLoaded) return null;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>

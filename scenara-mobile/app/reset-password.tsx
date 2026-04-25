@@ -41,9 +41,10 @@ const RED     = "#EF4444";
 const GREEN   = "#22C55E";
 
 export default function ResetPasswordScreen() {
+  "use no memo";
   const { email = "" } = useLocalSearchParams<{ email: string }>();
   const { language } = useLanguage();
-  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
+  useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold }); // trigger load; don't gate on it
 
   // Phase 1
   const [code, setCode]         = useState("");
@@ -136,7 +137,6 @@ export default function ResetPasswordScreen() {
     }
   };
 
-  if (!fontsLoaded) return null;
 
   const phase = resetToken ? 2 : 1;
 
