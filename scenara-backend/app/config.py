@@ -52,6 +52,16 @@ class Settings(BaseSettings):
     sentry_traces_sample_rate: float = 0.1  # 10% APM sampling to stay within free tier
     sentry_profiles_sample_rate: float = 0.1
 
+    # ---------- Email (SMTP) ----------
+    # Set these env vars on Render to enable transactional email.
+    # Works with Gmail (smtp.gmail.com:587), Mailgun, SendGrid SMTP, etc.
+    # Leave SMTP_HOST unset to disable email sending (code will be logged instead).
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str = "noreply@scenara.app"
+
     # ---------- Push notifications ----------
     expo_push_url: str = "https://exp.host/--/api/v2/push/send"
     expo_access_token: str | None = None

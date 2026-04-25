@@ -11,6 +11,9 @@ Endpoints:
 
 from __future__ import annotations
 
+import hashlib
+import random
+import string
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -25,6 +28,7 @@ from app.db import get_db
 from app.models.user import User
 from app.models.account import Account
 from app.config import settings
+from app.services.email import send_reset_code
 
 router = APIRouter()
 
@@ -278,3 +282,120 @@ def get_me(current_user: User = Depends(get_current_user)):
 def logout():
     """Client should delete the token. Nothing to do server-side for JWT."""
     return {"ok": True, "message": "Logged out — delete your token client-side"}
+
+
+# ── Password reset (OTP flow) ─────────────────────────────────────────────────
+#
+# Three steps:
+#   1. POST /auth/forgot-password  { email }          → 200 always (no user enumeration)
+#   2. POST /auth/verify-reset-code { email, code }   → { reset_token } or 400
+#   3. POST /auth/reset-password   { reset_token, new_password } → 200
+
+OTP_EXPIRE_MINUTES = 15
+RESET_TOKEN_EXPIRE_MINUTES = 20  # slightly longer than OTP so the user has time to type
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class VerifyCodeRequest(BaseModel):
+    email: str
+    code: str
+
+
+class VerifyCodeResponse(BaseModel):
+    reset_token: str  # short-lived JWT with purpose="password_reset"
+
+
+class ResetPasswordRequest(BaseModel):
+    reset_token: str
+    new_password: str = Field(..., min_length=6, max_length=100)
+
+
+def _hash_otp(code: str) -> str:
+    """SHA-256 hex digest. Fast enough for OTPs (unlike bcrypt, which is slow by design)."""
+    return hashlib.sha256(code.encode()).hexdigest()
+
+
+def _generate_otp(length: int = 6) -> str:
+    return "".join(random.choices(string.digits, k=length))
+
+
+def _create_reset_token(user_id: int) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=RESET_TOKEN_EXPIRE_MINUTES)
+    return jwt.encode(
+        {"sub": str(user_id), "purpose": "password_reset", "exp": expire},
+        SECRET_KEY, algorithm=ALGORITHM,
+    )
+
+
+@router.post("/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Step 1: generate + email a 6-digit OTP.
+    Always returns 200 — never reveals whether the email is registered.
+    """
+    user = db.query(User).filter(User.email == payload.email.lower()).first()
+    if user and user.is_active:
+        code = _generate_otp()
+        user.reset_code_hash = _hash_otp(code)
+        user.reset_code_expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRE_MINUTES)
+        db.commit()
+        send_reset_code(user.email, code)  # fire-and-forget; SMTP errors logged not raised
+    return {"ok": True, "message": "If that email is registered, a code is on its way."}
+
+
+@router.post("/verify-reset-code", response_model=VerifyCodeResponse)
+def verify_reset_code(payload: VerifyCodeRequest, db: Session = Depends(get_db)):
+    """
+    Step 2: validate the OTP. Returns a short-lived reset_token JWT on success.
+    On failure (wrong code, expired, no pending reset) returns 400.
+    The same response shape is returned for all failures to prevent enumeration.
+    """
+    user = db.query(User).filter(User.email == payload.email.lower()).first()
+    invalid = (
+        user is None
+        or not user.is_active
+        or user.reset_code_hash is None
+        or user.reset_code_expires_at is None
+        or datetime.utcnow() > user.reset_code_expires_at
+        or user.reset_code_hash != _hash_otp(payload.code.strip())
+    )
+    if invalid:
+        raise HTTPException(status_code=400, detail="Invalid or expired code.")
+
+    # Invalidate the OTP so it can't be reused (even within the expiry window).
+    user.reset_code_hash = None
+    user.reset_code_expires_at = None
+    db.commit()
+
+    return VerifyCodeResponse(reset_token=_create_reset_token(user.id))
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Step 3: set a new password using the reset_token from step 2.
+    The reset_token is a JWT with purpose="password_reset".
+    """
+    try:
+        claims = jwt.decode(payload.reset_token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token.")
+
+    if claims.get("purpose") != "password_reset":
+        raise HTTPException(status_code=400, detail="Invalid token purpose.")
+
+    user_id = int(claims.get("sub", 0))
+    user = db.query(User).filter(User.id == user_id, User.is_active.is_(True)).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found.")
+
+    user.hashed_password = hash_password(payload.new_password)
+    # Clear any leftover reset state just in case
+    user.reset_code_hash = None
+    user.reset_code_expires_at = None
+    db.commit()
+
+    return {"ok": True, "message": "Password updated. You can now sign in."}

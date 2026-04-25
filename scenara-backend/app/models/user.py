@@ -40,6 +40,13 @@ class User(Base):
     # (amount // 5). Never decreases. Drives the level badge (sqrt curve).
     xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
 
+    # ── Password reset OTP ──────────────────────────────────────────────────
+    # SHA-256 hex digest of the 6-digit one-time code. Null when no reset is
+    # pending. Overwritten each time the user requests a new code (old code
+    # becomes invalid). Cleared to NULL after successful use.
+    reset_code_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+    reset_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
     # ── Notification preferences ────────────────────────────────────────────
     notify_settled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
     notify_followers: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")

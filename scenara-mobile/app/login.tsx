@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
   StatusBar, KeyboardAvoidingView, Platform,
@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop, Circle } from "react-native-svg";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
@@ -65,13 +65,26 @@ export default function LoginScreen() {
   const isWide = winW >= 700;
   const { login } = useTrading();
   const { language, t } = useLanguage();
+  const { reset } = useLocalSearchParams<{ reset?: string }>();
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
+  const [success, setSuccess]   = useState("");
   const [loading, setLoading]   = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [focused, setFocused]   = useState<string | null>(null);
   const passRef = useRef<TextInput>(null);
+
+  // Show success banner when arriving from a completed password reset.
+  useEffect(() => {
+    if (reset === "1") {
+      setSuccess(
+        language === "pt" ? "Senha redefinida! Entre com a nova senha." :
+        language === "zh" ? "密码已重置！请使用新密码登录。" :
+        "Password reset! Sign in with your new password."
+      );
+    }
+  }, [reset, language]);
 
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   if (!fontsLoaded) return null;
@@ -128,6 +141,13 @@ export default function LoginScreen() {
         {t.auth.accessAccount}
       </Text>
 
+      {/* Success (password reset) */}
+      {!!success && (
+        <View style={{ backgroundColor: "rgba(34,197,94,0.08)", borderWidth: 1, borderColor: "rgba(34,197,94,0.2)", borderRadius: 10, padding: 12, marginBottom: 16, flexDirection: "row", gap: 8, alignItems: "center" }}>
+          <Text style={{ fontSize: 14 }}>✅</Text>
+          <Text style={{ color: "#22C55E", fontFamily: "DMSans_500Medium", fontSize: 13, flex: 1 }}>{success}</Text>
+        </View>
+      )}
       {/* Error */}
       {!!error && (
         <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 10, padding: 12, marginBottom: 16, flexDirection: "row", gap: 8, alignItems: "center" }}>
@@ -175,7 +195,10 @@ export default function LoginScreen() {
       </View>
 
       {/* Forgot password */}
-      <TouchableOpacity style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4 }}>
+      <TouchableOpacity
+        onPress={() => router.push("/forgot-password")}
+        style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4 }}
+      >
         <Text style={{ color: PURPLE, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
           {t.auth.forgotPassword}
         </Text>

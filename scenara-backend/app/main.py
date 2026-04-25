@@ -68,6 +68,12 @@ def _migrate_user_columns() -> None:
                     f"ALTER TABLE users ADD COLUMN {pref} BOOLEAN NOT NULL DEFAULT TRUE"
                 ))
                 logger.info("[Migration] Added %s column to users.", pref)
+        if "reset_code_hash" not in cols:
+            conn.execute(sql_text("ALTER TABLE users ADD COLUMN reset_code_hash VARCHAR(64) NULL DEFAULT NULL"))
+            logger.info("[Migration] Added reset_code_hash column to users.")
+        if "reset_code_expires_at" not in cols:
+            conn.execute(sql_text("ALTER TABLE users ADD COLUMN reset_code_expires_at TIMESTAMP NULL DEFAULT NULL"))
+            logger.info("[Migration] Added reset_code_expires_at column to users.")
 
 
 def _migrate_zh_columns() -> None:

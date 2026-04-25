@@ -165,6 +165,8 @@ export default function RootLayout() {
           <Stack.Screen name="how-it-works"   options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="terms"          options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="notifications-settings" options={{ animation: "slide_from_right" }} />
+          <Stack.Screen name="forgot-password"        options={{ animation: "slide_from_right" }} />
+          <Stack.Screen name="reset-password"         options={{ animation: "slide_from_right" }} />
         </Stack>
       </TradingProvider>
     </LanguageProvider>
