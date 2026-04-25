@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop, Circle } from "react-native-svg";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, Link } from "expo-router";
 import {
   useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
@@ -194,15 +194,14 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Forgot password */}
-      <TouchableOpacity
-        onPress={() => router.push("/forgot-password")}
-        style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4 }}
-      >
-        <Text style={{ color: PURPLE, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
-          {t.auth.forgotPassword}
-        </Text>
-      </TouchableOpacity>
+      {/* Forgot password — use Link so web renders a real <a> and click always fires */}
+      <Link href="/forgot-password" asChild>
+        <TouchableOpacity style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4 }}>
+          <Text style={{ color: PURPLE, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
+            {t.auth.forgotPassword}
+          </Text>
+        </TouchableOpacity>
+      </Link>
 
       {/* Submit */}
       <TouchableOpacity onPress={handleLogin} disabled={loading} style={{ borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
