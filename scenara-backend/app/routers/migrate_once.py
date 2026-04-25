@@ -10,7 +10,7 @@ SECRET   = "scenara-migrate-2026"          # simple guard so random visitors can
 
 router = APIRouter()
 
-@router.post("/admin/migrate-to-neon")
+@router.get("/admin/migrate-to-neon")
 def migrate_to_neon(secret: str):
     if secret != SECRET:
         raise HTTPException(status_code=403, detail="wrong secret")
