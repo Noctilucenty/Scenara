@@ -23,6 +23,43 @@ from app.services.resolution import settle_event, void_event
 router = APIRouter()
 
 
+# ── SMTP test (any authenticated user) ───────────────────────────────────────
+
+@router.post("/test-smtp")
+def test_smtp(current_user: User = Depends(get_current_user)):
+    """
+    Send a test email to the current user's address to verify SMTP is working.
+    Callable by any authenticated user (not admin-only) to help debug delivery.
+    """
+    from app.services.email import send_email
+    from app.config import settings
+    ok = send_email(
+        to=current_user.email,
+        subject="Scenara SMTP test ✓",
+        body_text=(
+            f"Hi {current_user.display_name}!\n\n"
+            "If you received this, your SMTP configuration is working correctly.\n\n"
+            "— Scenara"
+        ),
+        body_html=f"""
+<html><body style="font-family:sans-serif;background:#08090C;color:#F1F5F9;padding:32px">
+  <div style="max-width:480px;margin:0 auto;background:#0D1117;border-radius:16px;padding:32px;border:1px solid rgba(124,92,252,0.2)">
+    <h2 style="color:#7C5CFC;margin-top:0">scenara</h2>
+    <p>Hi <strong>{current_user.display_name}</strong>!</p>
+    <p style="color:#94A3B8">If you received this, your SMTP configuration is working correctly. ✅</p>
+  </div>
+</body></html>
+""",
+    )
+    return {
+        "ok": ok,
+        "smtp_configured": bool(settings.smtp_host),
+        "smtp_host": settings.smtp_host or "(not set — using console log)",
+        "to": current_user.email,
+        "message": "Email sent!" if ok else "Failed — check Render logs for SMTP error details.",
+    }
+
+
 # ── Auth guard ────────────────────────────────────────────────────────────────
 
 def get_admin_user(current_user: User = Depends(get_current_user)) -> User:

@@ -63,22 +63,56 @@ def send_email(to: str, subject: str, body_text: str, body_html: str | None = No
 
 def send_reset_code(to_email: str, code: str) -> bool:
     """Email the 6-digit password reset OTP."""
-    subject = "Your Scenara reset code"
+    subject = f"{code} is your Scenara reset code"
     text = (
         f"Your Scenara password reset code is: {code}\n\n"
-        f"This code expires in 15 minutes. If you didn't request a reset, ignore this email.\n\n"
+        f"Enter this code in the app to reset your password. "
+        f"It expires in 15 minutes.\n\n"
+        f"If you didn't request a password reset, you can safely ignore this email.\n\n"
         f"— The Scenara team"
     )
-    html = f"""
-<html><body style="font-family:sans-serif;background:#08090C;color:#F1F5F9;padding:32px">
-  <div style="max-width:480px;margin:0 auto;background:#0D1117;border-radius:16px;padding:32px;border:1px solid rgba(124,92,252,0.2)">
-    <h2 style="color:#7C5CFC;margin-top:0">scenara</h2>
-    <p style="font-size:15px;line-height:1.6">Enter this code to reset your password:</p>
-    <div style="background:#08090C;border-radius:12px;padding:20px;text-align:center;margin:24px 0;letter-spacing:8px;font-size:32px;font-weight:700;color:#F1F5F9;border:1px solid rgba(124,92,252,0.3)">
-      {code}
-    </div>
-    <p style="color:#64748B;font-size:13px">Expires in <strong>15 minutes</strong>. If you didn't request this, ignore the email.</p>
-  </div>
-</body></html>
-"""
-    return send_email(to_email, subject, text, html)
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:40px 20px">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#0D1117;border-radius:16px;overflow:hidden;border:1px solid rgba(124,92,252,0.2)">
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(90deg,#4F8EF7,#7C5CFC,#F050AE);height:4px"></td></tr>
+        <!-- Body -->
+        <tr><td style="padding:36px 36px 28px">
+          <p style="margin:0 0 24px;font-size:22px;font-weight:700;color:#7C5CFC;letter-spacing:-0.5px">scenara</p>
+          <p style="margin:0 0 8px;font-size:16px;font-weight:600;color:#F1F5F9">Password Reset Code</p>
+          <p style="margin:0 0 28px;font-size:14px;color:#94A3B8;line-height:1.6">
+            Use the code below to reset your Scenara password.
+          </p>
+          <!-- Code block -->
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td align="center" style="background:#08090C;border-radius:12px;border:1px solid rgba(124,92,252,0.35);padding:24px">
+              <span style="font-size:38px;font-weight:700;color:#F1F5F9;letter-spacing:14px;font-family:monospace">{code}</span>
+            </td></tr>
+          </table>
+          <p style="margin:20px 0 0;font-size:13px;color:#64748B;line-height:1.6;text-align:center">
+            Expires in <strong style="color:#94A3B8">15 minutes</strong> &nbsp;·&nbsp;
+            If you didn't request this, ignore this email.
+          </p>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="padding:20px 36px;border-top:1px solid rgba(255,255,255,0.06)">
+          <p style="margin:0;font-size:12px;color:#475569">© {2025} Scenara. You're receiving this because a reset was requested for your account.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+    ok = send_email(to_email, subject, text, html)
+    if not ok:
+        logger.error(
+            "[Email] Failed to deliver reset code to %s. "
+            "Check SMTP_HOST/SMTP_USER/SMTP_PASSWORD env vars on Render. "
+            "For Gmail: use an App Password (not your regular password) and enable 2FA.",
+            to_email,
+        )
+    return ok
