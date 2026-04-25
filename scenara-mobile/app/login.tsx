@@ -197,7 +197,13 @@ export default function LoginScreen() {
 
       {/* Forgot password */}
       <TouchableOpacity
-        onPress={() => router.push("/forgot-password" as any)}
+        onPress={() => {
+          if (Platform.OS === "web" && typeof window !== "undefined") {
+            window.location.href = "/forgot-password";
+          } else {
+            router.push("/forgot-password" as any);
+          }
+        }}
         style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4 }}
       >
         <Text style={{ color: PURPLE, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
