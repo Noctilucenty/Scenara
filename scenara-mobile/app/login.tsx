@@ -194,13 +194,14 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Forgot password — use Link so web renders a real <a> and click always fires */}
-      <Link href="/forgot-password" asChild>
-        <TouchableOpacity style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4 }}>
-          <Text style={{ color: PURPLE, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
-            {t.auth.forgotPassword}
-          </Text>
-        </TouchableOpacity>
+      {/* Forgot password — bare Link = <a> on web, guaranteed click */}
+      <Link
+        href="/forgot-password"
+        style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4, textDecorationLine: "none" } as any}
+      >
+        <Text style={{ color: PURPLE, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
+          {t.auth.forgotPassword}
+        </Text>
       </Link>
 
       {/* Submit */}
