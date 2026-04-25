@@ -24,7 +24,6 @@ from app.routers.voting import router as voting_router
 from app.routers.admin import router as admin_router
 from app.routers.social import router as social_router
 from app.routers.notifications import router as notifications_router
-from app.routers.migrate_once import router as migrate_once_router  # TEMP — delete after migration
 from app.models.user import User
 
 from app.services.event_generator import run_snapshot, run_event_generator, start_scheduler
@@ -278,7 +277,6 @@ def create_app() -> FastAPI:
     app.include_router(admin_router,       prefix="/admin",       tags=["admin"])
     app.include_router(social_router,        prefix="/social",        tags=["social"])
     app.include_router(notifications_router, prefix="/notifications", tags=["notifications"])
-    app.include_router(migrate_once_router, tags=["migration"])   # TEMP — delete after migration
 
     return app
 
