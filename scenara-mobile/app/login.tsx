@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop, Circle } from "react-native-svg";
-import { router, useLocalSearchParams, Link } from "expo-router";
+import { router, useLocalSearchParams, useLinkProps } from "expo-router";
 import {
   useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
@@ -74,6 +74,7 @@ export default function LoginScreen() {
   const [showPass, setShowPass] = useState(false);
   const [focused, setFocused]   = useState<string | null>(null);
   const passRef = useRef<TextInput>(null);
+  const forgotLinkProps = useLinkProps({ href: "/forgot-password" as any });
 
   // Show success banner when arriving from a completed password reset.
   useEffect(() => {
@@ -194,15 +195,15 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Forgot password — bare Link = <a> on web, guaranteed click */}
-      <Link
-        href="/forgot-password"
-        style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4, textDecorationLine: "none" } as any}
+      {/* Forgot password — useLinkProps wires href + onPress correctly on web and native */}
+      <TouchableOpacity
+        {...forgotLinkProps}
+        style={{ alignSelf: "flex-end", marginBottom: 22, marginTop: -4 }}
       >
         <Text style={{ color: PURPLE, fontSize: 12, fontFamily: "DMSans_500Medium" }}>
           {t.auth.forgotPassword}
         </Text>
-      </Link>
+      </TouchableOpacity>
 
       {/* Submit */}
       <TouchableOpacity onPress={handleLogin} disabled={loading} style={{ borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
