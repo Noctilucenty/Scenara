@@ -207,6 +207,12 @@ export default function SettingsScreen() {
             })}
           </View>
 
+          <SectionLabel title={t.settings.notifications} />
+          <RowItem
+            label={t.settings.notificationsRow}
+            onPress={() => router.push("/notifications-settings")}
+          />
+
           <SectionLabel title={t.settings.appVersion} />
           <RowItem label={t.settings.version} />
 

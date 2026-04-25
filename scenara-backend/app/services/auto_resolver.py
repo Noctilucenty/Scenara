@@ -27,7 +27,9 @@ from sqlalchemy.orm import Session, joinedload
 from app.db import SessionLocal
 from app.models.event import Event
 from app.models.scenario import Scenario
+from app.models.prediction import Prediction
 from app.services.resolution import settle_event, void_event
+from app.services.notifications import notify_market_closing_soon
 
 logger = logging.getLogger(__name__)
 
@@ -231,8 +233,39 @@ async def run_auto_resolver() -> None:
         if resolved_count > 0 or skipped_count > 0:
             logger.info(f"[AutoResolver] Done — resolved: {resolved_count}, skipped: {skipped_count}")
 
-        # Void expired non-crypto events (48-hour grace period after closes_at)
+        # ── Closing-soon notifications ───────────────────────────────────────
+        # Loop runs every CHECK_INTERVAL_SECONDS (5 min). Notify users whose
+        # open prediction closes in the next window (5–10 min from now).
+        # The window matches the interval → each event passes through once.
         from datetime import timedelta
+        soon_lower = now + timedelta(seconds=CHECK_INTERVAL_SECONDS)
+        soon_upper = soon_lower + timedelta(seconds=CHECK_INTERVAL_SECONDS)
+        closing_soon = (
+            db.query(Event)
+            .options(joinedload(Event.scenarios))
+            .filter(
+                Event.status == "open",
+                Event.closes_at != None,
+                Event.closes_at > soon_lower,
+                Event.closes_at <= soon_upper,
+            )
+            .all()
+        )
+        for event in closing_soon:
+            scenario_ids = [s.id for s in (event.scenarios or [])]
+            if not scenario_ids:
+                continue
+            user_ids = (
+                db.query(Prediction.user_id)
+                .filter(Prediction.scenario_id.in_(scenario_ids), Prediction.status == "open")
+                .distinct()
+                .all()
+            )
+            mins_left = max(1, int((event.closes_at - now).total_seconds() // 60))
+            for (uid,) in user_ids:
+                notify_market_closing_soon(uid, event.id, event.title or "Your prediction", mins_left)
+
+        # Void expired non-crypto events (48-hour grace period after closes_at)
         grace_cutoff = now - timedelta(hours=48)
         expired_noncrypto = (
             db.query(Event)

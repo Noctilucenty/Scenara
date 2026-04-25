@@ -40,6 +40,12 @@ class User(Base):
     # (amount // 5). Never decreases. Drives the level badge (sqrt curve).
     xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
 
+    # ── Notification preferences ────────────────────────────────────────────
+    notify_settled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
+    notify_followers: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
+    notify_closing: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
+    notify_weekly_recap: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="1")
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)

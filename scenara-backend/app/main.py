@@ -23,6 +23,7 @@ from app.routers.push import router as push_router
 from app.routers.voting import router as voting_router
 from app.routers.admin import router as admin_router
 from app.routers.social import router as social_router
+from app.routers.notifications import router as notifications_router
 from app.models.user import User
 
 from app.services.event_generator import run_snapshot, run_event_generator, start_scheduler
@@ -61,6 +62,12 @@ def _migrate_user_columns() -> None:
         if "xp" not in cols:
             conn.execute(sql_text("ALTER TABLE users ADD COLUMN xp INTEGER NOT NULL DEFAULT 0"))
             logger.info("[Migration] Added xp column to users.")
+        for pref in ("notify_settled", "notify_followers", "notify_closing", "notify_weekly_recap"):
+            if pref not in cols:
+                conn.execute(sql_text(
+                    f"ALTER TABLE users ADD COLUMN {pref} BOOLEAN NOT NULL DEFAULT TRUE"
+                ))
+                logger.info("[Migration] Added %s column to users.", pref)
 
 
 def _migrate_zh_columns() -> None:
@@ -262,7 +269,8 @@ def create_app() -> FastAPI:
     app.include_router(push_router,        prefix="/push",        tags=["push"])
     app.include_router(voting_router,      prefix="/voting",      tags=["voting"])
     app.include_router(admin_router,       prefix="/admin",       tags=["admin"])
-    app.include_router(social_router,      prefix="/social",      tags=["social"])
+    app.include_router(social_router,        prefix="/social",        tags=["social"])
+    app.include_router(notifications_router, prefix="/notifications", tags=["notifications"])
 
     return app
 

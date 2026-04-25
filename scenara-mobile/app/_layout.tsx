@@ -7,6 +7,7 @@ import { LanguageProvider, useLanguage } from "@/src/i18n";
 import { hasSeenOnboarding } from "./onboarding";
 import { api } from "@/src/api/client";
 import { initSentry } from "@/src/observability/sentry";
+import { usePushNotifications } from "@/src/utils/usePushNotifications";
 
 // Initialize Sentry at module load — before any component renders. This
 // way, a render-phase throw in the very first component (like the TDZ
@@ -95,6 +96,12 @@ function LanguageModal() {
   );
 }
 
+/** Mounts the push notification tap-handler hook inside the router context. */
+function PushHandler() {
+  usePushNotifications();
+  return null;
+}
+
 function AuthGuard() {
   const { isAuthenticated, isLoadingAuth } = useTrading();
   const { hasChosenLanguage, isLanguageHydrated } = useLanguage();
@@ -143,6 +150,7 @@ export default function RootLayout() {
   return (
     <LanguageProvider>
       <TradingProvider>
+        <PushHandler />
         <AuthGuard />
         <LanguageModal />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: BG } }}>
@@ -156,6 +164,7 @@ export default function RootLayout() {
           <Stack.Screen name="user-profile"   options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="how-it-works"   options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="terms"          options={{ animation: "slide_from_right" }} />
+          <Stack.Screen name="notifications-settings" options={{ animation: "slide_from_right" }} />
         </Stack>
       </TradingProvider>
     </LanguageProvider>

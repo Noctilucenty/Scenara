@@ -40,3 +40,8 @@ psycopg2-binary==2.9.11
 
 # Observability
 sentry-sdk[fastapi]==2.18.0
+
+# Push notifications (W3C Web Push). Expo's HTTP API is called via httpx
+# directly — no extra dep. pywebpush handles VAPID JWT signing + payload
+# encryption (aes128gcm) for browser push subscriptions.
+pywebpush==2.0.0

@@ -18,6 +18,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.models.event import Event
 from app.models.probability_history import ScenarioProbabilityHistory
+from app.services.notifications import notify_prediction_settled
 
 
 def _update_streak(user: User, won: bool) -> None:
@@ -120,6 +121,17 @@ def settle_event(
     # Auto top-up any users whose balance dropped below threshold
     for prediction in open_predictions:
         _auto_topup(db, prediction.user_id)
+
+    # Fire-and-forget push notifications after commit (background thread per call).
+    event_title = event.title or "your prediction"
+    for prediction in open_predictions:
+        notify_prediction_settled(
+            user_id=prediction.user_id,
+            won=(prediction.status == "won"),
+            pnl=float(prediction.pnl or 0),
+            event_id=event.id,
+            event_title=event_title,
+        )
 
     return {
         "ok": True,

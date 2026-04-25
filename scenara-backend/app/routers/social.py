@@ -23,6 +23,7 @@ from app.models import (
     User, UserFollow, Prediction, Scenario, Event, Account,
 )
 from app.routers.auth import get_current_user
+from app.services.notifications import notify_new_follower
 
 router = APIRouter()
 
@@ -175,6 +176,11 @@ def follow_user(
     if not existing:
         db.add(UserFollow(follower_id=current_user.id, followee_id=user_id))
         db.commit()
+        notify_new_follower(
+            target_user_id=user_id,
+            follower_display_name=current_user.display_name or current_user.email.split("@")[0],
+            follower_id=current_user.id,
+        )
 
     follower_count = (
         db.query(func.count(UserFollow.id))

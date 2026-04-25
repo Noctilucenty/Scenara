@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     sentry_traces_sample_rate: float = 0.1  # 10% APM sampling to stay within free tier
     sentry_profiles_sample_rate: float = 0.1
 
+    # ---------- Push notifications ----------
+    expo_push_url: str = "https://exp.host/--/api/v2/push/send"
+    expo_access_token: str | None = None
+    vapid_public_key: str | None = None
+    vapid_private_key: str | None = None
+    vapid_subject: str = "mailto:notifications@scenara.app"
+
     # ---------- CORS ----------
     # Default "*" allows all origins (safe for this app — JWT-protected, no real money).
     # On Render.com: set CORS_ALLOW_ORIGINS env var to "*" or a comma-separated list.

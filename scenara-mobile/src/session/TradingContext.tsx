@@ -7,18 +7,25 @@ import * as SecureStore from "expo-secure-store";
 import { api } from "../api/client";
 import { setSentryUser } from "../observability/sentry";
 
-// Register Expo push token with backend
+// Register push token with backend — native (Expo) + web (W3C PushManager).
 async function registerPushToken(): Promise<void> {
-  if (Platform.OS === "web") return;
   try {
-    // eslint-disable-next-line import/no-unresolved
-    const Notifications = await import("expo-notifications");
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== "granted") return;
-    const token = (await Notifications.getExpoPushTokenAsync()).data;
-    if (token) await api.post("/push/register-token", { token });
+    if (Platform.OS === "web") {
+      // Web push: import util lazily so the SW/PushManager APIs are only
+      // accessed in a browser context, never during SSR.
+      const { registerForWebPushAsync, sendPushTokenToServer } =
+        await import("../utils/usePushNotifications");
+      const sub = await registerForWebPushAsync();
+      if (sub) await sendPushTokenToServer(sub, "web");
+      return;
+    }
+    // Native: get Expo push token and register it.
+    const { registerForPushNotificationsAsync, sendPushTokenToServer } =
+      await import("../utils/usePushNotifications");
+    const token = await registerForPushNotificationsAsync();
+    if (token) await sendPushTokenToServer(token, "expo");
   } catch {
-    // Push notifications optional
+    // Push notifications are optional — never crash the auth flow.
   }
 }
 
