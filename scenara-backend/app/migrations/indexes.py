@@ -38,10 +38,14 @@ INDEXES: list[tuple[str, str]] = [
     ("ix_predictions_user_created",
      "ON predictions (user_id, created_at DESC)"),
 
-    # Settlement-history queries and the resolver job both scan by status.
-    # Partial index keeps it small — only settled predictions get entries.
-    ("ix_predictions_status_settled",
-     "ON predictions (status, settled_at) WHERE status = 'settled'"),
+    # Settlement-history queries (portfolio won/lost tabs) scan by settled_at.
+    # Two tight partial indexes — one per terminal status — let Postgres serve
+    # each tab without touching any open or void rows.
+    ("ix_predictions_status_won",
+     "ON predictions (user_id, settled_at DESC) WHERE status = 'won'"),
+
+    ("ix_predictions_status_lost",
+     "ON predictions (user_id, settled_at DESC) WHERE status = 'lost'"),
 
     # Activity feed joins predictions to events and orders by created_at.
     # Helps the global recent-bets query on the markets screen.

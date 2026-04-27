@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
 from app import models
+from app.routers.auth import get_current_user
 
 router = APIRouter()
 
@@ -159,7 +160,6 @@ def _synthetic_comments(event_id: int, lang: str = "pt", count: int = 5) -> list
 # ---------------------------------------------------------------------------
 
 class CommentCreate(BaseModel):
-    user_id: int
     body: str
     event_id: int | None = None
     news_url: str | None = None
@@ -315,18 +315,18 @@ def get_news_comments(
 
 
 @router.post("/", response_model=CommentOut, status_code=201)
-def post_comment(payload: CommentCreate, db: Session = Depends(get_db)):
+def post_comment(
+    payload: CommentCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     if not payload.body.strip():
         raise HTTPException(status_code=400, detail="Comment cannot be empty")
     if not payload.event_id and not payload.news_url:
         raise HTTPException(status_code=400, detail="Provide event_id or news_url")
 
-    user = db.query(models.User).filter(models.User.id == payload.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     comment = models.Comment(
-        user_id=payload.user_id,
+        user_id=current_user.id,  # always use JWT identity — never trust caller-supplied ID
         body=payload.body.strip(),
         event_id=payload.event_id,
         news_url=payload.news_url,
@@ -335,7 +335,7 @@ def post_comment(payload: CommentCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(comment)
 
-    # reload with user
+    # reload with user relationship for display_name
     comment = (
         db.query(models.Comment)
         .options(joinedload(models.Comment.user))
@@ -346,11 +346,15 @@ def post_comment(payload: CommentCreate, db: Session = Depends(get_db)):
 
 
 @router.delete("/{comment_id}", status_code=204)
-def delete_comment(comment_id: int, user_id: int = Query(...), db: Session = Depends(get_db)):
+def delete_comment(
+    comment_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     comment = db.query(models.Comment).filter(models.Comment.id == comment_id).first()
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
-    if comment.user_id != user_id:
+    if comment.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not your comment")
     db.delete(comment)
     db.commit()

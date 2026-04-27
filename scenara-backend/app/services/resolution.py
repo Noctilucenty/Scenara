@@ -53,21 +53,28 @@ def settle_event(
         .all()
     )
 
+    # Batch-load all accounts and users in 2 queries instead of 2×N queries.
+    user_ids = list({p.user_id for p in open_predictions})
+    accounts_map: dict[int, Account] = {
+        a.user_id: a
+        for a in db.query(Account).filter(
+            Account.user_id.in_(user_ids),
+            Account.account_type == "simulation",
+            Account.is_active.is_(True),
+        ).all()
+    }
+    users_map: dict[int, User] = {
+        u.id: u
+        for u in db.query(User).filter(User.id.in_(user_ids)).all()
+    }
+
     now = datetime.utcnow()
     total_winners = total_losers = 0
     total_payout = 0.0
 
     for prediction in open_predictions:
-        account = (
-            db.query(Account)
-            .filter(
-                Account.user_id == prediction.user_id,
-                Account.account_type == "simulation",
-                Account.is_active.is_(True),
-            )
-            .first()
-        )
-        user = db.query(User).filter(User.id == prediction.user_id).first()
+        account = accounts_map.get(prediction.user_id)
+        user = users_map.get(prediction.user_id)
 
         if prediction.scenario_id == winning_scenario_id:
             payout = float(prediction.simulated_amount) * prediction.payout_multiplier
@@ -118,9 +125,9 @@ def settle_event(
 
     db.commit()
 
-    # Auto top-up any users whose balance dropped below threshold
-    for prediction in open_predictions:
-        _auto_topup(db, prediction.user_id)
+    # Auto top-up any users whose balance dropped below threshold.
+    # Re-use the already-loaded accounts_map to avoid N extra queries.
+    _batch_topup(db, accounts_map)
 
     # Fire-and-forget push notifications after commit (background thread per call).
     event_title = event.title or "your prediction"
@@ -159,19 +166,22 @@ def void_event(db: Session, event: Event, note: str = "Event expired — all bet
         .all()
     )
 
+    # Batch-load accounts to avoid N queries in the loop.
+    void_user_ids = list({p.user_id for p in open_predictions})
+    void_accounts: dict[int, Account] = {
+        a.user_id: a
+        for a in db.query(Account).filter(
+            Account.user_id.in_(void_user_ids),
+            Account.account_type == "simulation",
+            Account.is_active.is_(True),
+        ).all()
+    }
+
     now = datetime.utcnow()
     refunded = 0
 
     for prediction in open_predictions:
-        account = (
-            db.query(Account)
-            .filter(
-                Account.user_id == prediction.user_id,
-                Account.account_type == "simulation",
-                Account.is_active.is_(True),
-            )
-            .first()
-        )
+        account = void_accounts.get(prediction.user_id)
         prediction.status = "void"
         prediction.pnl = 0.0
         prediction.settled_at = now
@@ -197,11 +207,31 @@ def void_event(db: Session, event: Event, note: str = "Event expired — all bet
 TOPUP_THRESHOLD = 100.0   # top up when balance drops below this
 TOPUP_TARGET    = 1_000.0 # restore balance to this amount
 
+
+def _batch_topup(db: Session, accounts_map: dict) -> int:
+    """
+    Top-up all accounts in the map whose balance is below TOPUP_THRESHOLD.
+    Returns the count of accounts that were topped up.
+    Single db.commit() at the end covers all changes.
+    """
+    topped = 0
+    for user_id, account in accounts_map.items():
+        if account and float(account.balance) < TOPUP_THRESHOLD:
+            added = TOPUP_TARGET - float(account.balance)
+            account.balance = TOPUP_TARGET
+            db.add(Transaction(
+                user_id=user_id, account_id=account.id,
+                type="top_up", amount=round(added, 2),
+                currency=account.currency,
+            ))
+            topped += 1
+    if topped:
+        db.commit()
+    return topped
+
+
 def _auto_topup(db: Session, user_id: int) -> bool:
-    """
-    If user's sim balance is below TOPUP_THRESHOLD, restore it to TOPUP_TARGET.
-    Called after every settlement. Returns True if a top-up was performed.
-    """
+    """Single-user topup — kept for external callers outside settle flow."""
     account = (
         db.query(Account)
         .filter(

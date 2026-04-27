@@ -107,6 +107,11 @@ function AuthGuard() {
   const { hasChosenLanguage, isLanguageHydrated } = useLanguage();
   const segments = useSegments();
 
+  // Serialize segments to a string so the effect only re-runs when the
+  // actual route changes — not on every render (useSegments() returns a
+  // new array reference each time, which would otherwise retrigger this).
+  const segmentKey = segments.join("/");
+
   useEffect(() => {
     if (isLoadingAuth || !isLanguageHydrated) return;
 
@@ -128,7 +133,8 @@ function AuthGuard() {
       router.replace("/(tabs)");
     }
     // Guests are allowed to stay on (tabs) — no redirect to login
-  }, [hasChosenLanguage, isAuthenticated, isLanguageHydrated, isLoadingAuth, segments]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChosenLanguage, isAuthenticated, isLanguageHydrated, isLoadingAuth, segmentKey]);
 
   if (isLoadingAuth || !isLanguageHydrated) {
     return (

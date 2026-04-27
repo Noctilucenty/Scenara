@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
 from app.models.event import Event
 from app.models.scenario import Scenario
-from app.models.prediction import Prediction
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -415,13 +414,37 @@ def get_event_probability_history(
 
     result: list[ScenarioHistoryOut] = []
 
-    for scenario in event.scenarios:
-        history = (
-            db.query(ScenarioProbabilityHistory)
-            .filter(ScenarioProbabilityHistory.scenario_id == scenario.id)
-            .order_by(ScenarioProbabilityHistory.recorded_at.asc())
-            .all()
+    # Fetch all history for the event in ONE query, then partition in Python.
+    # Cap at 200 points per scenario via reservoir downsampling to keep
+    # response size bounded on long-running markets.
+    MAX_POINTS = 200
+    all_history = (
+        db.query(ScenarioProbabilityHistory)
+        .filter(ScenarioProbabilityHistory.event_id == event_id)
+        .order_by(
+            ScenarioProbabilityHistory.scenario_id,
+            ScenarioProbabilityHistory.recorded_at.asc(),
         )
+        .all()
+    )
+    # Group by scenario_id
+    from collections import defaultdict as _dd
+    history_by_scenario: dict = _dd(list)
+    for h in all_history:
+        history_by_scenario[h.scenario_id].append(h)
+
+    def _downsample(rows, n):
+        """Keep n evenly-spaced rows from a sorted list."""
+        if len(rows) <= n:
+            return rows
+        step = len(rows) / n
+        return [rows[int(i * step)] for i in range(n)]
+
+    scenario_title_map = {s.id: s.title for s in event.scenarios}
+
+    for scenario in event.scenarios:
+        raw = history_by_scenario.get(scenario.id, [])
+        history = _downsample(raw, MAX_POINTS)
 
         points = [
             ProbabilityPoint(
@@ -530,16 +553,6 @@ def resolve_event(
     if payload.winning_scenario_id not in scenario_ids:
         raise HTTPException(status_code=400, detail="Winning scenario does not belong to this event")
 
-    # Capture open predictions before settlement for push notification user lists
-    open_predictions = (
-        db.query(Prediction)
-        .filter(
-            Prediction.scenario_id.in_(scenario_ids),
-            Prediction.status == "open",
-        )
-        .all()
-    )
-
     result = settle_event(db, event, payload.winning_scenario_id, payload.resolution_note or "")
     if not result["ok"]:
         raise HTTPException(status_code=400, detail=result.get("error", "Settlement failed"))
@@ -548,30 +561,8 @@ def resolve_event(
     total_losers = result["total_losers"]
     total_payout = result["total_payout"]
 
-    # Send push notifications to all affected users
-    try:
-        import asyncio
-        from app.routers.push import send_push_notifications
-        winning_scenario = next((s for s in event.scenarios if s.id == payload.winning_scenario_id), None)
-        winner_title = winning_scenario.title if winning_scenario else "Unknown"
-        winner_user_ids = [p.user_id for p in open_predictions if p.scenario_id == payload.winning_scenario_id]
-        loser_user_ids  = [p.user_id for p in open_predictions if p.scenario_id != payload.winning_scenario_id]
-        if winner_user_ids:
-            asyncio.create_task(send_push_notifications(
-                winner_user_ids,
-                title="You won! 🎉",
-                body=f'"{event.title}" resolved as "{winner_title}". Check your portfolio!',
-                data={"event_id": event.id, "type": "won"},
-            ))
-        if loser_user_ids:
-            asyncio.create_task(send_push_notifications(
-                loser_user_ids,
-                title="Market resolved",
-                body=f'"{event.title}" has been resolved. See results in your portfolio.',
-                data={"event_id": event.id, "type": "lost"},
-            ))
-    except Exception:
-        pass  # Push notifications are optional
+    # Push notifications are fired inside settle_event via notify_prediction_settled
+    # (background threads, one per prediction). No duplicate work needed here.
 
     return EventResolveResponse(
         ok=True,

@@ -175,7 +175,6 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
     try {
       setPosting(true); setError("");
       await api.post("/comments/", {
-        user_id: userId,
         body: text.trim(),
         event_id: eventId ?? null,
         news_url: newsUrl ?? null,
@@ -191,7 +190,7 @@ export function CommentSection({ eventId, newsUrl, newsTitle, language }: Props)
 
   const deleteComment = async (commentId: number) => {
     try {
-      await api.delete(`/comments/${commentId}`, { params: { user_id: userId } });
+      await api.delete(`/comments/${commentId}`);
       setComments(prev => prev.filter(c => c.id !== commentId));
     } catch {}
   };
