@@ -119,58 +119,84 @@ class EventHistoryOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _fill_zh_translations(events: list, db: Session) -> None:
-    """Batch-translate any events/scenarios missing zh fields and cache results in DB."""
-    import logging
-    from app.services.translate import translate_batch
+    """
+    Check if any events are missing ZH translations and, if so, fire a
+    background daemon thread to translate them.
+
+    Returns IMMEDIATELY — the HTTP response is never blocked by the
+    Google Translate API call. The first request for an event in Chinese
+    will see untranslated text; all subsequent requests will see the
+    cached translation after the thread completes (typically < 2 seconds).
+
+    Why a thread instead of asyncio: the route handlers are sync `def`
+    functions, so there is no running event loop to attach a coroutine to.
+    A daemon thread gets its own SQLAlchemy session from the connection pool
+    — sessions are not thread-safe and must not be shared.
+    """
+    import logging, threading
     _log = logging.getLogger(__name__)
 
-    texts: list[str] = []
-    targets: list[tuple] = []  # (obj, field)
-
-    for event in events:
-        if not event.title_zh and event.title:
-            texts.append(event.title)
-            targets.append((event, "title_zh"))
-        if not event.description_zh and event.description:
-            texts.append(event.description)
-            targets.append((event, "description_zh"))
-        for scenario in event.scenarios:
-            if not scenario.title_zh and scenario.title:
-                texts.append(scenario.title)
-                targets.append((scenario, "title_zh"))
-
-    if not texts:
-        _log.debug("[ZH fill] %d events — all already have title_zh, skipping API call.", len(events))
+    # Collect IDs of events that actually need work so the thread only re-queries
+    # the rows that matter, not the entire result set.
+    needs = [
+        e.id for e in events
+        if (not e.title_zh and e.title)
+        or (not e.description_zh and e.description)
+        or any(not s.title_zh and s.title for s in e.scenarios)
+    ]
+    if not needs:
         return
 
-    _log.info("[ZH fill] %d events came in, %d strings need translation. Calling API...",
-              len(events), len(texts))
-    translated = translate_batch(texts)
+    def _bg_translate(event_ids: list[int]) -> None:
+        """Background thread body — creates its own DB session and commit."""
+        from app.db import SessionLocal
+        from app.services.translate import translate_batch
 
-    changed = 0
-    failed = 0
-    for (obj, field), value in zip(targets, translated):
-        if value:
-            # Guard: if Google returned the original English text unchanged (common for
-            # un-translatable tokens like "$60 – $75"), don't cache it — we'd never retry.
-            original = getattr(obj, field.replace("_zh", ""))
-            if value.strip() == (original or "").strip():
-                failed += 1
-                continue
-            setattr(obj, field, value)
-            changed += 1
-        else:
-            failed += 1
-
-    _log.info("[ZH fill] Done — %d translated, %d failed/skipped.", changed, failed)
-
-    if changed:
+        bg_db = SessionLocal()
         try:
-            db.commit()
+            bg_events = (
+                bg_db.query(Event)
+                .options(joinedload(Event.scenarios))
+                .filter(Event.id.in_(event_ids))
+                .all()
+            )
+
+            texts: list[str] = []
+            targets: list[tuple] = []
+            for ev in bg_events:
+                if not ev.title_zh and ev.title:
+                    texts.append(ev.title)
+                    targets.append((ev, "title_zh"))
+                if not ev.description_zh and ev.description:
+                    texts.append(ev.description)
+                    targets.append((ev, "description_zh"))
+                for sc in ev.scenarios:
+                    if not sc.title_zh and sc.title:
+                        texts.append(sc.title)
+                        targets.append((sc, "title_zh"))
+
+            if not texts:
+                return
+
+            translated = translate_batch(texts)
+            changed = 0
+            for (obj, field), value in zip(targets, translated):
+                if value:
+                    original = getattr(obj, field.replace("_zh", ""))
+                    if value.strip() != (original or "").strip():
+                        setattr(obj, field, value)
+                        changed += 1
+            if changed:
+                bg_db.commit()
+                _log.info("[ZH/bg] Translated %d field(s) for event IDs %s", changed, event_ids)
         except Exception as e:
-            _log.error("[ZH fill] DB commit failed: %s", e)
-            db.rollback()
-            raise
+            _log.error("[ZH/bg] Background translation failed: %s", e)
+            bg_db.rollback()
+        finally:
+            bg_db.close()
+
+    threading.Thread(target=_bg_translate, args=(needs,), daemon=True).start()
+    _log.debug("[ZH fill] %d event(s) queued for background translation", len(needs))
 
 
 def _log_probability(

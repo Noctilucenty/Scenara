@@ -19,6 +19,7 @@ import {
 } from "@expo-google-fonts/dm-sans";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
 import { api } from "@/src/api/client";
@@ -1740,11 +1741,18 @@ export default function MarketsScreen() {
   const EVENTS_CACHE_KEY = "scenara_events_cache";
   const EVENTS_CACHE_TTL = 5 * 60_000; // 5 minutes
 
-  // Load stale events from localStorage immediately to avoid blank screen
-  const hydrateFromCache = useCallback((cat: string) => {
-    if (Platform.OS !== "web") return false;
+  // Load stale events from cache immediately to avoid blank screen.
+  // Web uses localStorage (sync). Native uses AsyncStorage (async) so we
+  // return a Promise<boolean> and await it in fetchEvents.
+  const hydrateFromCache = useCallback(async (cat: string): Promise<boolean> => {
+    const key = `${EVENTS_CACHE_KEY}_${cat}_${language}`;
     try {
-      const raw = localStorage.getItem(`${EVENTS_CACHE_KEY}_${cat}_${language}`);
+      let raw: string | null = null;
+      if (Platform.OS === "web") {
+        raw = localStorage.getItem(key);
+      } else {
+        raw = await AsyncStorage.getItem(key);
+      }
       if (!raw) return false;
       const { data, ts } = JSON.parse(raw) as { data: EventItem[]; ts: number };
       if (Date.now() - ts > EVENTS_CACHE_TTL || !data?.length) return false;
@@ -1757,9 +1765,10 @@ export default function MarketsScreen() {
   }, [fetchHistory, fetchSentiment, language]);
 
   const fetchEvents = useCallback(async (silent = false, cat = activeCategory) => {
-    // On fresh (non-silent) load: show cached data immediately while fetching
+    // On fresh (non-silent) load: show cached data immediately while fetching.
+    // hydrateFromCache is now async (AsyncStorage on native).
     if (!silent) {
-      const hadCache = hydrateFromCache(cat);
+      const hadCache = await hydrateFromCache(cat);
       if (!hadCache) setLoading(true);
       setLoadError(false);
     }
@@ -1772,9 +1781,13 @@ export default function MarketsScreen() {
       const initialHasMore = all.length === PAGE_SIZE;
       scrollStateRef.current.hasMore = initialHasMore;
       setHasMore(initialHasMore);
-      // Cache events for next cold start
+      // Cache events for next cold start — both web and native
+      const cachePayload = JSON.stringify({ data: all, ts: Date.now() });
+      const cacheKey = `${EVENTS_CACHE_KEY}_${cat}_${language}`;
       if (Platform.OS === "web") {
-        try { localStorage.setItem(`${EVENTS_CACHE_KEY}_${cat}_${language}`, JSON.stringify({ data: all, ts: Date.now() })); } catch {}
+        try { localStorage.setItem(cacheKey, cachePayload); } catch {}
+      } else {
+        AsyncStorage.setItem(cacheKey, cachePayload).catch(() => {});
       }
       // Only fetch history on first load (not silent auto-refresh)
       if (!silent) fetchHistory(all);
@@ -1972,7 +1985,29 @@ export default function MarketsScreen() {
   }, [fetchEvents]);
 
   const handleCardPress = useCallback((id: number) => {
-    router.push({ pathname: "/market-detail", params: { eventId: String(id) } });
+    // Pass the full event payload so market-detail renders immediately without
+    // waiting for a network round-trip. The detail screen still re-fetches in
+    // the background for history/sentiment, but the core content is instant.
+    const ev = eventsRef.current.find(e => e.id === id);
+    const params: Record<string, string> = { eventId: String(id) };
+    if (ev) {
+      try {
+        params.eventSnapshot = JSON.stringify({
+          id:              ev.id,
+          title:           ev.title,
+          title_pt:        ev.title_pt,
+          title_zh:        ev.title_zh,
+          description:     ev.description,
+          description_pt:  ev.description_pt,
+          description_zh:  ev.description_zh,
+          category:        ev.category,
+          status:          ev.status,
+          closes_at:       ev.closes_at,
+          scenarios:       ev.scenarios,
+        });
+      } catch { /* serialisation failure — detail will fetch normally */ }
+    }
+    router.push({ pathname: "/market-detail", params });
   }, [router]);
 
   const handleBetPress = useCallback((id: number) => {
@@ -2123,9 +2158,13 @@ export default function MarketsScreen() {
         />
 
         {/* Search — debounced full-text across titles/descriptions. Scoped to
-            the active category so switching tabs auto-narrows the search. */}
+            the active category. Category chips appear when focused+empty so
+            users can browse by type without typing. */}
         <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
-          <SearchBar category={activeCategory} />
+          <SearchBar
+            category={activeCategory}
+            onCategorySelect={handleCategorySelect}
+          />
         </View>
 
         {/* Live stats bar */}

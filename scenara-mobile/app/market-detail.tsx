@@ -18,6 +18,7 @@ import { shareContent, buildMarketShareText } from "@/src/utils/useShare";
 import { toChineseFallback } from "@/src/utils/zhFallback";
 import { ProbabilityChart } from "@/components/ProbabilityChart";
 import { CommentSection } from "@/components/CommentSection";
+import { MarketDetailSkeleton } from "@/components/Skeleton";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
@@ -90,19 +91,36 @@ export default function MarketDetailScreen() {
   const router = useRouter();
   const { language } = useLanguage();
   const { isAuthenticated, userId, placePrediction, account, refreshPortfolio } = useTrading();
-  const params = useLocalSearchParams<{ eventId: string }>();
+  const params = useLocalSearchParams<{ eventId: string; eventSnapshot?: string }>();
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
 
-  const [event, setEvent] = useState<EventDetail | null>(null);
+  // If the markets list passed a snapshot of the event, render it instantly
+  // without waiting for the network fetch. The fetch still runs in background
+  // to refresh probability / status, and to load history + sentiment.
+  const [event, setEvent] = useState<EventDetail | null>(() => {
+    if (params.eventSnapshot) {
+      try { return JSON.parse(params.eventSnapshot) as EventDetail; } catch {}
+    }
+    return null;
+  });
   const [history, setHistory] = useState<any[]>([]);
-  const [selId, setSelId] = useState<number | null>(null);
+  const [selId, setSelId] = useState<number | null>(() => {
+    if (params.eventSnapshot) {
+      try {
+        const snap = JSON.parse(params.eventSnapshot) as EventDetail;
+        return snap.scenarios[0]?.id ?? null;
+      } catch {}
+    }
+    return null;
+  });
   const [amount, setAmount] = useState("100");
   const [placing, setPlacing] = useState(false);
   const [message, setMessage] = useState("");
   const [relatedNews, setRelatedNews] = useState<any[]>([]);
   const [summary, setSummary] = useState<string>("");
   const [loadingSummary, setLoadingSummary] = useState(false);
-  const [loading, setLoading] = useState(true);
+  // If we already have snapshot data, skip the loading state entirely
+  const [loading, setLoading] = useState(!params.eventSnapshot);
   const [chartWidth, setChartWidth] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [resolving, setResolving] = useState(false);
@@ -235,8 +253,17 @@ export default function MarketDetailScreen() {
 
   if (!fontsLoaded || loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: BG, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={PURPLE} size="large" />
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        {/* Back button visible during load so the user isn't stuck */}
+        <SafeAreaView>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{ padding: 16, paddingBottom: 0 }}
+          >
+            <Text style={{ color: PURPLE, fontSize: 22, fontFamily: "DMSans_700Bold" }}>←</Text>
+          </TouchableOpacity>
+        </SafeAreaView>
+        <MarketDetailSkeleton />
       </View>
     );
   }

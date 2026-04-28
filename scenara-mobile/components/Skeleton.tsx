@@ -293,6 +293,51 @@ export function LeaderboardSkeleton({ rows = 8 }: { rows?: number }) {
   );
 }
 
+/** Market detail skeleton — matches the layout of market-detail.tsx. */
+export function MarketDetailSkeleton() {
+  return (
+    <View style={{ flex: 1, padding: 16, gap: 16 }}>
+      {/* Category badge + status pill */}
+      <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+        <Skeleton width={72} height={22} radius={11} />
+        <Skeleton width={90} height={22} radius={11} />
+      </View>
+
+      {/* Title — two lines */}
+      <View style={{ gap: 8 }}>
+        <Skeleton width="100%" height={22} radius={6} />
+        <Skeleton width="75%" height={22} radius={6} />
+      </View>
+
+      {/* Description — three lines */}
+      <View style={{ gap: 6 }}>
+        <Skeleton width="100%" height={13} radius={5} />
+        <Skeleton width="95%" height={13} radius={5} />
+        <Skeleton width="60%" height={13} radius={5} />
+      </View>
+
+      {/* Probability chart placeholder */}
+      <Skeleton width="100%" height={120} radius={12} />
+
+      {/* Scenario bet buttons */}
+      <View style={{ flexDirection: "row", gap: 10 }}>
+        <Skeleton width="48%" height={56} radius={12} />
+        <Skeleton width="48%" height={56} radius={12} />
+      </View>
+
+      {/* Amount input row */}
+      <Skeleton width="100%" height={48} radius={12} />
+
+      {/* Stats row */}
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <Skeleton width="30%" height={48} radius={10} />
+        <Skeleton width="30%" height={48} radius={10} />
+        <Skeleton width="30%" height={48} radius={10} />
+      </View>
+    </View>
+  );
+}
+
 /** User/trader profile skeleton — header + stats + recent bets. */
 export function ProfileSkeleton() {
   return (

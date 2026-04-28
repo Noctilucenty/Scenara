@@ -333,3 +333,273 @@ def zh_status(
         "scenarios": {"total": total_scenarios, "missing_zh": missing_scenarios},
         "example_untranslated": [{"id": i, "title": t} for i, t in examples],
     }
+
+
+# ── Analytics endpoints ───────────────────────────────────────────────────────
+
+@router.get("/stats/overview")
+def admin_stats_overview(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """
+    High-level platform snapshot: users, activity, predictions, volume.
+    All numbers are computed from existing tables — no new tracking required.
+    """
+    from sqlalchemy import func, cast, Date
+    from datetime import timedelta
+    from app.models.prediction import Prediction
+    from app.models.transaction import Transaction
+    from app.models.comment import Comment
+
+    today = datetime.utcnow().date()
+    yesterday = today - timedelta(days=1)
+    week_ago = today - timedelta(days=7)
+
+    # ── User stats ────────────────────────────────────────────────────────────
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    new_today   = db.query(func.count(User.id)).filter(
+        cast(User.created_at, Date) == today
+    ).scalar() or 0
+    new_week    = db.query(func.count(User.id)).filter(
+        cast(User.created_at, Date) >= week_ago
+    ).scalar() or 0
+
+    # DAU = users who logged in today (last_login_at updated on every login)
+    dau_today = db.query(func.count(User.id)).filter(
+        cast(User.last_login_at, Date) == today
+    ).scalar() or 0
+    dau_yesterday = db.query(func.count(User.id)).filter(
+        cast(User.last_login_at, Date) == yesterday
+    ).scalar() or 0
+
+    # ── Prediction stats ──────────────────────────────────────────────────────
+    total_predictions = db.query(func.count(Prediction.id)).scalar() or 0
+    predictions_today = db.query(func.count(Prediction.id)).filter(
+        cast(Prediction.created_at, Date) == today
+    ).scalar() or 0
+
+    total_volume = float(
+        db.query(func.sum(Prediction.simulated_amount)).scalar() or 0
+    )
+    volume_today = float(
+        db.query(func.sum(Prediction.simulated_amount)).filter(
+            cast(Prediction.created_at, Date) == today
+        ).scalar() or 0
+    )
+
+    # ── Comment stats ─────────────────────────────────────────────────────────
+    total_comments   = db.query(func.count(Comment.id)).scalar() or 0
+    comments_today   = db.query(func.count(Comment.id)).filter(
+        cast(Comment.created_at, Date) == today
+    ).scalar() or 0
+
+    # ── Market stats ──────────────────────────────────────────────────────────
+    open_markets     = db.query(func.count(Event.id)).filter(Event.status == "open").scalar() or 0
+    resolved_markets = db.query(func.count(Event.id)).filter(Event.status == "resolved").scalar() or 0
+
+    return {
+        "users": {
+            "total": total_users,
+            "new_today": new_today,
+            "new_this_week": new_week,
+            "dau_today": dau_today,
+            "dau_yesterday": dau_yesterday,
+        },
+        "predictions": {
+            "total": total_predictions,
+            "today": predictions_today,
+            "total_volume": round(total_volume, 2),
+            "volume_today": round(volume_today, 2),
+        },
+        "comments": {
+            "total": total_comments,
+            "today": comments_today,
+        },
+        "markets": {
+            "open": open_markets,
+            "resolved": resolved_markets,
+        },
+    }
+
+
+@router.get("/stats/daily")
+def admin_stats_daily(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """
+    Day-by-day breakdown for the last N days.
+    Returns signup counts, DAU (login-based), predictions placed, and comments.
+    Capped at 90 days to keep the query fast.
+    """
+    from sqlalchemy import func, cast, Date, text
+    from datetime import timedelta
+    from app.models.prediction import Prediction
+    from app.models.comment import Comment
+
+    days = min(days, 90)
+    cutoff = datetime.utcnow().date() - timedelta(days=days - 1)
+
+    # New signups per day
+    signups = db.query(
+        cast(User.created_at, Date).label("day"),
+        func.count(User.id).label("count"),
+    ).filter(
+        cast(User.created_at, Date) >= cutoff,
+    ).group_by("day").order_by("day").all()
+
+    # DAU per day (users who logged in that day)
+    dau = db.query(
+        cast(User.last_login_at, Date).label("day"),
+        func.count(User.id).label("count"),
+    ).filter(
+        User.last_login_at.isnot(None),
+        cast(User.last_login_at, Date) >= cutoff,
+    ).group_by("day").order_by("day").all()
+
+    # Predictions placed per day
+    preds = db.query(
+        cast(Prediction.created_at, Date).label("day"),
+        func.count(Prediction.id).label("count"),
+        func.sum(Prediction.simulated_amount).label("volume"),
+    ).filter(
+        cast(Prediction.created_at, Date) >= cutoff,
+    ).group_by("day").order_by("day").all()
+
+    # Comments per day
+    comments = db.query(
+        cast(Comment.created_at, Date).label("day"),
+        func.count(Comment.id).label("count"),
+    ).filter(
+        cast(Comment.created_at, Date) >= cutoff,
+    ).group_by("day").order_by("day").all()
+
+    # Merge into a single date-keyed dict for easy frontend consumption
+    data: dict[str, dict] = {}
+    for row in signups:
+        d = str(row.day)
+        data.setdefault(d, {})["signups"] = row.count
+    for row in dau:
+        d = str(row.day)
+        data.setdefault(d, {})["dau"] = row.count
+    for row in preds:
+        d = str(row.day)
+        data.setdefault(d, {})["predictions"] = row.count
+        data[d]["volume"] = round(float(row.volume or 0), 2)
+    for row in comments:
+        d = str(row.day)
+        data.setdefault(d, {})["comments"] = row.count
+
+    # Fill zeros for missing days and sort chronologically
+    result = []
+    for i in range(days):
+        d = str(cutoff + timedelta(days=i))
+        row = data.get(d, {})
+        result.append({
+            "date": d,
+            "signups":     row.get("signups", 0),
+            "dau":         row.get("dau", 0),
+            "predictions": row.get("predictions", 0),
+            "volume":      row.get("volume", 0.0),
+            "comments":    row.get("comments", 0),
+        })
+    return result
+
+
+@router.get("/stats/top-markets")
+def admin_stats_top_markets(
+    limit: int = 10,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """Top markets by prediction count and volume. Optionally filtered to last N days."""
+    from sqlalchemy import func, cast, Date
+    from datetime import timedelta
+    from app.models.prediction import Prediction
+    from app.models.scenario import Scenario
+
+    cutoff = datetime.utcnow() - timedelta(days=days) if days < 9999 else None
+
+    q = (
+        db.query(
+            Event.id,
+            Event.title,
+            Event.category,
+            Event.status,
+            func.count(Prediction.id).label("prediction_count"),
+            func.sum(Prediction.simulated_amount).label("total_volume"),
+        )
+        .join(Scenario, Scenario.event_id == Event.id)
+        .join(Prediction, Prediction.scenario_id == Scenario.id)
+    )
+    if cutoff:
+        q = q.filter(Prediction.created_at >= cutoff)
+
+    rows = (
+        q.group_by(Event.id, Event.title, Event.category, Event.status)
+        .order_by(func.count(Prediction.id).desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "event_id": r.id,
+            "title": r.title,
+            "category": r.category,
+            "status": r.status,
+            "prediction_count": r.prediction_count,
+            "total_volume": round(float(r.total_volume or 0), 2),
+        }
+        for r in rows
+    ]
+
+
+@router.get("/stats/top-users")
+def admin_stats_top_users(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """Top users ranked by XP, with prediction count and total volume."""
+    from sqlalchemy import func
+    from app.models.prediction import Prediction
+
+    rows = (
+        db.query(
+            User.id,
+            User.display_name,
+            User.email,
+            User.xp,
+            User.current_streak,
+            User.created_at,
+            User.last_login_at,
+            func.count(Prediction.id).label("prediction_count"),
+            func.sum(Prediction.simulated_amount).label("total_volume"),
+        )
+        .outerjoin(Prediction, Prediction.user_id == User.id)
+        .filter(User.is_active.is_(True))
+        .group_by(
+            User.id, User.display_name, User.email, User.xp,
+            User.current_streak, User.created_at, User.last_login_at,
+        )
+        .order_by(User.xp.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "user_id": r.id,
+            "display_name": r.display_name,
+            "email": r.email,
+            "xp": r.xp,
+            "current_streak": r.current_streak,
+            "prediction_count": r.prediction_count or 0,
+            "total_volume": round(float(r.total_volume or 0), 2),
+            "joined": r.created_at.isoformat() if r.created_at else None,
+            "last_login": r.last_login_at.isoformat() if r.last_login_at else None,
+        }
+        for r in rows
+    ]
