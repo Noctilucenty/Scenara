@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.db import get_db
 from app.models.event import Event
 from app.models.user import User
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, get_admin_user
 from app.services.resolution import settle_event, void_event
 
 router = APIRouter()
@@ -58,14 +58,6 @@ def test_smtp(current_user: User = Depends(get_current_user)):
         "to": current_user.email,
         "message": "Email sent!" if ok else "Failed — check Render logs for SMTP error details.",
     }
-
-
-# ── Auth guard ────────────────────────────────────────────────────────────────
-
-def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return current_user
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────

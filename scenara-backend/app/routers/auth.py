@@ -154,6 +154,13 @@ def get_current_user_optional(
         return None
 
 
+def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """FastAPI dependency — raises 403 if the authenticated user is not an admin."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.post("/register", response_model=TokenResponse)
