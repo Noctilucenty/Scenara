@@ -1685,6 +1685,14 @@ export default function MarketsScreen() {
   const sentimentFetchedAtRef = useRef<Record<number, number>>({});
   const SENTIMENT_TTL = 5 * 60_000; // 5 minutes
 
+  // Tab-switch cache: tracks when each category+language was last successfully
+  // fetched. useFocusEffect calls fetchEvents() on every tab focus; checking
+  // this ref first lets us skip the network call entirely when data is fresh.
+  // AUTO_REFRESH_MS (90s) is the same window the background interval uses —
+  // while the tab is active the interval keeps data current, so on return
+  // within that window the existing state is accurate.
+  const lastFetchedAt = useRef<Record<string, number>>({});
+
   const fetchSentiment = useCallback((items: EventItem[]) => {
     const now = Date.now();
     const toFetch = items.slice(0, 8).filter(e => {
@@ -1765,9 +1773,20 @@ export default function MarketsScreen() {
   }, [fetchHistory, fetchSentiment, language]);
 
   const fetchEvents = useCallback(async (silent = false, cat = activeCategory) => {
-    // On fresh (non-silent) load: show cached data immediately while fetching.
-    // hydrateFromCache is now async (AsyncStorage on native).
     if (!silent) {
+      // Tab-switch fast path: if data for this category is still fresh and
+      // events are already rendered, skip the network round-trip entirely.
+      // The 90s auto-refresh interval (started by useFocusEffect) keeps the
+      // feed current while the tab is active — we don't need an extra fetch
+      // just because the user briefly switched to another tab and came back.
+      const tabKey = `${cat}_${language}`;
+      const lastFetch = lastFetchedAt.current[tabKey];
+      if (lastFetch && Date.now() - lastFetch < AUTO_REFRESH_MS && eventsRef.current.length > 0) {
+        return;
+      }
+
+      // On fresh (non-silent) load: show cached data immediately while fetching.
+      // hydrateFromCache is now async (AsyncStorage on native).
       const hadCache = await hydrateFromCache(cat);
       if (!hadCache) setLoading(true);
       setLoadError(false);
@@ -1778,6 +1797,9 @@ export default function MarketsScreen() {
       const res = await api.get("/events/", { params });
       const all: EventItem[] = res.data ?? [];
       setEvents(all);
+      // Stamp successful fetch so tab switches within AUTO_REFRESH_MS skip
+      // the next network call (see lastFetchedAt guard above).
+      lastFetchedAt.current[`${cat}_${language}`] = Date.now();
       const initialHasMore = all.length === PAGE_SIZE;
       scrollStateRef.current.hasMore = initialHasMore;
       setHasMore(initialHasMore);

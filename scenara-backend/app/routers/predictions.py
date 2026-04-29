@@ -673,16 +673,26 @@ _SYNTHETIC_NAMES = [
     "Caio A.", "Helena S.", "Gustavo R.", "Letícia M.", "Arthur P.",
     "Valentina L.", "Enzo C.", "Manuela B.", "Davi F.", "Alice O.",
     "Heitor G.", "Laura T.", "Murilo K.", "Yasmin V.", "Leonardo D.",
-    # English / international
+    # US / English
     "James K.", "Emma S.", "Noah P.", "Olivia R.", "Liam B.",
     "Ava T.", "Ethan C.", "Sophia H.", "Mason L.", "Mia F.",
-    "Lucas W.", "Isla R.", "Oliver N.", "Chloe D.", "Henry J.",
-    "Aria C.", "Jack M.", "Zoe V.", "Owen B.", "Nora P.",
-    "Aiden S.", "Grace K.", "Leo T.", "Ruby A.", "Max H.",
-    # Asian / Chinese pinyin
+    "Oliver N.", "Chloe D.", "Henry J.", "Aria C.", "Jack M.",
+    "Zoe V.", "Owen B.", "Nora P.", "Aiden S.", "Grace K.",
+    "Leo T.", "Ruby A.", "Max H.", "Tyler W.", "Michael B.",
+    "Jessica L.", "Ryan M.", "Ashley J.", "Brandon S.", "Samantha K.",
+    "Justin H.", "Amanda C.", "Kyle R.", "Rachel T.", "Dylan F.",
+    "Brittany A.", "Austin G.", "Kayla N.", "Caleb P.", "Megan W.",
+    "Hunter D.", "Lauren B.", "Chase M.", "Haley R.", "Bryce T.",
+    "Skyler J.", "Peyton A.", "Jordan H.", "Morgan L.", "Taylor V.",
+    # Chinese (pinyin romanization — authentic mainland + HK names)
     "Wei L.", "Xin Y.", "Jun Z.", "Mei H.", "Hao C.",
     "Lin W.", "Rui S.", "Jia T.", "Bo X.", "Yan Q.",
     "Min K.", "Zhe P.", "Ning F.", "Kai J.", "Fei O.",
+    "Chen H.", "Zhang W.", "Liu Y.", "Yang X.", "Wang J.",
+    "Li Q.", "Zhao M.", "Sun B.", "Zhou T.", "Wu R.",
+    "Xu F.", "Hu G.", "Guo L.", "Song N.", "Liang C.",
+    "Cheng S.", "Cai D.", "Pan H.", "Tang W.", "Dong Y.",
+    "Jiang X.", "Xie Z.", "Han M.", "Feng Q.", "Deng B.",
     # Crypto-twitter style aliases (anonymized look)
     "0xAlex", "trader_v", "moonbo1", "btc_maxi", "degen_z",
     "yoloKid", "chain.x", "whaIe88", "flash_t", "alpha_j",
