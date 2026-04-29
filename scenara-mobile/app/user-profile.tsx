@@ -148,6 +148,10 @@ export default function UserProfileScreen() {
     try {
       if (nowFollowing) await api.post(`/social/users/${targetId}/follow`);
       else              await api.delete(`/social/users/${targetId}/follow`);
+      // Reset the cached follower/following lists so they re-fetch when
+      // the user opens those tabs — the viewer is now included/excluded.
+      setFollowers(null);
+      setFollowing(null);
     } catch {
       // Rollback
       setProfile(p => p ? {

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import {
   SafeAreaView, Text, View, ScrollView,
   TouchableOpacity, ActivityIndicator, StatusBar,
@@ -202,6 +202,15 @@ export default function LeaderboardScreen() {
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const isWeb = Platform.OS === "web" && screenW >= 900;
 
+  // Request-version guard — same pattern as SearchBar.tsx.
+  // When userId changes (auth hydration, login, logout) a new fetch fires
+  // while the previous one may still be in-flight.  Incrementing the
+  // version before each request and checking on response ensures only
+  // the latest fetch can commit its data.  Without this, a slow
+  // unauthenticated response landing after a fast authenticated one
+  // would wipe the is_following decorations.
+  const reqVersion = useRef(0);
+
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const h = () => setScreenW(window.innerWidth);
@@ -210,16 +219,17 @@ export default function LeaderboardScreen() {
   }, []);
 
   const load = useCallback(async (sort: SortOption) => {
+    const myVersion = ++reqVersion.current;
     setLoading(true); setError("");
     try {
       // Pass viewer_id so the backend decorates each row with is_following.
       // Omitting the param gives the public (unauthenticated) view.
       const qs = userId ? `&viewer_id=${userId}` : "";
       const res = await api.get(`/accounts/leaderboard?sort_by=${sort}&limit=50${qs}`);
-      setData(res.data);
+      if (myVersion === reqVersion.current) setData(res.data);
     }
-    catch { setError(t.rankings.noTraders); }
-    finally { setLoading(false); }
+    catch { if (myVersion === reqVersion.current) setError(t.rankings.noTraders); }
+    finally { if (myVersion === reqVersion.current) setLoading(false); }
   }, [t, userId]);
 
   // Optimistic follow/unfollow: flip local state first, rollback on error.
