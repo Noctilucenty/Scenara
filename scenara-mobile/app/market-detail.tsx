@@ -97,22 +97,20 @@ export default function MarketDetailScreen() {
   // If the markets list passed a snapshot of the event, render it instantly
   // without waiting for the network fetch. The fetch still runs in background
   // to refresh probability / status, and to load history + sentiment.
-  const [event, setEvent] = useState<EventDetail | null>(() => {
+  // Parse once and derive both event + selId from the same object — avoids
+  // double JSON.parse and ensures consistency between the two state initialisers.
+  const _snapOnce = (() => {
     if (params.eventSnapshot) {
       try { return JSON.parse(params.eventSnapshot) as EventDetail; } catch {}
     }
     return null;
-  });
+  })();
+  const [event, setEvent] = useState<EventDetail | null>(_snapOnce);
   const [history, setHistory] = useState<any[]>([]);
-  const [selId, setSelId] = useState<number | null>(() => {
-    if (params.eventSnapshot) {
-      try {
-        const snap = JSON.parse(params.eventSnapshot) as EventDetail;
-        return snap.scenarios[0]?.id ?? null;
-      } catch {}
-    }
-    return null;
-  });
+  const [fetchFailed, setFetchFailed] = useState(false); // shows "cached data" banner on error
+  const [selId, setSelId] = useState<number | null>(
+    _snapOnce?.scenarios?.[0]?.id ?? null
+  );
   const [amount, setAmount] = useState("100");
   const [placing, setPlacing] = useState(false);
   const [message, setMessage] = useState("");
@@ -189,43 +187,54 @@ export default function MarketDetailScreen() {
 
   useEffect(() => {
     if (!eventId) return;
+    // isMounted guard: prevents state updates on an already-unmounted component
+    // (user navigates back before fetch completes — common with pre-loaded snapshots).
+    let mounted = true;
     Promise.all([
       api.get(`/events/${eventId}`, { params: { lang: language } }),
       api.get(`/events/${eventId}/history`),
     ]).then(([eventRes, histRes]) => {
+      if (!mounted) return;
       const found = eventRes.data;
       if (found) {
         setEvent(found);
         setSelId(found.scenarios[0]?.id ?? null);
+        setFetchFailed(false);
         api.get("/news/single", { params: { category: found.category, lang: language, max_results: 4 } })
           .then(r => {
+            if (!mounted) return;
             const articles = r.data.articles ?? [];
             const words = found.title.replace(/[^a-zA-Z0-9\s]/g, " ").split(/\s+/).filter((w: string) => w.length > 4).slice(0, 3);
             const scored = articles.map((a: any) => ({
               ...a,
               score: words.filter((w: string) => a.title.toLowerCase().includes(w.toLowerCase())).length,
             })).sort((x: any, y: any) => y.score - x.score);
-            setRelatedNews(scored.slice(0, 3));
+            if (mounted) setRelatedNews(scored.slice(0, 3));
             if (scored[0]) {
-              setLoadingSummary(true);
-              const summaryTimeout = setTimeout(() => setLoadingSummary(false), 8000);
+              if (mounted) setLoadingSummary(true);
+              const summaryTimeout = setTimeout(() => { if (mounted) setLoadingSummary(false); }, 8000);
               api.post("/news/summary", {
                 title: articleTitle(scored[0].title, language),
                 description: articleDescription(scored[0].description ?? "", language),
                 url: scored[0].url,
                 language,
-              }).then(r => setSummary(r.data.summary ?? ""))
+              }).then(r => { if (mounted) setSummary(r.data.summary ?? ""); })
                 .catch(() => {})
-                .finally(() => { clearTimeout(summaryTimeout); setLoadingSummary(false); });
+                .finally(() => { clearTimeout(summaryTimeout); if (mounted) setLoadingSummary(false); });
             }
           }).catch(() => {});
       }
-      setHistory(histRes.data?.scenarios ?? []);
+      if (mounted) setHistory(histRes.data?.scenarios ?? []);
       // Sentiment fetch in background
       api.get(`/predictions/events/${eventId}/sentiment`).then(r => {
-        setSentiment({ total: r.data.total_players ?? 0, scenarios: r.data.scenarios ?? [] });
+        if (mounted) setSentiment({ total: r.data.total_players ?? 0, scenarios: r.data.scenarios ?? [] });
       }).catch(() => {});
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => {
+      if (mounted) setFetchFailed(true); // show "cached data" banner if background refresh fails
+    }).finally(() => {
+      if (mounted) setLoading(false);
+    });
+    return () => { mounted = false; };
   }, [eventId, language]);
 
   const handleBet = async () => {
@@ -330,6 +339,16 @@ export default function MarketDetailScreen() {
             </View>
           )}
         </View>
+
+        {/* Stale-data banner: shown when background refresh fails but snapshot data is present */}
+        {fetchFailed && event && (
+          <View style={{ backgroundColor: "rgba(251,146,60,0.08)", borderBottomWidth: 1, borderBottomColor: "rgba(251,146,60,0.2)", paddingHorizontal: 16, paddingVertical: 7, flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={{ fontSize: 12 }}>⚠️</Text>
+            <Text style={{ color: "#FB923C", fontSize: 11, fontFamily: "DMSans_500Medium", flex: 1 }}>
+              {language === "pt" ? "Mostrando dados em cache — puxe para atualizar" : language === "zh" ? "显示缓存数据 — 下拉刷新" : "Showing cached data — pull to refresh"}
+            </Text>
+          </View>
+        )}
 
         <ScrollView showsVerticalScrollIndicator={false}
           contentContainerStyle={isWide ? { maxWidth: 1200, alignSelf: "center" as const, width: "100%", padding: 32 } : undefined}
@@ -527,11 +546,11 @@ export default function MarketDetailScreen() {
                             {language === "pt" ? "RETORNO POTENCIAL" : language === "zh" ? "潜在收益" : "POTENTIAL PAYOUT"}
                           </Text>
                           <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 18, marginTop: 2 }}>
-                            ${(parseFloat(amount || "0") / (selScene.probability / 100)).toFixed(2)}
+                            ${(parseFloat(amount || "0") / (Math.max(selScene.probability, 1) / 100)).toFixed(2)}
                           </Text>
                         </View>
                         <Text style={{ color: TEXT_MID, fontSize: 14, fontFamily: "DMSans_700Bold" }}>
-                          {(100 / selScene.probability).toFixed(2)}x
+                          {(100 / Math.max(selScene.probability, 1)).toFixed(2)}x
                         </Text>
                       </View>
                     )}
@@ -746,11 +765,11 @@ export default function MarketDetailScreen() {
                           {language === "pt" ? "RETORNO POTENCIAL" : language === "zh" ? "潜在收益" : "POTENTIAL PAYOUT"}
                         </Text>
                         <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 20, marginTop: 2 }}>
-                          ${(parseFloat(amount || "0") / (selScene.probability / 100)).toFixed(2)}
+                          ${(parseFloat(amount || "0") / (Math.max(selScene.probability, 1) / 100)).toFixed(2)}
                         </Text>
                       </View>
                       <Text style={{ color: TEXT_MID, fontSize: 16, fontFamily: "DMSans_700Bold" }}>
-                        {(100 / selScene.probability).toFixed(2)}x
+                        {(100 / Math.max(selScene.probability, 1)).toFixed(2)}x
                       </Text>
                     </View>
                   )}

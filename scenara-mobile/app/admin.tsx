@@ -77,23 +77,26 @@ function AnalyticsTab() {
   const [loading,     setLoading]     = useState(true);
 
   const load = useCallback(async (days: number) => {
+    let mounted = true;
     setLoading(true);
-    try {
-      const [ovRes, dailyRes, mktRes, userRes] = await Promise.all([
-        api.get("/admin/stats/overview"),
-        api.get(`/admin/stats/daily?days=${days}`),
-        api.get(`/admin/stats/top-markets?days=${days}&limit=8`),
-        api.get("/admin/stats/top-users?limit=8"),
-      ]);
-      setOverview(ovRes.data);
-      setDaily(dailyRes.data ?? []);
-      setTopMarkets(mktRes.data ?? []);
-      setTopUsers(userRes.data ?? []);
-    } catch (e: any) {
-      if (e?.status === 403) { router.back(); return; }
-    } finally {
-      setLoading(false);
+    // Use allSettled so one failing endpoint doesn't block the rest.
+    const [ovRes, dailyRes, mktRes, userRes] = await Promise.allSettled([
+      api.get("/admin/stats/overview"),
+      api.get(`/admin/stats/daily?days=${days}`),
+      api.get(`/admin/stats/top-markets?days=${days}&limit=8`),
+      api.get("/admin/stats/top-users?limit=8"),
+    ]);
+    if (!mounted) return;
+    // Auth error on any sub-request → navigate back
+    for (const r of [ovRes, dailyRes, mktRes, userRes]) {
+      if (r.status === "rejected" && r.reason?.status === 403) { router.back(); return; }
     }
+    if (ovRes.status === "fulfilled")    setOverview(ovRes.value.data);
+    if (dailyRes.status === "fulfilled") setDaily(dailyRes.value.data ?? []);
+    if (mktRes.status === "fulfilled")   setTopMarkets(mktRes.value.data ?? []);
+    if (userRes.status === "fulfilled")  setTopUsers(userRes.value.data ?? []);
+    setLoading(false);
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => { load(range); }, [load, range]);
@@ -595,7 +598,7 @@ function EventCard({
             >
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: SCENARIO_COLORS[i % SCENARIO_COLORS.length] }} />
-                <Text style={{ color: TEXT, fontFamily: "DMSans_600Medium" ?? "DMSans_500Medium", fontSize: 13 }}>
+                <Text style={{ color: TEXT, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
                   {language === "zh" ? (s.title_zh || s.title) : language === "pt" ? (s.title_pt || s.title) : s.title}
                 </Text>
               </View>

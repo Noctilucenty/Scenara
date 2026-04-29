@@ -197,26 +197,40 @@ def retranslate_zh(
     )
     db.commit()
 
+    # Count how many events need translation, then fire a single background
+    # pass instead of a while-loop. _fill_zh_translations returns immediately
+    # (spawns a daemon thread) so a loop would re-read the same un-translated
+    # rows forever — the thread hasn't committed yet. Instead we page through
+    # the IDs synchronously and queue one thread per batch.
     total = 0
     batch_size = 50
+    offset = 0
     while True:
         events = (
             db.query(Event)
             .options(joinedload(Event.scenarios))
             .filter(Event.title_zh.is_(None))
+            .order_by(Event.id)
+            .offset(offset)
             .limit(batch_size)
             .all()
         )
         if not events:
             break
-        _fill_zh_translations(events, db)
+        _fill_zh_translations(events)
         total += len(events)
+        offset += batch_size
+        # Safety cap: never spawn more than 10 batches (500 events) in a single
+        # request — operator can call again for the rest.
+        if offset >= batch_size * 10:
+            break
 
     return {
         "ok": True,
         "cleared_events": n_events,
         "cleared_scenarios": n_scenarios,
-        "retranslated_events": total,
+        "queued_for_translation": total,
+        "note": "Translation runs in background threads. Check /admin/zh-status for progress.",
     }
 
 

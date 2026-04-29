@@ -2240,11 +2240,12 @@ def _expire_old_events(db: Session) -> int:
             continue  # auto_resolver handles crypto
         event.status = "resolved"
         event.resolution_note = "Mercado encerrado · Market closed"
-        # Void all pending predictions — refund players
+        # Void all open predictions — refund players
+        # Note: predictions use status "open" (not "pending") — see predictions.py
         try:
             predictions = db.query(Prediction).filter(
                 Prediction.event_id == event.id,
-                Prediction.status == "pending",
+                Prediction.status == "open",
             ).all()
             for p in predictions:
                 p.status = "void"

@@ -265,7 +265,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       await refreshPortfolio();
       return { ok: true };
     } catch (err: any) {
-      return { ok: false, error: err?.response?.data?.detail ?? "Failed to place prediction" };
+      // axios interceptor reshapes errors: response data is at err.data (not err.response.data)
+      return { ok: false, error: err?.data?.detail ?? err?.message ?? "Failed to place prediction" };
     }
   }, [userId, refreshPortfolio]);
 

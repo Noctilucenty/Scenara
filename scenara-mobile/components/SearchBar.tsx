@@ -104,6 +104,11 @@ export function SearchBar({
 
   const reqVersion  = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear stale results immediately when category or language changes — don't
+  // wait for the 220ms debounce to show the user outdated results.
+  useEffect(() => { setResults([]); }, [category, language]);
 
   const runSearch = useCallback(async (query: string) => {
     if (query.length < MIN_QUERY_LEN) {
@@ -136,6 +141,9 @@ export function SearchBar({
   }, [q, runSearch]);
 
   const clearAndBlur = () => {
+    // Cancel any pending blur timeout before forcing focused=false to avoid
+    // a stale timeout re-setting state after the component has already moved on.
+    if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
     setQ("");
     setResults([]);
     setFocused(false);
@@ -167,7 +175,9 @@ export function SearchBar({
           style={styles.input}
           returnKeyType="search"
           onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 120)}
+          onBlur={() => {
+            blurTimeoutRef.current = setTimeout(() => setFocused(false), 120);
+          }}
           autoCorrect={false}
           autoCapitalize="none"
           accessibilityLabel={t.common?.search ?? "Search"}

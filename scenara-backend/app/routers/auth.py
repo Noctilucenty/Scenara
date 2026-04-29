@@ -12,7 +12,7 @@ Endpoints:
 from __future__ import annotations
 
 import hashlib
-import random
+import secrets
 import string
 from datetime import datetime, timedelta
 from typing import Optional
@@ -224,13 +224,14 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         Account.is_active.is_(True),
     ).first()
 
-    # Daily login bonus: award $50 if last login was > 24 hours ago (or never)
+    # Daily login bonus: award $50 if last login was > 24 hours ago (or never).
+    # Only mark daily_bonus=True if the account actually received the credit.
     daily_bonus = False
     now = datetime.utcnow()
     if user.last_login_at is None or (now - user.last_login_at) > timedelta(hours=DAILY_BONUS_COOLDOWN_HOURS):
         if account:
             account.balance = float(account.balance) + DAILY_BONUS_AMOUNT
-        daily_bonus = True
+            daily_bonus = True  # only set True when balance is actually credited
 
     user.last_login_at = now
     db.commit()
@@ -319,7 +320,8 @@ def _hash_otp(code: str) -> str:
 
 
 def _generate_otp(length: int = 6) -> str:
-    return "".join(random.choices(string.digits, k=length))
+    """Generate a cryptographically secure OTP using the secrets module."""
+    return "".join(secrets.choice(string.digits) for _ in range(length))
 
 
 def _create_reset_token(user_id: int) -> str:

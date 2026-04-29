@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
@@ -160,7 +160,7 @@ def _synthetic_comments(event_id: int, lang: str = "pt", count: int = 5) -> list
 # ---------------------------------------------------------------------------
 
 class CommentCreate(BaseModel):
-    body: str
+    body: str = Field(..., min_length=1, max_length=2000)
     event_id: int | None = None
     news_url: str | None = None
 

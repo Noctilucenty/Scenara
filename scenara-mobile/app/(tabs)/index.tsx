@@ -909,7 +909,7 @@ function formatCloseDate(dateStr: string, lang = "en"): string {
 // â�€â�€ Amount label: parse "$50-$100" range → single midpoint value â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 function parseAmount(label: string): string {
   // Backend now sends exact values like "$15". Keep range fallback for old cached data.
-  const m = label.match(/$(d[d,]*)s*[-–—]s*$(d[d,]*)/);
+  const m = label.match(/\$(\d[\d,]*)\s*[-–—]\s*\$(\d[\d,]*)/);
   if (!m) return label;
   const lo = parseInt(m[1].replace(/,/g, ""));
   const hi = parseInt(m[2].replace(/,/g, ""));
@@ -1978,6 +1978,9 @@ export default function MarketsScreen() {
     setActiveCategory(key);
     setBetPanelId(null);
     setEvents([]);
+    // Reset the ref synchronously so loadMore sees offset=0 immediately,
+    // even before the state update triggers a re-render.
+    eventsRef.current = [];
     scrollStateRef.current = { loadingMore: false, hasMore: true };
     setHasMore(true);
     fetchEvents(false, key);

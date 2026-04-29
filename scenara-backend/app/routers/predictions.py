@@ -151,6 +151,8 @@ def _normalize_scenarios(scenarios: list) -> None:
     Clamps each to [1, 99] first to avoid degenerate markets.
     Modifies in-place — caller must commit.
     """
+    if not scenarios:
+        return
     for s in scenarios:
         s.probability = max(1.0, min(99.0, s.probability))
     total = sum(s.probability for s in scenarios)
@@ -312,10 +314,11 @@ def create_prediction(
     _check_rate_limit(current_user.id)
     _check_position_limit(db, current_user.id, scenario.event.id, float(entry_amount))
 
+    # Always look up by current_user.id (not payload.user_id — already verified equal above)
     account = (
         db.query(models.Account)
         .filter(
-            models.Account.user_id == payload.user_id,
+            models.Account.user_id == current_user.id,
             models.Account.account_type == "simulation",
             models.Account.is_active.is_(True),
         )
@@ -367,7 +370,13 @@ def create_prediction(
 
 
 @router.get("/user/{user_id}", response_model=list[PredictionDetailOut])
-def list_user_predictions(user_id: int, db: Session = Depends(get_db)):
+def list_user_predictions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.id != user_id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Cannot view another user's predictions")
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -403,7 +412,13 @@ def list_user_predictions(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/user/{user_id}/summary", response_model=PortfolioSummaryOut)
-def get_portfolio_summary(user_id: int, db: Session = Depends(get_db)):
+def get_portfolio_summary(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.id != user_id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Cannot view another user's portfolio")
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -504,7 +519,13 @@ class OpenPositionOut(BaseModel):
     unrealized_pnl: float     # expected_value − amount
 
 @router.get("/user/{user_id}/open-positions", response_model=list[OpenPositionOut])
-def get_open_positions(user_id: int, db: Session = Depends(get_db)):
+def get_open_positions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if current_user.id != user_id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Cannot view another user's open positions")
     """Returns all open predictions with current market EV and unrealized PnL."""
     predictions = (
         db.query(models.Prediction)
@@ -546,7 +567,13 @@ def get_open_positions(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/settle/{event_id}", response_model=SettlementResponse)
-def settle_event_predictions(event_id: int, db: Session = Depends(get_db)):
+def settle_event_predictions(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Admin access required")
     from app.services.resolution import settle_event as _settle
     from sqlalchemy.orm import joinedload as _jl
     event = (
@@ -595,6 +622,9 @@ def get_crowd_sentiment(event_id: int, db: Session = Depends(get_db)):
     scenarios = db.query(models.Scenario).filter(
         models.Scenario.event_id == event_id
     ).order_by(models.Scenario.sort_order).all()
+
+    if not scenarios:
+        return CrowdSentimentOut(event_id=event_id, total_players=0, scenarios=[])
 
     # Single aggregation query instead of one .count() per scenario
     count_rows = (

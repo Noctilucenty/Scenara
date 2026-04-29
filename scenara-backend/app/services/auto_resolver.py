@@ -109,7 +109,7 @@ def _parse_range_event(title: str) -> tuple[float, float] | None:
     Returns (lower, upper) or None if can't parse.
     """
     match = re.search(
-        r"between\s+\$([0-9,]+(?:\.[0-9]+)?)[–\-–]?\$?([0-9,]+(?:\.[0-9]+)?)",
+        r"between\s+\$([0-9,]+(?:\.[0-9]+)?)\s*[–\-]\s*\$([0-9,]+(?:\.[0-9]+)?)",
         title, re.IGNORECASE
     )
     if match:
@@ -238,8 +238,10 @@ async def run_auto_resolver() -> None:
         # open prediction closes in the next window (5–10 min from now).
         # The window matches the interval → each event passes through once.
         from datetime import timedelta
-        soon_lower = now + timedelta(seconds=CHECK_INTERVAL_SECONDS)
-        soon_upper = soon_lower + timedelta(seconds=CHECK_INTERVAL_SECONDS)
+        # Notify users whose market closes in the NEXT check window (now → +5 min).
+        # Previously used now+5m → now+10m which missed markets closing in < 5 min.
+        soon_lower = now
+        soon_upper = now + timedelta(seconds=CHECK_INTERVAL_SECONDS)
         closing_soon = (
             db.query(Event)
             .options(joinedload(Event.scenarios))
@@ -291,7 +293,7 @@ async def run_auto_resolver() -> None:
 
 async def start_auto_resolver() -> None:
     """Runs the auto-resolver every 60 seconds."""
-    logger.info("[AutoResolver] Started — checking every 60 seconds.")
+    logger.info("[AutoResolver] Started — checking every %d seconds.", CHECK_INTERVAL_SECONDS)
     while True:
         await run_auto_resolver()
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)

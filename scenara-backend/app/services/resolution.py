@@ -40,6 +40,10 @@ def settle_event(
     Settle all open predictions for an event.
     Winners get payout. Losers keep nothing. Returns summary dict.
     """
+    # Guard against double-resolution (admin + auto-resolver race, or manual retry)
+    if event.status == "resolved":
+        return {"ok": False, "error": "Event already resolved"}
+
     scenario_ids = {s.id for s in event.scenarios}
     if winning_scenario_id not in scenario_ids:
         return {"ok": False, "error": "winning_scenario_id not in event"}
@@ -123,6 +127,16 @@ def settle_event(
             recorded_at=now,
         ))
 
+    # Collect notification payloads BEFORE commit while ORM objects are still loaded.
+    # After db.commit() the session expires all objects — accessing prediction.pnl
+    # post-commit triggers N lazy-load queries (N+1 bug).
+    event_title = event.title or "your prediction"
+    event_id_val = event.id
+    notification_payloads = [
+        (p.user_id, p.status == "won", float(p.pnl or 0))
+        for p in open_predictions
+    ]
+
     db.commit()
 
     # Auto top-up any users whose balance dropped below threshold.
@@ -130,13 +144,12 @@ def settle_event(
     _batch_topup(db, accounts_map)
 
     # Fire-and-forget push notifications after commit (background thread per call).
-    event_title = event.title or "your prediction"
-    for prediction in open_predictions:
+    for user_id, won, pnl in notification_payloads:
         notify_prediction_settled(
-            user_id=prediction.user_id,
-            won=(prediction.status == "won"),
-            pnl=float(prediction.pnl or 0),
-            event_id=event.id,
+            user_id=user_id,
+            won=won,
+            pnl=pnl,
+            event_id=event_id_val,
             event_title=event_title,
         )
 

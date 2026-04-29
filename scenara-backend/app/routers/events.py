@@ -17,6 +17,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.models.probability_history import ScenarioProbabilityHistory
 from app.services.resolution import settle_event
+from app.routers.auth import get_admin_user
 
 router = APIRouter()
 
@@ -118,7 +119,7 @@ class EventHistoryOut(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _fill_zh_translations(events: list, db: Session) -> None:
+def _fill_zh_translations(events: list) -> None:
     """
     Check if any events are missing ZH translations and, if so, fire a
     background daemon thread to translate them.
@@ -219,7 +220,14 @@ def _log_probability(
 # ---------------------------------------------------------------------------
 
 @router.post("/", response_model=EventOut)
-def create_event(payload: EventCreate, db: Session = Depends(get_db)):
+def create_event(
+    payload: EventCreate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    if not payload.scenarios:
+        raise HTTPException(status_code=400, detail="At least one scenario is required")
+
     existing = db.query(Event).filter(Event.slug == payload.slug).first()
     if existing:
         raise HTTPException(status_code=400, detail="Event slug already exists")
@@ -341,7 +349,7 @@ def search_events(
             query = query.filter(Event.category == category)
         events = query.order_by(Event.created_at.desc()).limit(30).all()
 
-    _fill_zh_translations(events, db)
+    _fill_zh_translations(events)
     return events
 
 
@@ -365,7 +373,7 @@ def list_events(
     if category and category != "all":
         base_q = base_q.filter(Event.category == category)
         events = base_q.order_by(Event.id.desc()).offset(offset).limit(limit).all()
-        _fill_zh_translations(events, db)
+        _fill_zh_translations(events)
         return events
 
     # For "all" categories: interleave via round-robin row-number window function.
@@ -402,7 +410,7 @@ def list_events(
         .all()
     )
     events.sort(key=lambda e: id_order.get(e.id, 999))
-    _fill_zh_translations(events, db)
+    _fill_zh_translations(events)
     return events
 
 
@@ -416,7 +424,7 @@ def get_event(event_id: int, lang: str = Query(default="en"), db: Session = Depe
     )
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    _fill_zh_translations([event], db)
+    _fill_zh_translations([event])
     return event
 
 
@@ -523,6 +531,7 @@ def update_scenario_probability(
     scenario_id: int,
     payload: ScenarioUpdateProbability,
     db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
 ):
     scenario = db.query(Scenario).filter(Scenario.id == scenario_id).first()
     if not scenario:
@@ -563,6 +572,7 @@ def resolve_event(
     event_id: int,
     payload: EventResolveRequest,
     db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
 ):
     event = (
         db.query(Event)
