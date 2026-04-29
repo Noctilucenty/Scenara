@@ -30,6 +30,11 @@ export function patchAccountBalance(nextBalance: number) {
   listeners.forEach((listener) => listener());
 }
 
+export function resetAccountSnapshot() {
+  currentAccount = null;
+  listeners.forEach((listener) => listener());
+}
+
 export function subscribeAccount(listener: Listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);

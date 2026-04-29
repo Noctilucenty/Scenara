@@ -136,6 +136,10 @@ def _send_blocking(payload: dict[str, Any]) -> None:
 
 def _send_expo(db: Session, devices: Iterable[DeviceToken], payload: dict[str, Any]) -> None:
     """Send to Expo. One HTTP call carries up to 100 messages."""
+    # Materialise the iterable once so we can correlate receipts back to
+    # devices by index. Using zip(devices, receipts) directly on a generator
+    # would silently truncate if Expo returns fewer receipts than messages.
+    devices_list = list(devices)
     messages = [
         {
             "to":    d.token,
@@ -145,7 +149,7 @@ def _send_expo(db: Session, devices: Iterable[DeviceToken], payload: dict[str, A
             "sound": "default",
             "priority": "high",
         }
-        for d in devices
+        for d in devices_list
     ]
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if settings.expo_access_token:
@@ -164,7 +168,13 @@ def _send_expo(db: Session, devices: Iterable[DeviceToken], payload: dict[str, A
     # On status="error" with details.error == "DeviceNotRegistered", the token
     # is dead — disable it.
     receipts = body.get("data") or []
-    for device, receipt in zip(devices, receipts):
+    if len(receipts) != len(devices_list):
+        logger.warning(
+            "[Notifications/expo] Receipt count mismatch: %d receipts for %d devices — "
+            "some dead-token checks will be skipped.",
+            len(receipts), len(devices_list),
+        )
+    for device, receipt in zip(devices_list, receipts):
         if receipt.get("status") == "error":
             err = (receipt.get("details") or {}).get("error", "")
             if err in ("DeviceNotRegistered", "InvalidCredentials"):

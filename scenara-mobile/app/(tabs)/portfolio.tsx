@@ -133,7 +133,7 @@ function ShareCardModal({ data, onClose, language }: { data: ShareCardData; onCl
 // Each win is a variable-ratio reward — the strongest schedule for engagement.
 
 function WinCelebrationBanner({ topWin, language }: {
-  topWin: { eventTitle: string; pnl: number } | null;
+  topWin: { predictionId: number; eventTitle: string; pnl: number } | null;
   language: string;
 }) {
   const slideAnim = useRef(new Animated.Value(-80)).current;
@@ -142,6 +142,11 @@ function WinCelebrationBanner({ topWin, language }: {
 
   useEffect(() => {
     if (!topWin) return;
+    // Reset to initial position before starting — the Animated.Value ref
+    // persists between renders so a second trigger would start mid-animation
+    // without this synchronous reset.
+    slideAnim.setValue(-80);
+    opacityAnim.setValue(0);
     setVisible(true);
     Animated.parallel([
       Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, friction: 7, tension: 60 }),
@@ -155,7 +160,8 @@ function WinCelebrationBanner({ topWin, language }: {
       ]).start(() => setVisible(false));
     }, 5000);
     return () => clearTimeout(timer);
-  }, [topWin?.eventTitle]);
+  // Use predictionId so two wins on the same event both trigger the banner.
+  }, [topWin?.predictionId]);
 
   if (!topWin || !visible) return null;
 
@@ -339,13 +345,14 @@ export default function PortfolioScreen() {
     return { won, lost, open, total: predictions.length, totalPnl, totalWagered };
   }, [predictions]);
 
-  // Most recent winning bet — powers the celebration banner
+  // Most recent winning bet — powers the celebration banner.
+  // Include predictionId so two wins on the same event both re-trigger the banner.
   const latestWin = useMemo(() => {
     const won = predictions
       .filter(p => p.status === "won" && p.pnl !== null && Number(p.pnl) > 0)
       .sort((a, b) => new Date(b.settled_at ?? 0).getTime() - new Date(a.settled_at ?? 0).getTime());
     if (!won[0]) return null;
-    return { eventTitle: won[0].event_title, pnl: Number(won[0].pnl) };
+    return { predictionId: won[0].id, eventTitle: won[0].event_title, pnl: Number(won[0].pnl) };
   }, [predictions]);
 
   if (!fontsLoaded) return null;

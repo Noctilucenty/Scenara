@@ -76,6 +76,20 @@ def settle_event(
     total_winners = total_losers = 0
     total_payout = 0.0
 
+    # Pre-compute which users bet on the winning scenario.  A user who
+    # hedge-bet across multiple scenarios is treated as a winner if *any*
+    # of their predictions landed on the winning side.  Without this,
+    # processing order determines streak outcome: a "lost" prediction
+    # processed before the user's "won" prediction would reset the streak
+    # and then the "won" prediction would only increment it to 1.
+    winning_user_ids: set[int] = {
+        p.user_id for p in open_predictions
+        if p.scenario_id == winning_scenario_id
+    }
+    # Track which users have already had their streak updated so each
+    # user's streak changes exactly once per event resolution.
+    streak_updated: set[int] = set()
+
     for prediction in open_predictions:
         account = accounts_map.get(prediction.user_id)
         user = users_map.get(prediction.user_id)
@@ -93,8 +107,9 @@ def settle_event(
                     type="prediction_win", amount=round(payout, 2),
                     currency=account.currency,
                 ))
-            if user:
+            if user and prediction.user_id not in streak_updated:
                 _update_streak(user, won=True)
+                streak_updated.add(prediction.user_id)
             total_winners += 1
             total_payout += payout
         else:
@@ -107,8 +122,12 @@ def settle_event(
                     type="prediction_loss", amount=0,
                     currency=account.currency,
                 ))
-            if user:
+            # Only update the streak for pure losers — users who also backed
+            # the winning scenario are already (or will be) marked as winners.
+            if user and prediction.user_id not in streak_updated \
+                    and prediction.user_id not in winning_user_ids:
                 _update_streak(user, won=False)
+                streak_updated.add(prediction.user_id)
             total_losers += 1
 
     # Mark event resolved + log final probability snapshots

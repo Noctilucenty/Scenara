@@ -56,9 +56,15 @@ export async function registerForWebPushAsync(): Promise<string | null> {
   }
   if (!publicKey) return null;
 
-  let registration: ServiceWorkerRegistration;
+  // Reuse an existing SW registration rather than calling register() every
+  // time — the browser deduplicates register() but some browsers still fire
+  // an updatefound event, which interrupts active sessions.
+  let registration: ServiceWorkerRegistration | undefined;
   try {
-    registration = await navigator.serviceWorker.register("/sw.js");
+    registration = await navigator.serviceWorker.getRegistration("/sw.js");
+    if (!registration) {
+      registration = await navigator.serviceWorker.register("/sw.js");
+    }
   } catch (e) {
     console.error("[Push/web] SW registration failed:", e);
     return null;
@@ -68,6 +74,11 @@ export async function registerForWebPushAsync(): Promise<string | null> {
   if (permission !== "granted") return null;
 
   try {
+    // Reuse an existing push subscription — calling subscribe() when one
+    // already exists can throw InvalidStateError on some browsers.
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) return JSON.stringify(existing.toJSON());
+
     const sub = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),

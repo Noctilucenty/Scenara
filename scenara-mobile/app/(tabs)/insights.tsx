@@ -71,7 +71,7 @@ function Card({ title, children }: { title?: string; children: React.ReactNode }
 
 export default function InsightsScreen() {
   const { userId } = useTrading();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -82,10 +82,26 @@ export default function InsightsScreen() {
   const load = useCallback(async () => {
     if (!userId) return;
     setLoading(true); setError("");
-    try { const res = await api.get(`/predictions/user/${userId}/summary`); setSummary(res.data); }
-    catch { setError(t.insights.noData); }
+    try {
+      const res = await api.get(`/predictions/user/${userId}/summary`);
+      setSummary(res.data);
+    } catch (e: any) {
+      // HTTP 404 means the account has no predictions yet — use the friendly
+      // empty-state string. Any other error is a network/server failure and
+      // deserves a distinct message so the user knows to try again.
+      const status = e?.status ?? e?.response?.status;
+      if (status === 404) {
+        setError(t.insights.noData);
+      } else {
+        setError(
+          language === "pt" ? "Erro ao carregar dados. Tente novamente." :
+          language === "zh" ? "加载失败，请重试。" :
+          "Failed to load data. Please try again."
+        );
+      }
+    }
     finally { setLoading(false); }
-  }, [userId, t]);
+  }, [userId, t, language]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   if (!fontsLoaded) return null;
