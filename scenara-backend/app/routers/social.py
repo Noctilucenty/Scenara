@@ -232,10 +232,14 @@ def get_trader_profile(
     follower_count = db.query(func.count(UserFollow.id)).filter(UserFollow.followee_id == user.id).scalar() or 0
     following_count = db.query(func.count(UserFollow.id)).filter(UserFollow.follower_id == user.id).scalar() or 0
 
-    # Balance from primary simulation account
+    # Balance from primary simulation account only (not aggregated across all account types)
     balance = (
         db.query(func.coalesce(func.sum(Account.balance), 0.0))
-        .filter(Account.user_id == user.id)
+        .filter(
+            Account.user_id == user.id,
+            Account.account_type == "simulation",
+            Account.is_active.is_(True),
+        )
         .scalar()
     ) or 0.0
 

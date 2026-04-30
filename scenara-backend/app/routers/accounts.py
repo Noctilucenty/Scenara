@@ -1,11 +1,12 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app import models
+from app.routers.auth import get_current_user
 
 router = APIRouter()
 
@@ -54,7 +55,18 @@ class LeaderboardOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/user/{user_id}", response_model=AccountOut)
-def get_user_simulation_account(user_id: int, db: Session = Depends(get_db)):
+def get_user_simulation_account(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    # Only the account owner or an admin may view account details.
+    if current_user.id != user_id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorised to view this account",
+        )
+
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

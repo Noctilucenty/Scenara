@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+﻿import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import {
   SafeAreaView, Text, View, ScrollView,
   ActivityIndicator, TouchableOpacity, StatusBar, Modal, Animated,
@@ -332,7 +332,7 @@ export default function PortfolioScreen() {
     }, AUTO_REFRESH_MS);
     return () => {
       isFocused.current = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
     };
   }, [refreshAll]));
 
@@ -640,7 +640,7 @@ export default function PortfolioScreen() {
                   </View>
                   <View style={{ alignItems: "flex-end", gap: 5 }}>
                     <View style={{ backgroundColor: sc.bg, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 4 }}>
-                      {p.status === "won" && <Text style={{ fontSize: 10 }}>ðŸ†</Text>}
+                      {p.status === "won" && <Text style={{ fontSize: 10 }}>🏆</Text>}
                       <Text style={{ color: sc.color, fontFamily: "DMSans_700Bold", fontSize: 10, letterSpacing: 0.8 }}>{sc.label}</Text>
                     </View>
                     {p.event_status === "resolved" && (

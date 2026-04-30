@@ -17,7 +17,7 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.models.probability_history import ScenarioProbabilityHistory
 from app.services.resolution import settle_event
-from app.routers.auth import get_admin_user
+from app.routers.auth import get_admin_user, get_current_user
 
 router = APIRouter()
 
@@ -622,13 +622,14 @@ def _resolve_event(event_id: int, winning_scenario_id: int, db: Session, resolut
 
 
 @router.post("/top-up")
-async def top_up_events():
+async def top_up_events(
+    _current_user: User = Depends(get_current_user),
+):
     """
-    On-demand event generation — called by the frontend when the user scrolls
-    past all available events. Runs the event generator synchronously and returns
-    how many new events were created.
+    On-demand event generation — requires authentication to prevent anonymous
+    callers from burning LLM API credits. Called by the frontend when the
+    authenticated user scrolls past all available events.
     """
-    import asyncio
     from app.services.event_generator import run_event_generator
     await run_event_generator()
     return {"ok": True}
