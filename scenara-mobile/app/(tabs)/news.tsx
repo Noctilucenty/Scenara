@@ -33,7 +33,7 @@ const GREEN    = "#22C55E";
 const RED      = "#EF4444";
 
 const GRAD_BRAND = [BLUE, PURPLE, PINK] as const;
-const AUTO_REFRESH_MS = 60_000;
+const AUTO_REFRESH_MS = 90_000;
 const { width: SCREEN_W } = Dimensions.get("window");
 const IS_WEB = Platform.OS === "web";
 const MAX_W = Math.min(SCREEN_W, 900);
@@ -329,17 +329,31 @@ export default function NewsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] = useState("all");
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intervalRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastFetchedAt  = useRef<Record<string, number>>({});
 
   const activeCat = CATEGORIES.find(c => c.key === activeCategory) ?? CATEGORIES[0];
 
-  const fetchAll = useCallback(async (cat = activeCategory, silent = false) => {
+  const fetchAll = useCallback(async (cat = activeCategory, silent = false, force = false) => {
+    const tabKey = `${cat}_${language}`;
+
+    // ── Tab-switch cache guard ────────────────────────────────────────────────
+    // Skip network if data was fetched within AUTO_REFRESH_MS and not forced.
+    if (!force) {
+      const ts = lastFetchedAt.current[tabKey];
+      if (ts && Date.now() - ts < AUTO_REFRESH_MS) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+    }
+
     try {
       if (!silent) setLoading(true);
 
       // Fetch events and news in parallel
       const [eventsRes, newsRes] = await Promise.allSettled([
-        api.get("/events/"),
+        api.get("/events/", { params: cat !== "all" ? { category: cat } : undefined }),
         api.get("/news/single", { params: { category: cat, lang: language, max_results: 15 }, timeout: 25000 }),
       ]);
 
@@ -354,24 +368,27 @@ export default function NewsScreen() {
         const histResults = await Promise.allSettled(
           sliced.slice(0, 10).map(e => api.get(`/events/${e.id}/history`))
         );
-        const cache: Record<number, number[]> = {};
-        histResults.forEach((r, i) => {
-          if (r.status === "fulfilled") {
-            const scenarios = r.value.data?.scenarios ?? [];
-            if (scenarios[0]?.points?.length >= 2) {
-              // Downsample to 20 points for sparkline
-              const pts: number[] = scenarios[0].points.map((p: any) => p.probability);
-              const step = Math.max(1, Math.floor(pts.length / 20));
-              cache[sliced[i].id] = pts.filter((_: any, idx: number) => idx % step === 0);
+        // Merge into existing cache so sparklines survive category switches
+        setHistoryCache(prev => {
+          const next = { ...prev };
+          histResults.forEach((r, i) => {
+            if (r.status === "fulfilled") {
+              const scenarios = r.value.data?.scenarios ?? [];
+              if (scenarios[0]?.points?.length >= 2) {
+                const pts: number[] = scenarios[0].points.map((p: any) => p.probability);
+                const step = Math.max(1, Math.floor(pts.length / 20));
+                next[sliced[i].id] = pts.filter((_: any, idx: number) => idx % step === 0);
+              }
             }
-          }
+          });
+          return next;
         });
-        setHistoryCache(cache);
       }
 
       if (newsRes.status === "fulfilled") {
         const arts: Article[] = newsRes.value.data.articles ?? [];
         setArticles(arts);
+        // Clear summaries only when we have fresh articles (not on tab-switch cache hit)
         setSummaries({});
 
         // Fetch AI summaries for first 4 articles in background
@@ -390,21 +407,32 @@ export default function NewsScreen() {
           });
         });
       }
+
+      // Stamp successful fetch so tab-switch returns early next time
+      lastFetchedAt.current[tabKey] = Date.now();
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }, [activeCategory, language]);
 
   useFocusEffect(useCallback(() => {
     fetchAll(activeCategory);
+    // Clear any stale interval before starting a new one (prevents multiple intervals)
+    if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => fetchAll(activeCategory, true), AUTO_REFRESH_MS);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [fetchAll, activeCategory]));
+    return () => {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    };
+  // fetchAll already captures activeCategory and language via its own useCallback deps
+  }, [fetchAll]));
 
   const handleCategory = (cat: string) => {
     setActiveCategory(cat);
     setEvents([]);
     setArticles([]);
-    fetchAll(cat);
+    setSummaries({});
+    // Invalidate cache so the new category always fetches fresh data
+    delete lastFetchedAt.current[`${cat}_${language}`];
+    fetchAll(cat, false, true);
   };
 
   const openArticle = (article: Article) => {
@@ -453,7 +481,7 @@ export default function NewsScreen() {
               </View>
             </View>
           </View>
-          <TouchableOpacity onPress={() => fetchAll(activeCategory)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.06)" }}>
+          <TouchableOpacity onPress={() => fetchAll(activeCategory, false, true)} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.06)" }}>
             <Text style={{ color: PURPLE_D, fontFamily: "DMSans_700Bold", fontSize: 9, letterSpacing: 0.8 }}>
               {loading ? "..." : (language === "pt" ? "ATUALIZAR" : language === "zh" ? "刷新" : "REFRESH")}
             </Text>
@@ -483,7 +511,7 @@ export default function NewsScreen() {
           <ScrollView
             style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAll(activeCategory); }} tintColor={PURPLE} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAll(activeCategory, false, true); }} tintColor={PURPLE} />}
           >
             <View style={{ maxWidth: IS_WEB ? MAX_W : undefined, alignSelf: IS_WEB ? "center" : undefined, width: "100%" }}>
 
@@ -532,7 +560,7 @@ export default function NewsScreen() {
                   <View style={{ paddingHorizontal: 16 }}>
                     {articles.map((article, idx) => (
                       <NewsCard
-                        key={idx}
+                        key={article.url || String(idx)}
                         article={article}
                         onPress={() => openArticle(article)}
                         language={language}

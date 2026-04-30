@@ -270,6 +270,19 @@ class SummaryRequest(BaseModel):
 
 
 _summary_cache: dict[str, str] = {}
+_SUMMARY_CACHE_MAX = 500  # prevent unbounded memory growth
+
+
+def _summary_cache_set(url: str, summary: str) -> None:
+    """Store a summary, evicting the oldest entry when the cache is full.
+
+    Python dicts are insertion-ordered (3.7+), so next(iter(d)) is always the
+    oldest key — O(1) LRU eviction without OrderedDict.
+    """
+    if url not in _summary_cache and len(_summary_cache) >= _SUMMARY_CACHE_MAX:
+        oldest = next(iter(_summary_cache))
+        del _summary_cache[oldest]
+    _summary_cache[url] = summary
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
@@ -321,7 +334,7 @@ async def get_summary(payload: SummaryRequest):
                 )
                 r.raise_for_status()
                 summary = r.json()["choices"][0]["message"]["content"].strip()
-                _summary_cache[payload.url] = summary
+                _summary_cache_set(payload.url, summary)
                 return {"summary": summary}
         except Exception:
             pass
@@ -345,7 +358,7 @@ async def get_summary(payload: SummaryRequest):
                 )
                 r.raise_for_status()
                 summary = r.json()["choices"][0]["message"]["content"].strip()
-                _summary_cache[payload.url] = summary
+                _summary_cache_set(payload.url, summary)
                 return {"summary": summary}
         except Exception:
             pass
@@ -370,5 +383,5 @@ async def get_summary(payload: SummaryRequest):
             f"This development may impact prediction markets tied to this topic. "
             f"Traders are watching closely as the situation develops and adjusting positions accordingly."
         )
-    _summary_cache[payload.url] = fallback
+    _summary_cache_set(payload.url, fallback)
     return {"summary": fallback}
