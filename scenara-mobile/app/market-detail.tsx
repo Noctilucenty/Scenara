@@ -190,12 +190,18 @@ export default function MarketDetailScreen() {
     // isMounted guard: prevents state updates on an already-unmounted component
     // (user navigates back before fetch completes — common with pre-loaded snapshots).
     let mounted = true;
-    Promise.all([
+    // Use allSettled so a history 404 (new event, no snapshots yet) doesn't
+    // prevent the event card from rendering.
+    Promise.allSettled([
       api.get(`/events/${eventId}`, { params: { lang: language } }),
       api.get(`/events/${eventId}/history`),
-    ]).then(([eventRes, histRes]) => {
+    ]).then(([eventResult, histResult]) => {
       if (!mounted) return;
-      const found = eventRes.data;
+      if (eventResult.status === "rejected") {
+        setFetchFailed(true);
+        return;
+      }
+      const found = eventResult.value.data;
       if (found) {
         setEvent(found);
         setSelId(found.scenarios[0]?.id ?? null);
@@ -224,13 +230,14 @@ export default function MarketDetailScreen() {
             }
           }).catch(() => {});
       }
-      if (mounted) setHistory(histRes.data?.scenarios ?? []);
+      // History may be absent on brand-new events — degrade gracefully
+      if (histResult.status === "fulfilled") {
+        if (mounted) setHistory(histResult.value.data?.scenarios ?? []);
+      }
       // Sentiment fetch in background
       api.get(`/predictions/events/${eventId}/sentiment`).then(r => {
         if (mounted) setSentiment({ total: r.data.total_players ?? 0, scenarios: r.data.scenarios ?? [] });
       }).catch(() => {});
-    }).catch(() => {
-      if (mounted) setFetchFailed(true); // show "cached data" banner if background refresh fails
     }).finally(() => {
       if (mounted) setLoading(false);
     });

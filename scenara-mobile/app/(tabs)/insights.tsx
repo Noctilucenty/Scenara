@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   SafeAreaView, Text, View, ScrollView,
   ActivityIndicator, StatusBar, Dimensions, Platform,
@@ -78,13 +78,18 @@ export default function InsightsScreen() {
   const [screenW, setScreenW] = useState(Dimensions.get("window").width);
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const isWeb = Platform.OS === "web" && screenW >= 900;
+  const lastFetchedAt = useRef<number>(0);
+  const AUTO_REFRESH_MS = 90_000;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     if (!userId) return;
+    // Tab-switch cache: skip network if data is fresh
+    if (!force && summary && Date.now() - lastFetchedAt.current < AUTO_REFRESH_MS) return;
     setLoading(true); setError("");
     try {
       const res = await api.get(`/predictions/user/${userId}/summary`);
       setSummary(res.data);
+      lastFetchedAt.current = Date.now();
     } catch (e: any) {
       // HTTP 404 means the account has no predictions yet — use the friendly
       // empty-state string. Any other error is a network/server failure and
