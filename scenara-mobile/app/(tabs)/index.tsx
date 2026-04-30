@@ -1259,7 +1259,7 @@ function CategoryTabs({ events, active, onSelect, t, language }: {
               )}
               {count > 0 && (
                 <View style={{ backgroundColor: `${meta.color}20`, borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1 }}>
-                  <Text style={{ color: meta.color, fontSize: 9, fontFamily: "DMSans_700Bold" }}>{count}</Text>
+                  <Text style={{ color: meta.color, fontSize: 9, fontFamily: "DMSans_700Bold" }}>{count >= 100 ? `${count}+` : count}</Text>
                 </View>
               )}
             </TouchableOpacity>
