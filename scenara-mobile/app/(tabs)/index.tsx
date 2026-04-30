@@ -1399,7 +1399,7 @@ const NewsGrid = React.memo(function NewsGrid({ articles, language, onPress }: {
 });
 
 // â�€â�€ Live stats bar â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
-function LiveStatsBar({ eventCount, language }: { eventCount: number; language: string }) {
+function LiveStatsBar({ eventCount, hasMore, language }: { eventCount: number; hasMore: boolean; language: string }) {
   const { width: winW } = useWindowDimensions();
   const isWide = winW >= 700;
   const pulse = useRef(new Animated.Value(0)).current;
@@ -1425,7 +1425,7 @@ function LiveStatsBar({ eventCount, language }: { eventCount: number; language: 
   const stats = [
     { value: String(traders), label: language === "pt" ? "traders" : language === "zh" ? "交易者" : "traders", color: BLUE },
     { value: `$${volume}K`,   label: language === "pt" ? "volume hoje" : language === "zh" ? "今日成交量" : "vol. today",  color: GREEN },
-    { value: String(eventCount), label: language === "pt" ? "mercados" : language === "zh" ? "市场" : "markets",  color: PURPLE },
+    { value: hasMore ? `${eventCount}+` : String(eventCount), label: language === "pt" ? "mercados" : language === "zh" ? "市场" : "markets",  color: PURPLE },
   ];
 
   return (
@@ -2193,7 +2193,7 @@ export default function MarketsScreen() {
         </View>
 
         {/* Live stats bar */}
-        <LiveStatsBar eventCount={events.length} language={language} />
+        <LiveStatsBar eventCount={events.length} hasMore={hasMore} language={language} />
 
         {/* Activity ticker */}
         <ActivityTicker items={activity} language={language} />

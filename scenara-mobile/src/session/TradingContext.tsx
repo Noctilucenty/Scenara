@@ -146,22 +146,49 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const hydrate = async () => {
       try {
         const token = await loadToken();
-        if (token) {
-          setAxiosToken(token);
-          // Verify token is still valid by fetching /auth/me
-          const res = await api.get("/auth/me");
-          const accountRes = await api.get(`/accounts/user/${res.data.id}`);
-          setAuthUser({
-            id: res.data.id,
-            email: res.data.email,
-            display_name: res.data.display_name,
-            balance: accountRes.data.balance,
-          });
+        if (!token) return;
+
+        setAxiosToken(token);
+
+        // Use a tighter timeout for the hydration path — the root layout
+        // already fires a health ping to wake Render.com, so 20 s is enough.
+        // If the server is still cold the request will fail with isTimeout=true
+        // and we'll keep the token rather than logging the user out.
+        const res = await api.get("/auth/me", { timeout: 20_000 });
+
+        // Fetch balance separately; if this fails (e.g. temporary network
+        // hiccup) we still log the user in — balance syncs on next portfolio
+        // refresh rather than blocking auth entirely.
+        let balance = 0;
+        try {
+          const accountRes = await api.get(
+            `/accounts/user/${res.data.id}`,
+            { timeout: 20_000 },
+          );
+          balance = accountRes.data.balance;
+        } catch {
+          // Balance fetch failed — non-fatal; portfolio refresh will recover it.
         }
-      } catch {
-        // Token expired or invalid — clear it
-        await deleteToken();
-        setAxiosToken(null);
+
+        setAuthUser({
+          id: res.data.id,
+          email: res.data.email,
+          display_name: res.data.display_name,
+          balance,
+        });
+      } catch (e: any) {
+        // Only wipe the stored token when the server explicitly rejects it
+        // (401 Unauthorized / 403 Forbidden). Network timeouts, CORS errors,
+        // 500s, or anything without an HTTP status code are transient — keep
+        // the token so the user isn't logged out just because the server was
+        // cold on page refresh.
+        const status: number | undefined = e?.status;
+        if (status === 401 || status === 403) {
+          await deleteToken();
+          setAxiosToken(null);
+        }
+        // For any other error we leave isAuthenticated=false (authUser stays
+        // null) but the token is preserved — a hard reload will retry.
       } finally {
         setIsLoadingAuth(false);
       }

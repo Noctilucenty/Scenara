@@ -75,9 +75,12 @@ function EntryRow({
   const rank   = rankMeta(entry.rank);
   const badge  = streakBadge(entry.current_streak);
   const isTop3 = entry.rank <= 3;
-  const following = !!entry.is_following;
+  const following  = !!entry.is_following;
+  // Negative user_id signals a synthetic ghost trader — no real profile to view.
+  const isGhost = entry.user_id < 0;
 
   const openProfile = () => {
+    if (isGhost) return;
     router.push({ pathname: "/user-profile", params: { id: String(entry.user_id) } });
   };
 
@@ -109,7 +112,7 @@ function EntryRow({
       <View style={{ alignItems: "flex-end", gap: 6 }}>
         <Text style={{ color: pnlPos ? (isTop3 ? BLUE : PURPLE) : RED, fontFamily: "DMSans_700Bold", fontSize: 16 }}>{pnlPos ? "+" : ""}{entry.total_pnl.toFixed(2)}</Text>
         <Text style={{ color: TEXT_MID, fontSize: 11 }}>${entry.balance.toLocaleString("en-US", { maximumFractionDigits: 0 })}</Text>
-        {canFollow && !isMe && (
+        {canFollow && !isMe && !isGhost && (
           <TouchableOpacity
             onPress={(e) => { e.stopPropagation(); onToggleFollow(entry.user_id, !following); }}
             style={{
