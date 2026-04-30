@@ -228,7 +228,7 @@ export default function LeaderboardScreen() {
       // Pass viewer_id so the backend decorates each row with is_following.
       // Omitting the param gives the public (unauthenticated) view.
       const qs = userId ? `&viewer_id=${userId}` : "";
-      const res = await api.get(`/accounts/leaderboard?sort_by=${sort}&limit=50${qs}`);
+      const res = await api.get(`/accounts/leaderboard?sort_by=${sort}&limit=300${qs}`);
       if (myVersion === reqVersion.current) setData(res.data);
     }
     catch { if (myVersion === reqVersion.current) setError(t.rankings.noTraders); }

@@ -1,25 +1,15 @@
 /**
- * components/SearchBar.tsx — debounced full-text search across markets.
+ * components/SearchBar.tsx — Polymarket-style search with Browse + Topics panels
  *
- * Behaviour:
- *   • Idle (not focused): plain search input with placeholder
- *   • Focused + empty query: shows scrollable category chips so users can
- *     browse by market type (Brazil, Politics, Sports, …) without typing
- *   • Focused + ≥2 chars: debounced server search, inline result dropdown
- *
- * Design notes:
- *   - 220ms debounce: tuned so a two-word query fires once, not once per char.
- *   - Request-version guard (lastReqRef) prevents stale responses stomping
- *     the latest result — classic search-box race condition fix.
- *   - Blur delay of 120ms lets result/chip taps register before the dropdown
- *     unmounts.
- *   - Category chips call onCategorySelect (passed by the parent markets
- *     screen) so tapping "Sports" does the same thing as tapping the Sports
- *     tab — single source of truth for the active category state.
+ * States:
+ *   • Idle:                   plain input, collapsed
+ *   • Focused + empty query:  full dropdown with Browse pills + Topics 2-col grid
+ *   • Focused + ≥2 chars:     debounced server search results list
  */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -37,8 +27,6 @@ const DEBOUNCE_MS   = 220;
 const MIN_QUERY_LEN = 2;
 
 // ── Category definitions ───────────────────────────────────────────────────
-// Emoji + colour for every category the backend produces.
-// Keep in sync with CAT_META in market-detail.tsx and categoryColor in admin.tsx.
 const CATEGORIES: {
   id: string;
   label_en: string;
@@ -47,21 +35,31 @@ const CATEGORIES: {
   icon: string;
   color: string;
 }[] = [
-  { id: "brazil",        label_en: "Brazil",        label_pt: "Brasil",       label_zh: "巴西",   icon: "🇧🇷", color: "#22C55E" },
-  { id: "politics",      label_en: "Politics",      label_pt: "Política",     label_zh: "政治",   icon: "🏛",  color: "#818CF8" },
-  { id: "sports",        label_en: "Sports",        label_pt: "Esportes",     label_zh: "体育",   icon: "⚽", color: "#60A5FA" },
-  { id: "crypto",        label_en: "Crypto",        label_pt: "Cripto",       label_zh: "加密",   icon: "₿",  color: "#F7931A" },
-  { id: "economy",       label_en: "Economy",       label_pt: "Economia",     label_zh: "经济",   icon: "📈", color: "#34D399" },
-  { id: "geopolitics",   label_en: "World",         label_pt: "Geopolítica",  label_zh: "地缘",   icon: "🌍", color: "#FB923C" },
+  { id: "brazil",        label_en: "Brazil",        label_pt: "Brasil",         label_zh: "巴西",  icon: "🇧🇷", color: "#22C55E" },
+  { id: "politics",      label_en: "Politics",      label_pt: "Política",       label_zh: "政治",  icon: "🏛",  color: "#818CF8" },
+  { id: "sports",        label_en: "Sports",        label_pt: "Esportes",       label_zh: "体育",  icon: "⚽", color: "#60A5FA" },
+  { id: "crypto",        label_en: "Crypto",        label_pt: "Cripto",         label_zh: "加密",  icon: "₿",  color: "#F7931A" },
+  { id: "economy",       label_en: "Economy",       label_pt: "Economia",       label_zh: "经济",  icon: "📈", color: "#34D399" },
+  { id: "geopolitics",   label_en: "World",         label_pt: "Geopolítica",    label_zh: "地缘",  icon: "🌍", color: "#FB923C" },
   { id: "entertainment", label_en: "Entertainment", label_pt: "Entretenimento", label_zh: "娱乐",  icon: "🎬", color: "#F472B6" },
-  { id: "technology",    label_en: "Tech",          label_pt: "Tecnologia",   label_zh: "科技",   icon: "💻", color: "#A78BFA" },
-  { id: "science",       label_en: "Science",       label_pt: "Ciência",      label_zh: "科学",   icon: "🔬", color: "#86EFAC" },
-  { id: "music",         label_en: "Music",         label_pt: "Música",       label_zh: "音乐",   icon: "🎵", color: "#C084FC" },
-  { id: "tv",            label_en: "TV",            label_pt: "TV",           label_zh: "电视",   icon: "📺", color: "#22D3EE" },
-  { id: "weather",       label_en: "Weather",       label_pt: "Clima",        label_zh: "天气",   icon: "🌦",  color: "#7DD3FC" },
+  { id: "technology",    label_en: "Tech",          label_pt: "Tecnologia",     label_zh: "科技",  icon: "💻", color: "#A78BFA" },
+  { id: "science",       label_en: "Science",       label_pt: "Ciência",        label_zh: "科学",  icon: "🔬", color: "#86EFAC" },
+  { id: "music",         label_en: "Music",         label_pt: "Música",         label_zh: "音乐",  icon: "🎵", color: "#C084FC" },
+  { id: "tv",            label_en: "TV",            label_pt: "TV",             label_zh: "电视",  icon: "📺", color: "#22D3EE" },
+  { id: "weather",       label_en: "Weather",       label_pt: "Clima",          label_zh: "天气",  icon: "🌦",  color: "#7DD3FC" },
 ];
 
-function catLabel(cat: typeof CATEGORIES[0], lang: string): string {
+// Quick-access "Browse" shortcuts — subset shown as top pill row
+const BROWSE_SHORTCUTS = [
+  { id: "all",           label_en: "All",        label_pt: "Tudo",      label_zh: "全部",  icon: "◈" },
+  { id: "crypto",        label_en: "Crypto",     label_pt: "Cripto",    label_zh: "加密",  icon: "₿" },
+  { id: "politics",      label_en: "Politics",   label_pt: "Política",  label_zh: "政治",  icon: "🏛" },
+  { id: "sports",        label_en: "Sports",     label_pt: "Esportes",  label_zh: "体育",  icon: "⚽" },
+  { id: "economy",       label_en: "Economy",    label_pt: "Economia",  label_zh: "经济",  icon: "📈" },
+  { id: "geopolitics",   label_en: "World",      label_pt: "Mundo",     label_zh: "世界",  icon: "🌍" },
+];
+
+function catLabel(cat: { label_en: string; label_pt: string; label_zh: string }, lang: string): string {
   if (lang === "pt") return cat.label_pt;
   if (lang === "zh") return cat.label_zh;
   return cat.label_en;
@@ -90,41 +88,31 @@ export function SearchBar({
   onCategorySelect,
 }: {
   style?: ViewStyle;
-  /** Current active category (from parent). Scopes search results. */
   category?: string;
-  /** Called when the user taps a category chip — mirrors CategoryTabs behaviour. */
   onCategorySelect?: (catId: string) => void;
 }) {
-  const router   = useRouter();
-  const { t, language } = useLanguage();
-  const [q,          setQ]          = useState("");
-  const [focused,    setFocused]    = useState(false);
-  const [loading,    setLoading]    = useState(false);
-  const [results,    setResults]    = useState<SearchResult[]>([]);
+  const router = useRouter();
+  const { language } = useLanguage();
+  const [q,       setQ]       = useState("");
+  const [focused, setFocused] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
 
-  const reqVersion  = useRef(0);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reqVersion     = useRef(0);
+  const debounceRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clear stale results immediately when category or language changes — don't
-  // wait for the 220ms debounce to show the user outdated results.
   useEffect(() => { setResults([]); }, [category, language]);
 
   const runSearch = useCallback(async (query: string) => {
-    if (query.length < MIN_QUERY_LEN) {
-      setResults([]);
-      setLoading(false);
-      return;
-    }
+    if (query.length < MIN_QUERY_LEN) { setResults([]); setLoading(false); return; }
     const myVersion = ++reqVersion.current;
     setLoading(true);
     try {
       const params: Record<string, string> = { q: query, lang: language };
       if (category && category !== "all") params.category = category;
       const res = await api.get("/events/search", { params });
-      if (myVersion === reqVersion.current) {
-        setResults((res.data || []).slice(0, 8));
-      }
+      if (myVersion === reqVersion.current) setResults((res.data || []).slice(0, 8));
     } catch {
       if (myVersion === reqVersion.current) setResults([]);
     } finally {
@@ -135,111 +123,143 @@ export function SearchBar({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => runSearch(q.trim()), DEBOUNCE_MS);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [q, runSearch]);
 
   const clearAndBlur = () => {
-    // Cancel any pending blur timeout before forcing focused=false to avoid
-    // a stale timeout re-setting state after the component has already moved on.
     if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
-    setQ("");
-    setResults([]);
-    setFocused(false);
+    setQ(""); setResults([]); setFocused(false);
   };
 
-  const handleCategoryChip = (catId: string) => {
+  const handleShortcut = (id: string) => {
     clearAndBlur();
-    onCategorySelect?.(catId);
+    onCategorySelect?.(id);
   };
 
-  // Which panel to show beneath the input
-  const showCategoryChips  = focused && q.trim().length === 0;
-  const showSearchDropdown = focused && q.trim().length >= MIN_QUERY_LEN;
+  const showBrowse   = focused && q.trim().length === 0;
+  const showResults  = focused && q.trim().length >= MIN_QUERY_LEN;
+  const isWeb        = Platform.OS === "web";
 
   return (
     <View style={[{ position: "relative", zIndex: 1000 }, style]}>
-      {/* ── Input row ──────────────────────────────────────────────────── */}
-      <View style={[styles.wrap, focused && styles.wrapFocused]}>
-        <Text style={styles.icon}>⌕</Text>
+
+      {/* ── Input ──────────────────────────────────────────────────────── */}
+      <View style={[styles.inputWrap, focused && styles.inputWrapFocused]}>
+        <Text style={styles.searchIcon}>🔍</Text>
         <TextInput
           value={q}
           onChangeText={setQ}
           placeholder={
-            focused
-              ? (language === "pt" ? "Buscar mercados…" : language === "zh" ? "搜索市场…" : "Search markets…")
-              : (t.common?.searchPlaceholder ?? (language === "pt" ? "Buscar…" : language === "zh" ? "搜索…" : "Search…"))
+            language === "pt" ? "Buscar mercados…"
+            : language === "zh" ? "搜索市场…"
+            : "Search markets…"
           }
           placeholderTextColor={C.TEXT_MID}
           style={styles.input}
           returnKeyType="search"
           onFocus={() => setFocused(true)}
-          onBlur={() => {
-            blurTimeoutRef.current = setTimeout(() => setFocused(false), 120);
-          }}
+          onBlur={() => { blurTimeoutRef.current = setTimeout(() => setFocused(false), 150); }}
           autoCorrect={false}
           autoCapitalize="none"
-          accessibilityLabel={t.common?.search ?? "Search"}
         />
         {loading ? (
-          <ActivityIndicator size="small" color={C.PURPLE} style={{ marginRight: 8 }} />
+          <ActivityIndicator size="small" color={C.PURPLE} style={{ marginRight: 12 }} />
         ) : q.length > 0 ? (
-          <Pressable onPress={clearAndBlur} hitSlop={8} style={{ marginRight: 8 }}>
+          <Pressable onPress={clearAndBlur} hitSlop={8} style={{ marginRight: 12 }}>
             <Text style={{ color: C.TEXT_MID, fontSize: 16 }}>✕</Text>
           </Pressable>
         ) : null}
       </View>
 
-      {/* ── Category chips (empty query) ───────────────────────────────── */}
-      {showCategoryChips && (
-        <View style={styles.dropdown}>
-          <Text style={styles.chipHeading}>
-            {language === "pt" ? "EXPLORAR POR CATEGORIA" : language === "zh" ? "按类别浏览" : "BROWSE BY CATEGORY"}
-          </Text>
+      {/* ── Browse + Topics dropdown ────────────────────────────────────── */}
+      {showBrowse && (
+        <View style={[styles.dropdown, isWeb && styles.dropdownWeb]}>
           <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 14, gap: 8, flexDirection: "row" }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="always"
           >
-            {CATEGORIES.map((cat) => {
-              const isActive = category === cat.id;
-              return (
-                <Pressable
-                  key={cat.id}
-                  onPress={() => handleCategoryChip(cat.id)}
-                  style={({ pressed }) => [
-                    styles.chip,
-                    { borderColor: `${cat.color}40`, backgroundColor: isActive ? `${cat.color}25` : `${cat.color}12` },
-                    pressed && { opacity: 0.75 },
-                  ]}
-                >
-                  <Text style={styles.chipIcon}>{cat.icon}</Text>
-                  <Text style={[styles.chipLabel, { color: cat.color }]}>
-                    {catLabel(cat, language)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+            {/* BROWSE row */}
+            <Text style={styles.sectionLabel}>
+              {language === "pt" ? "EXPLORAR" : language === "zh" ? "浏览" : "BROWSE"}
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.browseRow}
+              keyboardShouldPersistTaps="always"
+            >
+              {BROWSE_SHORTCUTS.map(s => {
+                const isActive = s.id === "all" ? category === "all" || !category : category === s.id;
+                return (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => handleShortcut(s.id)}
+                    style={({ pressed }) => [
+                      styles.browsePill,
+                      isActive && styles.browsePillActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <Text style={styles.browsePillIcon}>{s.icon}</Text>
+                    <Text style={[styles.browsePillLabel, isActive && { color: C.TEXT }]}>
+                      {catLabel(s, language)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
-          {/* Hint */}
-          <Text style={styles.chipHint}>
-            {language === "pt" ? "Ou comece a digitar para buscar…" : language === "zh" ? "或开始输入进行搜索…" : "Or start typing to search…"}
-          </Text>
+            {/* TOPICS grid */}
+            <Text style={[styles.sectionLabel, { marginTop: 16 }]}>
+              {language === "pt" ? "CATEGORIAS" : language === "zh" ? "分类" : "TOPICS"}
+            </Text>
+            <View style={styles.topicsGrid}>
+              {CATEGORIES.map(cat => {
+                const isActive = category === cat.id;
+                return (
+                  <Pressable
+                    key={cat.id}
+                    onPress={() => handleShortcut(cat.id)}
+                    style={({ pressed }) => [
+                      styles.topicCard,
+                      isActive && { borderColor: `${cat.color}50`, backgroundColor: `${cat.color}15` },
+                      pressed && { opacity: 0.75 },
+                    ]}
+                  >
+                    {/* Colored icon box */}
+                    <View style={[styles.topicIconBox, { backgroundColor: `${cat.color}20` }]}>
+                      <Text style={styles.topicIcon}>{cat.icon}</Text>
+                    </View>
+                    <Text style={[styles.topicLabel, isActive && { color: cat.color }]} numberOfLines={1}>
+                      {catLabel(cat, language)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Hint */}
+            <Text style={styles.hint}>
+              {language === "pt" ? "Ou comece a digitar para buscar…"
+               : language === "zh" ? "或开始输入进行搜索…"
+               : "Or start typing to search…"}
+            </Text>
+          </ScrollView>
         </View>
       )}
 
-      {/* ── Search result dropdown (query ≥ 2 chars) ──────────────────── */}
-      {showSearchDropdown && (
-        <View style={styles.dropdown}>
+      {/* ── Search results ──────────────────────────────────────────────── */}
+      {showResults && (
+        <View style={[styles.dropdown, isWeb && styles.dropdownWeb]}>
           {results.length === 0 && !loading ? (
             <Text style={styles.emptyText}>
-              {language === "pt" ? "Nenhum mercado encontrado" : language === "zh" ? "未找到市场" : "No markets found"}
+              {language === "pt" ? "Nenhum mercado encontrado"
+               : language === "zh" ? "未找到市场"
+               : "No markets found"}
             </Text>
           ) : (
-            results.map((r) => {
-              const catMeta = CATEGORIES.find(c => c.id === r.category);
+            results.map(r => {
+              const meta = CATEGORIES.find(c => c.id === r.category);
               return (
                 <Pressable
                   key={r.id}
@@ -248,33 +268,22 @@ export function SearchBar({
                     router.push({ pathname: "/market-detail", params: { eventId: String(r.id) } });
                   }}
                   style={({ pressed }) => [
-                    styles.row,
+                    styles.resultRow,
                     pressed && { backgroundColor: "rgba(124,92,252,0.08)" },
                   ]}
                 >
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    {catMeta && (
-                      <Text style={{ fontSize: 14 }}>{catMeta.icon}</Text>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowTitle} numberOfLines={2}>
-                        {pickTitle(r, language)}
-                      </Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-                        <View style={{
-                          backgroundColor: catMeta ? `${catMeta.color}20` : "rgba(255,255,255,0.06)",
-                          borderRadius: 4,
-                          paddingHorizontal: 6,
-                          paddingVertical: 1,
-                        }}>
-                          <Text style={[styles.rowCat, { color: catMeta?.color ?? C.TEXT_MID }]}>
-                            {catMeta ? catLabel(catMeta, language).toUpperCase() : r.category.toUpperCase()}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                    <Text style={{ color: C.TEXT_MID, fontSize: 14 }}>›</Text>
+                  <View style={[styles.resultIconBox, { backgroundColor: `${meta?.color ?? "#7C5CFC"}18` }]}>
+                    <Text style={{ fontSize: 14 }}>{meta?.icon ?? "◈"}</Text>
                   </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.resultTitle} numberOfLines={2}>
+                      {pickTitle(r, language)}
+                    </Text>
+                    <Text style={[styles.resultCat, { color: meta?.color ?? C.TEXT_MID }]}>
+                      {meta ? catLabel(meta, language).toUpperCase() : r.category.toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={{ color: C.TEXT_MID, fontSize: 16, paddingLeft: 8 }}>›</Text>
                 </Pressable>
               );
             })
@@ -287,103 +296,177 @@ export function SearchBar({
 
 // ── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  wrap: {
+  // Input
+  inputWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: C.SURFACE,
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: C.BORDER,
-    paddingLeft: 12,
+    paddingLeft: 14,
   },
-  wrapFocused: {
-    borderColor: "rgba(124,92,252,0.4)",
-    backgroundColor: "rgba(17,22,32,1)",
+  inputWrapFocused: {
+    borderColor: "rgba(124,92,252,0.5)",
+    backgroundColor: "#0D1117",
   },
-  icon: { color: C.TEXT_MID, fontSize: 16, marginRight: 8 },
+  searchIcon: {
+    fontSize: 15,
+    marginRight: 8,
+  },
   input: {
     flex: 1,
     color: C.TEXT,
     fontFamily: "DMSans_500Medium",
     fontSize: 14,
-    paddingVertical: 11,
+    paddingVertical: 12,
     paddingRight: 8,
   },
 
-  // Shared dropdown shell
+  // Dropdown shell
   dropdown: {
     position: "absolute",
     top: "100%",
     left: 0,
     right: 0,
     marginTop: 6,
-    backgroundColor: C.CARD,
-    borderRadius: 14,
+    backgroundColor: "#0D1117",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(124,92,252,0.25)",
+    borderColor: "rgba(124,92,252,0.2)",
     overflow: "hidden",
-    elevation: 8,
+    maxHeight: 480,
+    elevation: 12,
     shadowColor: "#000",
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  dropdownWeb: {
+    maxWidth: 540,
   },
 
-  // Category chip panel
-  chipHeading: {
+  // Section labels (BROWSE / TOPICS)
+  sectionLabel: {
     color: C.TEXT_MID,
     fontSize: 9,
     fontFamily: "DMSans_700Bold",
-    letterSpacing: 1.5,
-    paddingHorizontal: 14,
-    paddingTop: 14,
+    letterSpacing: 1.8,
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 10,
   },
-  chip: {
+
+  // Browse pill row
+  browseRow: {
+    flexDirection: "row",
+    paddingHorizontal: 14,
+    gap: 8,
+    paddingBottom: 4,
+  },
+  browsePill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 5,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
-  chipIcon: { fontSize: 14 },
-  chipLabel: {
+  browsePillActive: {
+    borderColor: "rgba(124,92,252,0.5)",
+    backgroundColor: "rgba(124,92,252,0.14)",
+  },
+  browsePillIcon: {
+    fontSize: 12,
+  },
+  browsePillLabel: {
+    color: C.TEXT_SUB,
     fontFamily: "DMSans_700Bold",
     fontSize: 12,
   },
-  chipHint: {
+
+  // Topics 2-col grid
+  topicsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  topicCard: {
+    width: "47.5%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  topicIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  topicIcon: {
+    fontSize: 18,
+  },
+  topicLabel: {
+    color: C.TEXT_SUB,
+    fontFamily: "DMSans_700Bold",
+    fontSize: 13,
+    flex: 1,
+  },
+
+  // Hint at bottom of browse panel
+  hint: {
     color: C.TEXT_MID,
     fontSize: 11,
     fontFamily: "DMSans_400Regular",
     textAlign: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.04)",
+    marginTop: 10,
   },
 
   // Search result rows
-  row: {
-    paddingVertical: 11,
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.04)",
   },
-  rowTitle: {
+  resultIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resultTitle: {
     color: C.TEXT,
     fontFamily: "DMSans_500Medium",
     fontSize: 13,
     lineHeight: 18,
   },
-  rowCat: {
+  resultCat: {
     fontFamily: "DMSans_700Bold",
     fontSize: 9,
-    letterSpacing: 1,
+    letterSpacing: 1.2,
+    marginTop: 3,
   },
   emptyText: {
-    padding: 16,
+    padding: 20,
     color: C.TEXT_MID,
     fontFamily: "DMSans_500Medium",
     fontSize: 13,
