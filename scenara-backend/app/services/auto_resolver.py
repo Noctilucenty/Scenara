@@ -30,6 +30,11 @@ from app.models.scenario import Scenario
 from app.models.prediction import Prediction
 from app.services.resolution import settle_event, void_event
 from app.services.notifications import notify_market_closing_soon
+from app.services.ai_resolver import ai_resolve_event
+
+# Track which non-crypto event IDs we've already sent to AI this session.
+# Prevents hammering the Gemini API every 5 min for the same unresolvable event.
+_ai_attempted: set[int] = set()
 
 logger = logging.getLogger(__name__)
 
@@ -267,22 +272,66 @@ async def run_auto_resolver() -> None:
             for (uid,) in user_ids:
                 notify_market_closing_soon(uid, event.id, event.title or "Your prediction", mins_left)
 
-        # Void expired non-crypto events (48-hour grace period after closes_at)
-        grace_cutoff = now - timedelta(hours=48)
-        expired_noncrypto = (
+        # ── AI resolution for expired non-crypto events ─────────────────────
+        # Try Gemini Flash (Google Search) once per event on first expiry.
+        expired_noncrypto_new = (
             db.query(Event)
             .options(joinedload(Event.scenarios))
             .filter(
                 Event.status == "open",
                 Event.category != "crypto",
                 Event.closes_at != None,
-                Event.closes_at <= grace_cutoff,
+                Event.closes_at <= now,
+                ~Event.id.in_(_ai_attempted) if _ai_attempted else True,
             )
             .all()
         )
-        for event in expired_noncrypto:
-            result = void_event(db, event, note="Event expired after 48-hour grace period — all bets refunded")
-            logger.info(f"[AutoResolver] Voided expired event #{event.id} '{event.title[:50]}' — refunded {result['refunded']} bets")
+
+        for event in expired_noncrypto_new:
+            _ai_attempted.add(event.id)
+            scenarios_sorted = sorted(event.scenarios, key=lambda s: s.sort_order)
+            scenario_titles = [s.title for s in scenarios_sorted]
+
+            winner_idx, confidence, note = await ai_resolve_event(
+                title=event.title or "",
+                description=event.description or "",
+                scenarios=scenario_titles,
+            )
+
+            if winner_idx is not None:
+                winning_id = scenarios_sorted[winner_idx].id
+                result = settle_event(db, event, winning_id, note)
+                if result["ok"]:
+                    _ai_attempted.discard(event.id)
+                    logger.info(
+                        f"[AIResolver] ✓ Resolved #{event.id} '{event.title[:50]}' "
+                        f"→ '{scenario_titles[winner_idx]}' ({confidence}% confident)"
+                    )
+                else:
+                    logger.error(f"[AIResolver] ✗ settle_event failed #{event.id}: {result.get('error')}")
+            else:
+                logger.info(
+                    f"[AIResolver] Skipped #{event.id} '{event.title[:40]}' "
+                    f"— confidence {confidence}% below threshold. {note}"
+                )
+
+        # ── Void non-crypto events after 7-day grace period ─────────────────
+        seven_day_cutoff = now - timedelta(days=7)
+        very_old_noncrypto = (
+            db.query(Event)
+            .options(joinedload(Event.scenarios))
+            .filter(
+                Event.status == "open",
+                Event.category != "crypto",
+                Event.closes_at != None,
+                Event.closes_at <= seven_day_cutoff,
+            )
+            .all()
+        )
+        for event in very_old_noncrypto:
+            _ai_attempted.discard(event.id)
+            result = void_event(db, event, note="Event expired after 7-day grace period — all bets refunded")
+            logger.info(f"[AutoResolver] Voided #{event.id} '{event.title[:50]}' — refunded {result['refunded']} bets")
 
     except Exception as e:
         logger.error(f"[AutoResolver] Unexpected error: {e}")

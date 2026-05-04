@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # ---------- Google Translate ----------
     google_translate_api_key: str | None = None
 
+    # ---------- AI Auto-Resolver ----------
+    gemini_api_key: str | None = None  # Free tier at aistudio.google.com
+
     # ---------- Observability (Sentry) ----------
     # Set SENTRY_DSN env var to enable error reporting. Leave unset to disable entirely.
     # Release tag defaults to the Render git commit SHA when deployed, falling back to "local".

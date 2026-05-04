@@ -293,7 +293,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       await api.post("/predictions/", {
         user_id: userId, scenario_id: scenarioId, simulated_amount: amount,
       });
-      await refreshPortfolio();
+      // Refresh in background — don't let a portfolio sync failure mask a
+      // successful bet and cause the user to retry (double-bet).
+      refreshPortfolio().catch(() => {});
       return { ok: true };
     } catch (err: any) {
       // axios interceptor reshapes errors: response data is at err.data (not err.response.data)

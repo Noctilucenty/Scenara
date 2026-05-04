@@ -260,7 +260,6 @@ export default function MarketDetailScreen() {
     setPlacing(false);
     if (result.ok) {
       setMessage(language === "pt" ? `✓ Posição aberta · $${amt.toFixed(2)}` : language === "zh" ? `✓ 仓位已开 · $${amt.toFixed(2)}` : `✓ Position opened · $${amt.toFixed(2)}`);
-      refreshPortfolio();
       setTimeout(() => setMessage(""), 4000);
     } else {
       setBetError(result.error ?? (language === "pt" ? "Erro ao comprar. Tente novamente." : language === "zh" ? "下注失败，请重试。" : "Failed to place bet. Please try again."));
