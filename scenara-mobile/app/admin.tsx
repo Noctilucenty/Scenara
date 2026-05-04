@@ -32,6 +32,17 @@ type PendingEvent = {
   scenarios: Scenario[];
 };
 
+type AISuggestion = {
+  event_id: number;
+  event_title: string;
+  category: string;
+  closes_at: string | null;
+  scenarios: { id: number; title: string; sort_order: number }[];
+  winner_scenario_id: number | null;
+  confidence: number;
+  note: string;
+};
+
 function categoryColor(cat: string) {
   const map: Record<string, string> = {
     brazil: "#22C55E", politics: "#F59E0B", sports: "#4F8EF7",
@@ -353,6 +364,11 @@ export default function AdminScreen() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [noteText, setNoteText] = useState<Record<number, string>>({});
 
+  // AI Suggest state
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[] | null>(null);
+  const [confirmingAi, setConfirmingAi] = useState<number | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -369,6 +385,36 @@ export default function AdminScreen() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const runAiSuggest = useCallback(async () => {
+    setAiLoading(true);
+    setAiSuggestions(null);
+    try {
+      const res = await api.post("/admin/ai-suggest");
+      setAiSuggestions(res.data ?? []);
+    } catch (e: any) {
+      Alert.alert("AI Suggest Failed", e?.message ?? "Could not fetch suggestions");
+    } finally {
+      setAiLoading(false);
+    }
+  }, []);
+
+  const confirmAiSuggestion = async (suggestion: AISuggestion) => {
+    if (!suggestion.winner_scenario_id) return;
+    setConfirmingAi(suggestion.event_id);
+    try {
+      await api.post(`/admin/events/${suggestion.event_id}/resolve`, {
+        winning_scenario_id: suggestion.winner_scenario_id,
+        resolution_note: suggestion.note,
+      });
+      setAiSuggestions(prev => prev?.filter(s => s.event_id !== suggestion.event_id) ?? null);
+      setEvents(prev => prev.filter(e => e.id !== suggestion.event_id));
+    } catch (err: any) {
+      Alert.alert("Error", err?.message ?? "Resolution failed");
+    } finally {
+      setConfirmingAi(null);
+    }
+  };
 
   const resolve = (event: PendingEvent, scenarioId: number) => {
     const scenario = event.scenarios.find(s => s.id === scenarioId);
@@ -450,9 +496,21 @@ export default function AdminScreen() {
             <Text style={{ color: TEXT, fontSize: 22, fontFamily: "DMSans_700Bold", letterSpacing: -0.5 }}>Admin Panel</Text>
           </View>
           {activeTab === "resolve" && (
-            <TouchableOpacity onPress={load} style={{ paddingHorizontal: 12, paddingVertical: 7, backgroundColor: "rgba(124,92,252,0.1)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(124,92,252,0.2)" }}>
-              <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 12 }}>Refresh</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                onPress={runAiSuggest}
+                disabled={aiLoading}
+                style={{ paddingHorizontal: 12, paddingVertical: 7, backgroundColor: aiLoading ? "rgba(79,142,247,0.05)" : "rgba(79,142,247,0.12)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(79,142,247,0.3)" }}
+              >
+                {aiLoading
+                  ? <ActivityIndicator color={BLUE} size={12} />
+                  : <Text style={{ color: BLUE, fontFamily: "DMSans_700Bold", fontSize: 12 }}>✦ AI Suggest</Text>
+                }
+              </TouchableOpacity>
+              <TouchableOpacity onPress={load} style={{ paddingHorizontal: 12, paddingVertical: 7, backgroundColor: "rgba(124,92,252,0.1)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(124,92,252,0.2)" }}>
+                <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 12 }}>Refresh</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -494,6 +552,92 @@ export default function AdminScreen() {
             style={{ backgroundColor: CARD, color: TEXT, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontFamily: "DMSans_400Regular", fontSize: 14, borderWidth: 1, borderColor: BORDER }}
           />
         </View>
+
+        {/* AI Suggestions panel */}
+        {aiSuggestions !== null && (
+          <View style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: "rgba(79,142,247,0.06)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(79,142,247,0.2)", overflow: "hidden" }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderBottomWidth: 1, borderBottomColor: "rgba(79,142,247,0.15)" }}>
+              <Text style={{ color: BLUE, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
+                ✦ AI Suggestions — {aiSuggestions.length} events
+              </Text>
+              <TouchableOpacity onPress={() => setAiSuggestions(null)}>
+                <Text style={{ color: TEXT_MID, fontFamily: "DMSans_500Medium", fontSize: 13 }}>✕ Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            {aiSuggestions.length === 0 ? (
+              <View style={{ padding: 20, alignItems: "center" }}>
+                <Text style={{ color: TEXT_MID, fontFamily: "DMSans_400Regular", fontSize: 13 }}>No expired events to suggest resolutions for.</Text>
+              </View>
+            ) : (
+              aiSuggestions.map(suggestion => {
+                const winnerScenario = suggestion.scenarios.find(s => s.id === suggestion.winner_scenario_id);
+                const isConfirming = confirmingAi === suggestion.event_id;
+                const hasWinner = suggestion.winner_scenario_id !== null;
+                return (
+                  <View key={suggestion.event_id} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.04)" }}>
+                    {/* Event title + category */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <View style={{ backgroundColor: categoryColor(suggestion.category), borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
+                        <Text style={{ color: "white", fontSize: 9, fontFamily: "DMSans_700Bold" }}>{suggestion.category.toUpperCase()}</Text>
+                      </View>
+                      <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
+                        {suggestion.closes_at ? `Closed ${new Date(suggestion.closes_at).toLocaleDateString()}` : "No deadline"}
+                      </Text>
+                    </View>
+                    <Text style={{ color: TEXT, fontFamily: "DMSans_500Medium", fontSize: 13, marginBottom: 8 }} numberOfLines={2}>
+                      {suggestion.event_title}
+                    </Text>
+
+                    {/* AI suggestion */}
+                    {hasWinner ? (
+                      <>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                          <View style={{ backgroundColor: "rgba(34,197,94,0.15)", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, flex: 1 }}>
+                            <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 12 }}>
+                              Winner: {winnerScenario?.title ?? "Unknown"}
+                            </Text>
+                          </View>
+                          <View style={{ backgroundColor: `rgba(79,142,247,0.12)`, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                            <Text style={{ color: BLUE, fontFamily: "DMSans_700Bold", fontSize: 11 }}>{suggestion.confidence}%</Text>
+                          </View>
+                        </View>
+                        <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", marginBottom: 10 }} numberOfLines={2}>
+                          {suggestion.note.replace(/^\[AI \d+% confident\] /, "")}
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          <TouchableOpacity
+                            onPress={() => confirmAiSuggestion(suggestion)}
+                            disabled={isConfirming}
+                            style={{ flex: 1, paddingVertical: 9, backgroundColor: GREEN, borderRadius: 10, alignItems: "center" }}
+                          >
+                            {isConfirming
+                              ? <ActivityIndicator color="white" size={14} />
+                              : <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 13 }}>Confirm ✓</Text>
+                            }
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => setAiSuggestions(prev => prev?.filter(s => s.event_id !== suggestion.event_id) ?? null)}
+                            disabled={isConfirming}
+                            style={{ flex: 1, paddingVertical: 9, backgroundColor: CARD, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: BORDER }}
+                          >
+                            <Text style={{ color: TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 13 }}>Skip ✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    ) : (
+                      <View style={{ backgroundColor: "rgba(239,68,68,0.08)", borderRadius: 8, padding: 10 }}>
+                        <Text style={{ color: TEXT_MID, fontFamily: "DMSans_400Regular", fontSize: 12 }}>
+                          AI could not determine outcome ({suggestion.confidence}% confidence). Resolve manually below.
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
 
         {loading ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>

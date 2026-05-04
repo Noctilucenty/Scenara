@@ -92,6 +92,17 @@ class VoidRequest(BaseModel):
     note: Optional[str] = "Voided by admin"
 
 
+class AISuggestion(BaseModel):
+    event_id: int
+    event_title: str
+    category: str
+    closes_at: Optional[str]
+    scenarios: list[dict]           # [{id, title, sort_order}]
+    winner_scenario_id: Optional[int]
+    confidence: int
+    note: str
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/pending-events", response_model=list[PendingEvent])
@@ -118,6 +129,63 @@ def list_pending_events(
         .all()
     )
     return events
+
+
+@router.post("/ai-suggest", response_model=list[AISuggestion])
+async def ai_suggest_resolutions(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """
+    Run Gemini AI on all expired non-crypto events and return suggestions.
+    Does NOT resolve anything — admin reviews and confirms each one manually.
+    """
+    from app.services.ai_resolver import ai_resolve_event
+    import asyncio
+
+    now = datetime.utcnow()
+    expired = (
+        db.query(Event)
+        .options(joinedload(Event.scenarios))
+        .filter(
+            Event.status == "open",
+            Event.category != "crypto",
+            Event.closes_at != None,
+            Event.closes_at <= now,
+        )
+        .order_by(Event.closes_at.asc())
+        .all()
+    )
+
+    suggestions: list[AISuggestion] = []
+
+    for event in expired:
+        scenarios_sorted = sorted(event.scenarios, key=lambda s: s.sort_order)
+        scenario_titles = [s.title for s in scenarios_sorted]
+
+        winner_idx, confidence, note = await ai_resolve_event(
+            title=event.title or "",
+            description=event.description or "",
+            scenarios=scenario_titles,
+        )
+
+        winner_id = scenarios_sorted[winner_idx].id if winner_idx is not None else None
+
+        suggestions.append(AISuggestion(
+            event_id=event.id,
+            event_title=event.title,
+            category=event.category,
+            closes_at=event.closes_at.isoformat() if event.closes_at else None,
+            scenarios=[{"id": s.id, "title": s.title, "sort_order": s.sort_order} for s in scenarios_sorted],
+            winner_scenario_id=winner_id,
+            confidence=confidence,
+            note=note,
+        ))
+
+        # Small delay between calls to respect Gemini rate limits
+        await asyncio.sleep(2)
+
+    return suggestions
 
 
 @router.post("/events/{event_id}/resolve")
