@@ -32,6 +32,8 @@ import { MarketsGridSkeleton } from "@/components/Skeleton";
 import { SearchBar } from "@/components/SearchBar";
 import { shareContent } from "@/src/utils/useShare";
 import { toChineseFallback } from "@/src/utils/zhFallback";
+import { SIDEBAR_SEED as POOL_SIDEBAR_SEED, FALLBACK_ACTIVITY } from "@/src/data/users";
+import { filterMarkets } from "@/src/utils/search";
 
 // â�€â�€ Aliases â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
 const { BG, CARD, SURFACE, BLUE, PURPLE, PURPLE_DIM: PURPLE_D,
@@ -988,24 +990,9 @@ function LiveBadge({ language }: { language: string }) {
 }
 
 // â�€â�€ Sidebar live comments auto-scroller â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
-const SIDEBAR_SEED: Array<{ uid: number; name: string; body: string }> = [
-  { uid: 101, name: "rafaelk",    body: "just put $20 on Yes lol let's see" },
-  { uid: 102, name: "tom_wex",    body: "been watching this one all week. finally moving" },
-  { uid: 103, name: "cryptodave", body: "nah the No side is way underpriced rn" },
-  { uid: 104, name: "liz_m",      body: "anyone else think the chart looks bullish?" },
-  { uid: 105, name: "pablof",     body: "lost my last bet here but I still think Yes" },
-  { uid: 106, name: "8ball_fx",   body: "the market moved 12% in 2h... insane" },
-  { uid: 107, name: "quietmike",  body: "waiting for more info before I commit" },
-  { uid: 108, name: "Ana_trader", body: "already up 40% this week on these markets" },
-  { uid: 109, name: "newbie99",   body: "is this safe to bet on? first time here" },
-  { uid: 110, name: "markosv",    body: "people sleeping on the No side here imo" },
-  { uid: 111, name: "jess_q",     body: "this aged well lmao called it yesterday" },
-  { uid: 112, name: "droptrades", body: "added more at 34%, feels like easy money" },
-  { uid: 113, name: "felix_r",    body: "honestly surprised how accurate these odds are" },
-  { uid: 114, name: "sam__w",     body: "anyone know when this resolves?" },
-  { uid: 115, name: "TaraK",      body: "diversifying across 5 markets today, no all-in" },
-  { uid: 116, name: "nico_b",     body: "chart says Yes but gut says No" },
-];
+// Drawn from the shared user pool (src/data/users.ts) so the same users
+// appear here, in the leaderboard, and in the activity ticker.
+const SIDEBAR_SEED = POOL_SIDEBAR_SEED;
 
 const AVATAR_HEX = [PURPLE, "#4F8EF7", "#F050AE", GREEN, "#F7931A", "#22D3EE", "#A78BFA"];
 function sidebarAvatarColor(uid: number) { return AVATAR_HEX[uid % AVATAR_HEX.length]; }
@@ -1090,10 +1077,11 @@ function SidebarLiveComments({ featuredEventId, language }: { featuredEventId?: 
 }
 
 // â�€â�€ Breaking News + Hot Topics sidebar â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
-const BreakingNewsPanel = React.memo(function BreakingNewsPanel({ articles, hotEvents, language }: {
+const BreakingNewsPanel = React.memo(function BreakingNewsPanel({ articles, hotEvents, language, onCardPress }: {
   articles: NewsArticle[];
   hotEvents: EventItem[];
   language: string;
+  onCardPress?: (id: number) => void;
 }) {
   const router = useRouter();
 
@@ -1191,7 +1179,7 @@ const BreakingNewsPanel = React.memo(function BreakingNewsPanel({ articles, hotE
             return (
               <TouchableOpacity
                 key={event.id}
-                onPress={() => router.push({ pathname: "/market-detail", params: { eventId: String(event.id) } })}
+                onPress={() => onCardPress ? onCardPress(event.id) : router.push({ pathname: "/market-detail", params: { eventId: String(event.id) } })}
                 activeOpacity={0.75}
                 style={{
                   flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 7,
@@ -1820,8 +1808,10 @@ export default function MarketsScreen() {
       if (!silent) fetchHistory(all);
 
       api.get("/predictions/activity?limit=15").then(r => {
-        setActivity(r.data ?? []);
-      }).catch(() => {});
+        const items = r.data ?? [];
+        // Fall back to deterministic pool activity when API returns nothing
+        setActivity(items.length > 0 ? items : FALLBACK_ACTIVITY);
+      }).catch(() => { setActivity(FALLBACK_ACTIVITY); });
 
       api.get("/news/single", { params: { category: "all", lang: language, max_results: 12 }, timeout: 25000 })
         .then(r => setNewsArticles(r.data?.articles ?? []))
@@ -2337,7 +2327,7 @@ export default function MarketsScreen() {
                           </View>
 
                           {/* Title */}
-                          <TouchableOpacity activeOpacity={0.85} onPress={() => router.push({ pathname: "/market-detail", params: { eventId: String(featured.id) } })}>
+                          <TouchableOpacity activeOpacity={0.85} onPress={() => handleCardPress(featured.id)}>
                             <Text style={{ color: TEXT, fontSize: isWide ? 25 : 19, fontFamily: "DMSans_700Bold", lineHeight: isWide ? 33 : 27, letterSpacing: -0.4, marginBottom: 16 }}>
                               {eventTitle(featured, language)}
                             </Text>
@@ -2425,7 +2415,7 @@ export default function MarketsScreen() {
                           </View>
                           <View style={{ flexDirection: "row", gap: 7 }}>
                             <TouchableOpacity
-                              onPress={() => router.push({ pathname: "/market-detail", params: { eventId: String(featured.id) } })}
+                              onPress={() => handleCardPress(featured.id)}
                               style={{ paddingHorizontal: isWide ? 14 : 11, paddingVertical: isWide ? 8 : 7, borderRadius: 10, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.07)" }}
                             >
                               <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: isWide ? 12 : 11 }}>
@@ -2507,6 +2497,7 @@ export default function MarketsScreen() {
                         articles={newsArticles}
                         hotEvents={hotEventsSlice}
                         language={language}
+                        onCardPress={handleCardPress}
                       />
                     </View>
                   )}
