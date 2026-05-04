@@ -182,7 +182,9 @@ function WinCelebrationBanner({ topWin, language }: {
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 12 }}
       >
-        <Text style={{ fontSize: 24 }}>🎉</Text>
+        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(34,197,94,0.20)", alignItems: "center", justifyContent: "center" }}>
+          <Text style={{ color: "#22C55E", fontSize: 16, fontFamily: "DMSans_700Bold" }}>★</Text>
+        </View>
         <View style={{ flex: 1 }}>
           <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
             {language === "pt" ? `Você ganhou ${pnlStr}!` : language === "zh" ? `你赢了 ${pnlStr}！` : `You won ${pnlStr}!`}
@@ -493,7 +495,9 @@ export default function PortfolioScreen() {
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                 style={{ borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(247,147,26,0.25)", flexDirection: "row", alignItems: "center", gap: 12 }}
               >
-                <Text style={{ fontSize: 22 }}>🎯</Text>
+                <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: "rgba(247,147,26,0.18)", alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ color: "#F7931A", fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>POS</Text>
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: "#F7931A", fontFamily: "DMSans_700Bold", fontSize: 13 }}>
                     {language === "pt" ? `${stats.open} posição${stats.open > 1 ? "ões" : ""} em aberto` : language === "zh" ? `${stats.open} 个未结仓位` : `${stats.open} open position${stats.open > 1 ? "s" : ""} pending`}
@@ -640,7 +644,7 @@ export default function PortfolioScreen() {
                   </View>
                   <View style={{ alignItems: "flex-end", gap: 5 }}>
                     <View style={{ backgroundColor: sc.bg, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 4 }}>
-                      {p.status === "won" && <Text style={{ fontSize: 10 }}>🏆</Text>}
+                      {p.status === "won" && <Text style={{ color: "#F7931A", fontSize: 9, fontFamily: "DMSans_700Bold" }}>★</Text>}
                       <Text style={{ color: sc.color, fontFamily: "DMSans_700Bold", fontSize: 10, letterSpacing: 0.8 }}>{sc.label}</Text>
                     </View>
                     {p.event_status === "resolved" && (

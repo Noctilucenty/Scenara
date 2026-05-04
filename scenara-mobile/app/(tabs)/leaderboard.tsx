@@ -55,10 +55,10 @@ function rankMeta(rank: number) {
 }
 
 function streakBadge(n: number) {
-  if (n >= 10) return "🔥🔥🔥";
-  if (n >= 7)  return "🔥🔥";
-  if (n >= 5)  return "🔥";
-  if (n >= 3)  return "⚡";
+  if (n >= 10) return "★★★";
+  if (n >= 7)  return "★★";
+  if (n >= 5)  return "★";
+  if (n >= 3)  return "◆";
   return "";
 }
 
@@ -107,7 +107,7 @@ function EntryRow({
           {badge ? <Text style={{ fontSize: 13 }}>{badge}</Text> : null}
         </View>
         <Text style={{ color: TEXT_MID, fontSize: 12, marginTop: 3, fontFamily: "DMSans_400Regular" }}>{entry.won_count}W · {entry.lost_count}L · {entry.win_rate}% {t.rankings.winRate.toLowerCase()}</Text>
-        {entry.current_streak >= 2 && <Text style={{ color: "#FB923C", fontSize: 11, marginTop: 2, fontFamily: "DMSans_500Medium" }}>🔥 {entry.current_streak} streak</Text>}
+        {entry.current_streak >= 2 && <Text style={{ color: "#FB923C", fontSize: 11, marginTop: 2, fontFamily: "DMSans_500Medium" }}>▲ {entry.current_streak} streak</Text>}
       </View>
       <View style={{ alignItems: "flex-end", gap: 6 }}>
         <Text style={{ color: pnlPos ? (isTop3 ? BLUE : PURPLE) : RED, fontFamily: "DMSans_700Bold", fontSize: 16 }}>{pnlPos ? "+" : ""}{entry.total_pnl.toFixed(2)}</Text>

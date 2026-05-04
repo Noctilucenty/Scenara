@@ -195,7 +195,7 @@ function HotBadge({ total, language }: { total: number; language: string }) {
       borderWidth: 1, borderColor: isViral ? "rgba(239,68,68,0.3)" : "rgba(251,146,60,0.28)",
       flexDirection: "row", alignItems: "center", gap: 3,
     }}>
-      <Text style={{ fontSize: 9 }}>{isViral ? "🔥" : "🌶"}</Text>
+      
       <Text style={{ color: isViral ? RED : "#FB923C", fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.3 }}>
         {isViral
           ? (language === "pt" ? "VIRAL" : language === "zh" ? "热门" : "VIRAL")
@@ -255,7 +255,7 @@ function SentimentBar({ total, scenarios, eventScenarios, language }: {
           );
         })}
         <Text style={{ color: TEXT_MID, fontSize: 9, marginLeft: "auto" as any }}>
-          👥 {total}
+          {total}
         </Text>
       </View>
     </View>
@@ -382,7 +382,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingTop: 7, paddingBottom: 4 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
             <Text style={{ color: TEXT_MID, fontSize: isWide ? 10 : 8, fontFamily: "DMSans_400Regular" }}>
-              📅 {event.closes_at
+              {event.closes_at
                 ? (language === "pt" ? "Fecha " : language === "zh" ? "结束于 " : "Ends ") + formatCloseDate(event.closes_at, language)
                 : (language === "pt" ? "Em aberto" : language === "zh" ? "无截止日期" : "Open-ended")}
             </Text>
@@ -509,7 +509,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
                     </Text>
                     {sentimentItem && sentimentItem.player_count > 0 && (
                       <Text style={{ color: isSel ? "rgba(255,255,255,0.7)" : TEXT_MID, fontSize: 9, fontFamily: "DMSans_400Regular", marginTop: 2 }}>
-                        👥 {sentimentItem.player_count} {language === "pt" ? "compras" : language === "zh" ? "次买入" : "buys"}
+                        {sentimentItem.player_count} {language === "pt" ? "compras" : language === "zh" ? "次买入" : "buys"}
                       </Text>
                     )}
                   </LinearGradient>
@@ -529,7 +529,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
                     <Text style={{ color: isSel ? SCENARIO_COLORS[idx % SCENARIO_COLORS.length] : TEXT_MID, fontFamily: "DMSans_700Bold", fontSize: 12 }} numberOfLines={1}>{scenarioTitle(s, language)}</Text>
                     <Text style={{ color: isSel ? SCENARIO_COLORS[idx % SCENARIO_COLORS.length] : TEXT_MID, fontSize: 11, textAlign: "center" }}>{s.probability.toFixed(0)}%</Text>
                     {sentimentItem && sentimentItem.player_count > 0 && (
-                      <Text style={{ color: TEXT_MID, fontSize: 9, textAlign: "center", marginTop: 1 }}>👥 {sentimentItem.player_count}</Text>
+                      <Text style={{ color: TEXT_MID, fontSize: 9, textAlign: "center", marginTop: 1 }}>{sentimentItem.player_count} {language === "pt" ? "compras" : language === "zh" ? "次" : "buys"}</Text>
                     )}
                   </TouchableOpacity>
                 );
@@ -698,7 +698,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
         style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(124,92,252,0.12)" }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Text style={{ fontSize: 12 }}>⚡</Text>
+          <Text style={{ fontSize: 12 }}>·</Text>
           <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
             {language === "pt" ? "COMPRAR" : language === "zh" ? "买入" : "BUY"}
           </Text>
@@ -877,7 +877,7 @@ function ActivityTicker({ items, language }: { items: ActivityItem[]; language: 
       >
         {doubled.map((item, i) => (
           <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_500Medium" }}>⚡</Text>
+            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_500Medium" }}>·</Text>
             <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_500Medium" }}>
               <Text style={{ color: TEXT_SUB }}>{item.player}</Text>
               {" "}{language === "pt" ? "comprou" : language === "zh" ? "购买了" : "bought"}{" "}
@@ -996,7 +996,7 @@ const SIDEBAR_SEED: Array<{ uid: number; name: string; body: string }> = [
   { uid: 105, name: "pablof",     body: "lost my last bet here but I still think Yes" },
   { uid: 106, name: "8ball_fx",   body: "the market moved 12% in 2h... insane" },
   { uid: 107, name: "quietmike",  body: "waiting for more info before I commit" },
-  { uid: 108, name: "Ana_trader", body: "already up 40% this week on these markets 🔥" },
+  { uid: 108, name: "Ana_trader", body: "already up 40% this week on these markets" },
   { uid: 109, name: "newbie99",   body: "is this safe to bet on? first time here" },
   { uid: 110, name: "markosv",    body: "people sleeping on the No side here imo" },
   { uid: 111, name: "jess_q",     body: "this aged well lmao called it yesterday" },
@@ -1004,7 +1004,7 @@ const SIDEBAR_SEED: Array<{ uid: number; name: string; body: string }> = [
   { uid: 113, name: "felix_r",    body: "honestly surprised how accurate these odds are" },
   { uid: 114, name: "sam__w",     body: "anyone know when this resolves?" },
   { uid: 115, name: "TaraK",      body: "diversifying across 5 markets today, no all-in" },
-  { uid: 116, name: "nico_b",     body: "chart says Yes but gut says No 😅" },
+  { uid: 116, name: "nico_b",     body: "chart says Yes but gut says No" },
 ];
 
 const AVATAR_HEX = [PURPLE, "#4F8EF7", "#F050AE", GREEN, "#F7931A", "#22D3EE", "#A78BFA"];
@@ -1147,7 +1147,7 @@ const BreakingNewsPanel = React.memo(function BreakingNewsPanel({ articles, hotE
                   </View>
                 ) : (
                   <View style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: "rgba(124,92,252,0.1)", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Text style={{ fontSize: 18 }}>📰</Text>
+                    <View style={{ width: 28, height: 28, borderRadius: 4, backgroundColor: "rgba(124,92,252,0.2)", alignItems: "center", justifyContent: "center" }}><Text style={{ color: "#7C5CFC", fontSize: 9, fontFamily: "DMSans_700Bold" }}>NWS</Text></View>
                   </View>
                 );
               })()}
@@ -1179,7 +1179,7 @@ const BreakingNewsPanel = React.memo(function BreakingNewsPanel({ articles, hotE
       {hotEvents.length > 0 && (
         <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
-            <Text style={{ fontSize: 12 }}>🔥</Text>
+            <View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: RED }} />
             <Text style={{ color: TEXT, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
               {language === "pt" ? "EM ALTA" : language === "zh" ? "热门话题" : "HOT TOPICS"}
             </Text>
@@ -1253,9 +1253,12 @@ function CategoryTabs({ events, active, onSelect, t, language }: {
                   <Text style={{ color: isActive ? meta.color : TEXT_MID, fontSize: isWide ? 13 : 11, fontFamily: isActive ? "DMSans_700Bold" : "DMSans_500Medium" }}>{label}</Text>
                 </View>
               ) : (
-                <Text style={{ color: isActive ? meta.color : TEXT_MID, fontSize: isWide ? 13 : 11, fontFamily: isActive ? "DMSans_700Bold" : "DMSans_500Medium" }}>
-                  {meta.icon}  {label}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <View style={{ backgroundColor: `${meta.color}22`, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                    <Text style={{ color: meta.color, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.3 }}>{meta.icon}</Text>
+                  </View>
+                  <Text style={{ color: isActive ? meta.color : TEXT_MID, fontSize: isWide ? 13 : 11, fontFamily: isActive ? "DMSans_700Bold" : "DMSans_500Medium" }}>{label}</Text>
+                </View>
               )}
               {count > 0 && (
                 <View style={{ backgroundColor: `${meta.color}20`, borderRadius: 10, paddingHorizontal: 5, paddingVertical: 1 }}>
@@ -1351,7 +1354,7 @@ const NewsGrid = React.memo(function NewsGrid({ articles, language, onPress }: {
                     </View>
                   ) : (
                     <View style={{ width: 20, height: 20, borderRadius: 5, backgroundColor: `${accentColors[0]}18`, alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ fontSize: 11 }}>📰</Text>
+                      <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold" }}>NWS</Text>
                     </View>
                   )}
                   <Text style={{ color: accentColors[0], fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.5, flex: 1 }} numberOfLines={1}>
@@ -1465,7 +1468,7 @@ function TrendingPicks({ events, language, onBetPress, onCardPress }: {
   return (
     <View style={{ marginBottom: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-        <Text style={{ fontSize: 12 }}>🔥</Text>
+        <View style={{ width: 3, height: 12, borderRadius: 2, backgroundColor: PURPLE_D }} />
         <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
           {language === "pt" ? "EM ALTA" : language === "zh" ? "热门" : "TRENDING"}
         </Text>
@@ -1552,7 +1555,9 @@ function BrazilSection({ events, language, sentimentCache, historyCache, onCardP
       {/* Section header */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: "#009C3B" }} />
-        <Text style={{ fontSize: 16 }}>🇧🇷</Text>
+        <View style={{ backgroundColor: "rgba(0,156,59,0.18)", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5 }}>
+          <Text style={{ color: "#009C3B", fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>BR</Text>
+        </View>
         <Text style={{ color: TEXT, fontSize: isWide ? 14 : 11, fontFamily: "DMSans_700Bold", letterSpacing: 1.2 }}>
           {language === "pt" ? "MERCADOS BRASIL" : language === "zh" ? "巴西市场" : "BRAZIL MARKETS"}
         </Text>
@@ -1677,7 +1682,7 @@ export default function MarketsScreen() {
   const featuredSwipeTouchTime = useRef(0); // for velocity-based momentum
   const scrollRef = useRef<any>(null);
   const PAGE_SIZE = 100;
-  const GUEST_CAP = 100;
+  const GUEST_CAP = 300;
   // Refs that let loadMore read current state without stale closure
   const eventsRef = useRef<EventItem[]>([]);
   const scrollStateRef = useRef({ loadingMore: false, hasMore: true });
@@ -2208,7 +2213,7 @@ export default function MarketsScreen() {
           </ScrollView>
         ) : loadError ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
-            <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>⚡</Text>
+            <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>·</Text>
             <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_700Bold", textAlign: "center", marginBottom: 8 }}>
               {t.common.loadFailed}
             </Text>
@@ -2409,7 +2414,7 @@ export default function MarketsScreen() {
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
                             {sentimentCache[featured.id] && (
                               <Text style={{ color: TEXT_MID, fontSize: isWide ? 12 : 11, fontFamily: "DMSans_500Medium" }}>
-                                👥 {sentimentCache[featured.id].total}
+                                {sentimentCache[featured.id].total} {language === "pt" ? "jogadores" : language === "zh" ? "人" : "players"}
                               </Text>
                             )}
                             {featured.closes_at && (
@@ -2630,7 +2635,7 @@ export default function MarketsScreen() {
                             style={{ height: 140, marginBottom: -8 }}
                           />
                           <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 22, alignItems: "center", borderWidth: 1, borderColor: BORDER_P, marginBottom: 16 }}>
-                            <Text style={{ fontSize: 28, marginBottom: 10 }}>🔒</Text>
+                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(124,92,252,0.15)", borderWidth: 2, borderColor: "rgba(124,92,252,0.3)", alignItems: "center", justifyContent: "center", marginBottom: 10 }}><Text style={{ color: "#7C5CFC", fontSize: 18, fontFamily: "DMSans_700Bold" }}>LK</Text></View>
                             <Text style={{ color: TEXT, fontSize: 16, fontFamily: "DMSans_700Bold", textAlign: "center", marginBottom: 6 }}>
                               {language === "pt" ? `+${rest.length - GUEST_CAP} mercados esperando` : language === "zh" ? `+${rest.length - GUEST_CAP} 个市场等待中` : `+${rest.length - GUEST_CAP} more markets waiting`}
                             </Text>
@@ -2646,7 +2651,7 @@ export default function MarketsScreen() {
                             >
                               <LinearGradient colors={GRAD.BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 13, alignItems: "center" }}>
                                 <Text style={{ color: "white", fontFamily: "DMSans_700Bold", fontSize: 14 }}>
-                                  {language === "pt" ? "⚡ Criar conta grátis" : language === "zh" ? "⚡ 免费注册" : "⚡ Create free account"}
+                                  {language === "pt" ? "· Criar conta grátis" : language === "zh" ? "· 免费注册" : "· Create free account"}
                                 </Text>
                               </LinearGradient>
                             </TouchableOpacity>
