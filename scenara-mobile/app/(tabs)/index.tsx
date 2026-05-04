@@ -1877,10 +1877,14 @@ export default function MarketsScreen() {
       }
 
       if (page.length === 0) {
-        // No new events right now — cool down for a few seconds, then allow
-        // loadMore to try again. hasMore stays true so the footer never shows
-        // a terminal state; the next scroll past the threshold will retry.
-        loadMoreCooldownUntilRef.current = Date.now() + LOAD_MORE_COOLDOWN_MS;
+        // Back-end has no more markets for now — show terminal state.
+        // Reset after 60s so pulling-to-refresh or changing category works.
+        st.hasMore = false;
+        setHasMore(false);
+        setTimeout(() => {
+          scrollStateRef.current.hasMore = true;
+          setHasMore(true);
+        }, 60_000);
         return;
       }
       setEvents(prev => {
@@ -1919,6 +1923,13 @@ export default function MarketsScreen() {
   // Carousel pool: featured events first, then top events.
   // Memoized on events so tick/betPanel/other state changes don't recompute.
   const featuredEvents = useMemo(() => events.filter(e => e.is_featured), [events]);
+  // Slim SearchResult shape derived from loaded events — used as client-side search fallback
+  const localSearchEvents = useMemo(() => events.map(e => ({
+    id: e.id, slug: String(e.id), title: e.title,
+    title_pt: e.title_pt, title_zh: e.title_zh,
+    category: e.category,
+    description: e.description, description_pt: e.description_pt, description_zh: e.description_zh,
+  })), [events]);
   const carouselPool = useMemo(() =>
     events.length > 0
       ? (featuredEvents.length >= 2 ? featuredEvents.slice(0, 6) : events.slice(0, 6))
@@ -2184,6 +2195,7 @@ export default function MarketsScreen() {
           <SearchBar
             category={activeCategory}
             onCategorySelect={handleCategorySelect}
+            localEvents={localSearchEvents}
           />
         </View>
 
@@ -2660,18 +2672,34 @@ export default function MarketsScreen() {
               </>
             )}
 
-            {/* Load more / generating indicator */}
-            {loadingMore && (
+            {/* Load more / end state */}
+            {loadingMore ? (
               <View style={{ paddingVertical: 20, alignItems: "center", gap: 6 }}>
                 <ActivityIndicator color={PURPLE} size="small" />
                 <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
                   {language === "pt" ? "Gerando novos mercados..." : language === "zh" ? "正在生成新市场..." : "Generating new markets..."}
                 </Text>
               </View>
+            ) : hasMore ? (
+              isAuthenticated && events.length > 0 ? (
+                <TouchableOpacity
+                  onPress={loadMore}
+                  activeOpacity={0.75}
+                  style={{ marginVertical: 16, marginHorizontal: 8, borderRadius: 12, borderWidth: 1, borderColor: BORDER_P, backgroundColor: "rgba(124,92,252,0.06)", paddingVertical: 13, alignItems: "center" }}
+                >
+                  <Text style={{ color: PURPLE, fontFamily: "DMSans_700Bold", fontSize: 13, letterSpacing: 0.3 }}>
+                    {language === "pt" ? "Carregar mais mercados" : language === "zh" ? "加载更多市场" : "Load more markets"}
+                  </Text>
+                </TouchableOpacity>
+              ) : null
+            ) : (
+              <View style={{ paddingVertical: 20, alignItems: "center", gap: 4 }}>
+                <View style={{ width: 28, height: 2, borderRadius: 1, backgroundColor: BORDER }} />
+                <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", marginTop: 6 }}>
+                  {language === "pt" ? "Todos os mercados carregados" : language === "zh" ? "已加载全部市场" : "No more markets right now"}
+                </Text>
+              </View>
             )}
-            {/* No terminal "all markets loaded" footer — the feed is continuous.
-                When the backend has nothing new, loadMore quietly cools down
-                for a few seconds and the next scroll retries. */}
           </ScrollView>
         )}
       </SafeAreaView>

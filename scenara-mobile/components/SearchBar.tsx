@@ -33,6 +33,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { useLanguage } from "@/src/i18n";
 import { C } from "@/src/theme";
+import { filterMarkets } from "@/src/utils/search";
 
 const DEBOUNCE_MS   = 220;
 const MIN_QUERY_LEN = 2;
@@ -259,11 +260,14 @@ export function SearchBar({
   category,
   onCategorySelect,
   onFocusChange,
+  localEvents,
 }: {
   style?: ViewStyle;
   category?: string;
   onCategorySelect?: (catId: string) => void;
   onFocusChange?: (focused: boolean) => void;
+  /** Optional: pass the already-loaded market list for instant client-side search fallback */
+  localEvents?: SearchResult[];
 }) {
   const router   = useRouter();
   const { language } = useLanguage();
@@ -304,13 +308,30 @@ export function SearchBar({
       const params: Record<string, string> = { q: query, lang: language };
       if (category && category !== "all") params.category = category;
       const res = await api.get("/events/search", { params });
-      if (myVer === reqVersion.current) setResults((res.data || []).slice(0, 8));
+      if (myVer !== reqVersion.current) return;
+      const apiResults: SearchResult[] = (res.data || []).slice(0, 8);
+      if (apiResults.length > 0) {
+        setResults(apiResults);
+      } else if (localEvents && localEvents.length > 0) {
+        // API returned nothing — fall back to client-side filter on already-loaded markets
+        const filtered = filterMarkets(localEvents, query, category ?? "all");
+        setResults(filtered.slice(0, 8));
+      } else {
+        setResults([]);
+      }
     } catch {
-      if (myVer === reqVersion.current) setResults([]);
+      if (myVer !== reqVersion.current) return;
+      // API failed — try client-side filter fallback
+      if (localEvents && localEvents.length > 0) {
+        const filtered = filterMarkets(localEvents, query, category ?? "all");
+        setResults(filtered.slice(0, 8));
+      } else {
+        setResults([]);
+      }
     } finally {
       if (myVer === reqVersion.current) setLoading(false);
     }
-  }, [category, language]);
+  }, [category, language, localEvents]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
