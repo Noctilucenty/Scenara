@@ -19,6 +19,7 @@ from app.models.user import User
 from app.models.event import Event
 from app.models.probability_history import ScenarioProbabilityHistory
 from app.services.notifications import notify_prediction_settled
+from app.services.history_pruner import prune_resolved_event_history
 
 
 def _update_streak(user: User, won: bool) -> None:
@@ -161,6 +162,9 @@ def settle_event(
     # Auto top-up any users whose balance dropped below threshold.
     # Re-use the already-loaded accounts_map to avoid N extra queries.
     _batch_topup(db, accounts_map)
+
+    # Trim history for this now-resolved event (open events are never touched).
+    prune_resolved_event_history(db)
 
     # Fire-and-forget push notifications after commit (background thread per call).
     for user_id, won, pnl in notification_payloads:

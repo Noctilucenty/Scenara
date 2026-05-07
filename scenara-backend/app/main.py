@@ -205,6 +205,22 @@ def create_app() -> FastAPI:
 
         await asyncio.to_thread(_run)
 
+    async def _prune_history_startup() -> None:
+        """Background task: one-time prune of accumulated resolved-event history on startup."""
+        def _run() -> None:
+            from app.db import SessionLocal
+            from app.services.history_pruner import prune_resolved_event_history
+            db = SessionLocal()
+            try:
+                deleted = prune_resolved_event_history(db)
+                if deleted:
+                    logger.info("[Startup] History pruner removed %d stale rows.", deleted)
+            except Exception as e:
+                logger.error("[Startup] History pruner failed: %s", e)
+            finally:
+                db.close()
+        await asyncio.to_thread(_run)
+
     @app.on_event("startup")
     async def _startup() -> None:
         # Ensure the user_follows table's model class is imported before create_all
@@ -222,6 +238,7 @@ def create_app() -> FastAPI:
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
         asyncio.create_task(_backfill_zh_translations())
+        asyncio.create_task(_prune_history_startup())
         logger.info("[Startup] Scenara backend v0.6.0 ready.")
 
     @app.get("/", tags=["health"])
