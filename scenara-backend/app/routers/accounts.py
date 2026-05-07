@@ -14,65 +14,58 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 # Ghost-trader pool  (deterministic padding for an empty / sparse leaderboard)
 # ---------------------------------------------------------------------------
-# Hand-crafted "featured" ghost names — shown first; look the most authentic.
+# Hand-crafted ghost users — realistic handles from a global community.
+# Deliberately diverse: different regions, naming styles, no bot tropes.
 _GHOST_NAMED: list[tuple[str, float, float, float, int]] = [
-    # display_name,          base_balance,  base_pnl,   win_rate%, streak
-    # ── US / Western ────────────────────────────────────────────────────────
-    ("BullHunter99",    13_450.0,  3_450.0, 68.5, 5),
-    ("CryptoShark_NY",  11_820.0,  1_820.0, 61.2, 3),
-    ("MarketWizard",    15_780.0,  5_780.0, 72.4, 7),
-    ("WallStPhantom",   12_100.0,  2_100.0, 59.8, 2),
-    ("TradeKing88",      9_340.0,   -660.0, 44.1, 0),
-    ("QuantDragon",     14_220.0,  4_220.0, 70.0, 6),
-    ("AlphaWave",       10_870.0,   870.0,  55.3, 1),
-    ("DeepValueJoe",     8_910.0, -1_090.0, 41.7, 0),
-    ("NightOwlBets",    11_200.0,  1_200.0, 58.9, 2),
-    ("SentinelX",       13_900.0,  3_900.0, 66.7, 4),
+    # display_name,     base_balance,  base_pnl,   win_rate%, streak
+    # ── Americas ────────────────────────────────────────────────────────────
+    ("sofia_v",         13_450.0,  3_450.0, 68.5, 5),
+    ("lucas_b",         11_820.0,  1_820.0, 61.2, 3),
+    ("ana.m",           15_780.0,  5_780.0, 72.4, 7),
+    ("gabriel_r",       12_100.0,  2_100.0, 59.8, 2),
+    ("camila_sp",        9_340.0,   -660.0, 44.1, 0),
+    ("james_t",         14_220.0,  4_220.0, 70.0, 6),
+    ("emma_w",          10_870.0,   870.0,  55.3, 1),
+    ("ryan_m",           8_910.0, -1_090.0, 41.7, 0),
+    ("sarah.b",         11_200.0,  1_200.0, 58.9, 2),
+    ("pedro_a",         13_900.0,  3_900.0, 66.7, 4),
     # ── Brazil ──────────────────────────────────────────────────────────────
-    ("CariocaFX",       12_680.0,  2_680.0, 63.0, 3),
-    ("GauchoMind",      10_540.0,   540.0,  52.4, 1),
-    ("CariocaWins",     14_050.0,  4_050.0, 69.8, 5),
-    ("TauroBrasil",      9_720.0,   -280.0, 47.2, 0),
-    ("NegociaBR",        8_430.0, -1_570.0, 39.5, 0),
-    # ── China ───────────────────────────────────────────────────────────────
-    ("PandaTrader",     13_100.0,  3_100.0, 65.4, 4),
-    ("ShanghaiQuant",   15_600.0,  5_600.0, 74.1, 8),
-    ("DragonTrader_CN", 11_490.0,  1_490.0, 60.5, 2),
-    ("TigerQuant_CN",   12_340.0,  2_340.0, 62.7, 3),
-    ("RedCandle88",     10_050.0,    50.0,  50.8, 1),
-    # ── UK / Europe ─────────────────────────────────────────────────────────
-    ("LondonFox",       13_670.0,  3_670.0, 67.3, 5),
-    ("TechCityBets",    11_950.0,  1_950.0, 59.2, 2),
-    ("BerlinQuant",     14_510.0,  4_510.0, 71.6, 6),
-    ("ParisTrade",       9_880.0,   -120.0, 48.9, 0),
-    ("MadridFX",        10_660.0,   660.0,  54.0, 1),
-    # ── Asia / Pacific ──────────────────────────────────────────────────────
-    ("TokyoQuant",      14_800.0,  4_800.0, 71.0, 6),
-    ("SingaporeEdge",   13_220.0,  3_220.0, 66.0, 4),
-    ("SeoulBull",       12_050.0,  2_050.0, 61.5, 3),
-    ("MumbaiAlpha",     10_780.0,   780.0,  54.8, 1),
-    ("BangkokTrader",    9_560.0,   -440.0, 46.3, 0),
+    ("beatriz_c",       12_680.0,  2_680.0, 63.0, 3),
+    ("mateus_r",        10_540.0,   540.0,  52.4, 1),
+    ("julia.a",         14_050.0,  4_050.0, 69.8, 5),
+    ("thiago_b",         9_720.0,   -280.0, 47.2, 0),
+    ("leticia_m",        8_430.0, -1_570.0, 39.5, 0),
+    # ── East Asia ───────────────────────────────────────────────────────────
+    ("wei_y",           13_100.0,  3_100.0, 65.4, 4),
+    ("xia_l",           15_600.0,  5_600.0, 74.1, 8),
+    ("ming.z",          11_490.0,  1_490.0, 60.5, 2),
+    ("yuna_j",          12_340.0,  2_340.0, 62.7, 3),
+    ("ryo_m",           10_050.0,    50.0,  50.8, 1),
+    # ── Europe ──────────────────────────────────────────────────────────────
+    ("marie_f",         13_670.0,  3_670.0, 67.3, 5),
+    ("henrik_s",        11_950.0,  1_950.0, 59.2, 2),
+    ("marco_g",         14_510.0,  4_510.0, 71.6, 6),
+    ("nina_n",           9_880.0,   -120.0, 48.9, 0),
+    ("carlos_e",        10_660.0,   660.0,  54.0, 1),
+    # ── South & Southeast Asia ──────────────────────────────────────────────
+    ("priya_s",         14_800.0,  4_800.0, 71.0, 6),
+    ("arjun_d",         13_220.0,  3_220.0, 66.0, 4),
+    ("omar_k",          12_050.0,  2_050.0, 61.5, 3),
+    ("kai_nz",          10_780.0,   780.0,  54.8, 1),
+    ("aisha_r",          9_560.0,   -440.0, 46.3, 0),
 ]
 
-# Procedural name components — combine to produce the remaining ghost slots.
-_PROC_PREFIXES = [
-    "Alpha", "Beta", "Gamma", "Delta", "Sigma",
-    "Bull", "Bear", "Wolf", "Eagle", "Fox",
-    "Quant", "Trade", "Chart", "Wave", "Trend",
-    "Dark", "Night", "Solar", "Volt", "Apex",
-    "Risk", "Edge", "Peak", "Zero", "Neo",
+# Procedural name components — first names + suffix patterns that look human.
+_PROC_FIRST = [
+    "alex", "mia",  "jake", "zara", "noah", "lena", "omar", "ines",
+    "eli",  "nora", "ivan", "vera", "tao",  "rita", "sven", "luna",
+    "nico", "jade", "rafa", "dana", "leon", "alba", "finn", "yuki",
+    "drew", "zoe",  "hugo", "ada",  "cole", "iris",
 ]
-_PROC_SUFFIXES = [
-    "Hunter", "King", "Shark", "Wizard", "Rider",
-    "Forge", "Mind", "Gate", "Storm", "Byte",
-    "Node", "Flux", "Core", "Pulse", "Rush",
-    "Hawk", "Crest", "Point", "Strike", "Ace",
-]
-_PROC_TAGS = [
-    "_US", "_BR", "_CN", "_UK", "_JP",
-    "_DE", "_KR", "_IN", "_AU", "_MX",
-    "77",  "88",  "99",  "21",  "42",
-    "007", "X",   "Pro", "FX",  "Ace",
+_PROC_SUFFIX = [
+    "_k",  "_m",  "_r",  "_v",  "_p",  "_h",  "_w",  "_d",
+    ".t",  ".s",  ".j",  ".c",  ".l",  ".n",  ".b",  ".a",
+    "42",  "88",  "21",  "77",  "99",  "007", "x",
 ]
 
 _GHOST_LEVEL_XP = [120, 200, 350, 500, 750, 900, 1100, 1400]
@@ -80,13 +73,16 @@ _GHOST_POOL_SIZE = 300   # maximum ghost traders available
 
 
 def _ghost_name(idx: int) -> str:
-    """Deterministic unique name for procedural ghost slot `idx`."""
-    # Use the three component lists like digits: prefix × suffix × tag
-    n_pre, n_suf, n_tag = len(_PROC_PREFIXES), len(_PROC_SUFFIXES), len(_PROC_TAGS)
-    tag_i = idx % n_tag
-    suf_i = (idx // n_tag) % n_suf
-    pre_i = (idx // (n_tag * n_suf)) % n_pre
-    return f"{_PROC_PREFIXES[pre_i]}{_PROC_SUFFIXES[suf_i]}{_PROC_TAGS[tag_i]}"
+    """Deterministic unique name for procedural ghost slot `idx`.
+
+    Combines a first-name with a short suffix (initial, number, dot-initial)
+    so the result looks like a real person's handle, not a trading bot.
+    """
+    n_first = len(_PROC_FIRST)
+    n_suf   = len(_PROC_SUFFIX)
+    suf_i   = idx % n_suf
+    first_i = (idx // n_suf) % n_first
+    return f"{_PROC_FIRST[first_i]}{_PROC_SUFFIX[suf_i]}"
 
 
 def _build_ghost_entries(n: int = _GHOST_POOL_SIZE) -> list["LeaderboardEntry"]:

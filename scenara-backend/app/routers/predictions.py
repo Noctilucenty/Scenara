@@ -133,6 +133,22 @@ class SettlementResponse(BaseModel):
     event_id: int
 
 
+# ── Brier-by-category models ────────────────────────────────────────────────
+
+class BrierCategoryItem(BaseModel):
+    category: str
+    brier_score: float      # 0–100, higher = better calibrated (display scale)
+    raw_brier: float        # 0–1, lower = better (conventional Brier scale)
+    count: int              # settled predictions in this category
+    win_rate: float         # win % as context alongside calibration
+    edge_tier: str          # "strong" / "developing" / "weak" / "insufficient"
+
+class BrierByCategoryOut(BaseModel):
+    categories: list[BrierCategoryItem]
+    overall_brier: float    # same as accuracy_score in portfolio summary
+    total_settled: int
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -500,6 +516,100 @@ def get_portfolio_summary(
         best_pnl=best_pnl,
         worst_pnl=worst_pnl,
         avg_pnl_per_prediction=avg_pnl,
+    )
+
+
+@router.get("/user/{user_id}/brier-by-category", response_model=BrierByCategoryOut)
+def get_brier_by_category(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Per-category Brier calibration breakdown.
+
+    Joins predictions → scenarios → events in a single query so we never
+    load the full prediction rows into Python.  Returns one entry per
+    category the user has at least one SETTLED prediction in, plus an
+    overall aggregate.
+
+    Edge tiers:
+      strong      – brier_score ≥ 70  AND count ≥ 5
+      developing  – brier_score ≥ 55  AND count ≥ 3
+      weak        – brier_score <  55  AND count ≥ 3
+      insufficient– count < 3 (too few to judge)
+    """
+    if current_user.id != user_id and not getattr(current_user, "is_admin", False):
+        raise HTTPException(status_code=403, detail="Cannot view another user's brier breakdown")
+
+    from app.models.event import Event  # local import avoids circular dependency
+
+    # Load only settled predictions with their event category in one join
+    rows = (
+        db.query(
+            models.Prediction.status,
+            models.Prediction.entry_probability,
+            Event.category,
+        )
+        .join(Scenario, models.Prediction.scenario_id == Scenario.id)
+        .join(Event, Scenario.event_id == Event.id)
+        .filter(
+            models.Prediction.user_id == user_id,
+            models.Prediction.status.in_(("won", "lost")),
+        )
+        .all()
+    )
+
+    if not rows:
+        return BrierByCategoryOut(categories=[], overall_brier=0.0, total_settled=0)
+
+    # Accumulate per-category stats
+    cat_data: dict[str, dict] = defaultdict(lambda: {"brier_sum": 0.0, "wins": 0, "count": 0})
+
+    overall_brier_sum = 0.0
+    for status, entry_prob, category in rows:
+        outcome = 1.0 if status == "won" else 0.0
+        prob    = (entry_prob or 50.0) / 100.0
+        brier   = (outcome - prob) ** 2
+        cat_data[category]["brier_sum"] += brier
+        cat_data[category]["count"]     += 1
+        cat_data[category]["wins"]      += int(status == "won")
+        overall_brier_sum += brier
+
+    total_settled = len(rows)
+    overall_brier = round((1.0 - overall_brier_sum / total_settled) * 100, 1)
+
+    def _edge_tier(score: float, count: int) -> str:
+        if count < 3:
+            return "insufficient"
+        if score >= 70 and count >= 5:
+            return "strong"
+        if score >= 55:
+            return "developing"
+        return "weak"
+
+    categories: list[BrierCategoryItem] = []
+    for cat, d in sorted(cat_data.items(), key=lambda x: -x[1]["count"]):
+        count    = d["count"]
+        raw_b    = d["brier_sum"] / count          # lower = better
+        score    = round((1.0 - raw_b) * 100, 1)  # higher = better
+        win_rate = round((d["wins"] / count) * 100, 1)
+        categories.append(BrierCategoryItem(
+            category   = cat,
+            brier_score= score,
+            raw_brier  = round(raw_b, 4),
+            count      = count,
+            win_rate   = win_rate,
+            edge_tier  = _edge_tier(score, count),
+        ))
+
+    # Sort by brier_score desc so best categories appear first
+    categories.sort(key=lambda x: (-x.brier_score, -x.count))
+
+    return BrierByCategoryOut(
+        categories    = categories,
+        overall_brier = overall_brier,
+        total_settled = total_settled,
     )
 
 

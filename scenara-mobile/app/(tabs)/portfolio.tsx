@@ -41,6 +41,21 @@ type PortfolioSummary = {
   xp: number; level: number; xp_to_next_level: number;
 };
 
+type BrierCategoryItem = {
+  category: string;
+  brier_score: number;    // 0-100, higher = better
+  raw_brier: number;      // 0-1, lower = better
+  count: number;
+  win_rate: number;
+  edge_tier: "strong" | "developing" | "weak" | "insufficient";
+};
+
+type BrierByCategory = {
+  categories: BrierCategoryItem[];
+  overall_brier: number;
+  total_settled: number;
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function statusStyle(status: string, t: any) {
@@ -286,12 +301,143 @@ export function CategoryCountBadge({
   );
 }
 
+// ── EdgeZonesCard — Brier calibration by market category ─────────────────────
+// Flipped Brier score: 0-100 where 100 = perfect calibration.
+// "Edge zones" reveal where a user has genuine skill vs luck.
+// Categories with < 3 settled bets are shown at 45% opacity — visible but
+// clearly signalling "not enough data yet" without hiding the row entirely.
+
+const CATEGORY_ICONS: Record<string, string> = {
+  crypto:        "₿",
+  sports:        "⚽",
+  politics:      "🏛",
+  geopolitics:   "🌍",
+  technology:    "💻",
+  finance:       "📈",
+  science:       "🔬",
+  entertainment: "🎬",
+  environment:   "🌱",
+  economy:       "💰",
+  health:        "🏥",
+  business:      "💼",
+};
+
+function tierInfo(
+  tier: BrierCategoryItem["edge_tier"],
+  language: string,
+): { label: string; color: string } {
+  const isPt = language === "pt";
+  const isZh = language === "zh";
+  if (tier === "strong")     return { label: isPt ? "FORTE"     : isZh ? "强势"  : "STRONG",   color: GREEN };
+  if (tier === "developing") return { label: isPt ? "CRESCENDO" : isZh ? "成长中" : "GROWING",  color: BLUE };
+  if (tier === "weak")       return { label: isPt ? "FRACO"     : isZh ? "较弱"  : "WEAK",     color: RED };
+  return                            { label: isPt ? "POUCOS"    : isZh ? "不足"  : "FEW BETS", color: TEXT_MID };
+}
+
+function EdgeZonesCard({ brierCats, language }: { brierCats: BrierByCategory; language: string }) {
+  const isPt = language === "pt";
+  const isZh = language === "zh";
+
+  const header   = isPt ? "ZONAS DE VANTAGEM" : isZh ? "优势区域"           : "EDGE ZONES";
+  const subtitle = isPt ? "Calibração por tipo de mercado"
+                 : isZh ? "按市场类型的校准度"
+                 :        "Calibration accuracy by market type";
+  const betsLbl  = isPt ? "apostas" : isZh ? "次预测" : "bets";
+  const wrLbl    = isPt ? "acerto"  : isZh ? "胜率"   : "win rate";
+  const overallLbl = isPt ? "GERAL" : isZh ? "整体"   : "OVERALL";
+
+  const cats = brierCats.categories;
+
+  return (
+    <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: BORDER }}>
+
+      {/* Section header */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>
+          {header}
+        </Text>
+        {brierCats.total_settled > 0 && (
+          <View style={{ backgroundColor: "rgba(124,92,252,0.1)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: BORDER_P }}>
+            <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>
+              {overallLbl} {brierCats.overall_brier.toFixed(1)}
+            </Text>
+          </View>
+        )}
+      </View>
+      <Text style={{ color: TEXT_MID, fontSize: 11, fontFamily: "DMSans_400Regular", marginBottom: 16 }}>
+        {subtitle}
+      </Text>
+
+      {/* One row per category */}
+      {cats.map((cat, idx) => {
+        const isInsufficient = cat.edge_tier === "insufficient";
+        const tier = tierInfo(cat.edge_tier, language);
+        const icon = CATEGORY_ICONS[cat.category.toLowerCase()] ?? "◈";
+        // Ensure a minimum 2% bar so it's always visible; insufficient = no bar
+        const barWidth = isInsufficient ? 0 : Math.max(cat.brier_score, 2);
+
+        return (
+          <View
+            key={cat.category}
+            style={{ marginBottom: idx < cats.length - 1 ? 14 : 0, opacity: isInsufficient ? 0.45 : 1 }}
+          >
+            {/* Name + score + tier badge */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+                <Text style={{ fontSize: 13 }}>{icon}</Text>
+                <Text style={{
+                  color: isInsufficient ? TEXT_MID : TEXT,
+                  fontFamily: "DMSans_500Medium",
+                  fontSize: 12,
+                  textTransform: "capitalize",
+                }}>
+                  {cat.category}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                {!isInsufficient && (
+                  <Text style={{ color: TEXT_SUB, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
+                    {cat.brier_score.toFixed(1)}
+                  </Text>
+                )}
+                <View style={{
+                  backgroundColor: isInsufficient ? "rgba(100,116,139,0.08)" : `${tier.color}18`,
+                  borderRadius: 6,
+                  paddingHorizontal: 7,
+                  paddingVertical: 3,
+                  borderWidth: 1,
+                  borderColor: isInsufficient ? BORDER : `${tier.color}35`,
+                }}>
+                  <Text style={{ color: tier.color, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.8 }}>
+                    {tier.label}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Calibration bar — width: "X%" resolves against full parent width in RN */}
+            <View style={{ height: 3, backgroundColor: SURFACE, borderRadius: 2, overflow: "hidden" }}>
+              <View style={{ height: 3, width: `${barWidth}%`, backgroundColor: tier.color, borderRadius: 2 }} />
+            </View>
+
+            {/* Sub-stats */}
+            <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular", marginTop: 5 }}>
+              {cat.count} {betsLbl} · {cat.win_rate.toFixed(0)}% {wrLbl}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // ── Main PortfolioScreen ───────────────────────────────────────────────────────
 
 export default function PortfolioScreen() {
   const { account, predictions, loadingPortfolio, portfolioError, refreshPortfolio, userId, isAuthenticated } = useTrading();
   const { t, language } = useLanguage();
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [brierCats, setBrierCats] = useState<BrierByCategory | null>(null);
   const [shareCard, setShareCard] = useState<ShareCardData | null>(null);
   const [streakDismissed, setStreakDismissed] = useState(false);
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
@@ -301,19 +447,28 @@ export default function PortfolioScreen() {
   const fetchSummary = useCallback(async () => {
     if (!userId) return;
     try {
-      const res = await api.get(`/predictions/user/${userId}/summary`);
-      setSummary({
-        current_streak:  res.data.current_streak  ?? 0,
-        best_streak:     res.data.best_streak     ?? 0,
-        win_rate:        res.data.win_rate        ?? 0,
-        accuracy_score:  res.data.accuracy_score  ?? 0,
-        percentile_rank: res.data.percentile_rank ?? 0,
-        best_pnl:        res.data.best_pnl        ?? 0,
-        worst_pnl:       res.data.worst_pnl       ?? 0,
-        xp:                res.data.xp                ?? 0,
-        level:             res.data.level             ?? 1,
-        xp_to_next_level:  res.data.xp_to_next_level  ?? 0,
-      });
+      const [sumRes, brierRes] = await Promise.allSettled([
+        api.get(`/predictions/user/${userId}/summary`),
+        api.get(`/predictions/user/${userId}/brier-by-category`),
+      ]);
+      if (sumRes.status === "fulfilled") {
+        const d = sumRes.value.data;
+        setSummary({
+          current_streak:  d.current_streak  ?? 0,
+          best_streak:     d.best_streak     ?? 0,
+          win_rate:        d.win_rate        ?? 0,
+          accuracy_score:  d.accuracy_score  ?? 0,
+          percentile_rank: d.percentile_rank ?? 0,
+          best_pnl:        d.best_pnl        ?? 0,
+          worst_pnl:       d.worst_pnl       ?? 0,
+          xp:              d.xp              ?? 0,
+          level:           d.level           ?? 1,
+          xp_to_next_level:d.xp_to_next_level?? 0,
+        });
+      }
+      if (brierRes.status === "fulfilled") {
+        setBrierCats(brierRes.value.data ?? null);
+      }
     } catch { }
   }, [userId]);
 
@@ -571,6 +726,11 @@ export default function PortfolioScreen() {
                 ))}
               </View>
             </View>
+          )}
+
+          {/* Edge Zones — per-category Brier calibration */}
+          {brierCats && brierCats.categories.length > 0 && (
+            <EdgeZonesCard brierCats={brierCats} language={language} />
           )}
 
           {/* Refresh */}
