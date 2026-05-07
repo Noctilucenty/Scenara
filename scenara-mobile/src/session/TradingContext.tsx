@@ -5,6 +5,7 @@ import React, {
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { api } from "../api/client";
+import { API_BASE_URL } from "../config/api";
 import { setSentryUser } from "../observability/sentry";
 import { resetAccountSnapshot } from "../state/portfolioStore";
 
@@ -310,6 +311,20 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   ): Promise<{ ok: boolean; error?: string }> => {
     if (!userId) return { ok: false, error: "Not logged in" };
     try {
+      // Render free-tier cold-starts take 50-60s. The buy POST triggers a CORS
+      // preflight (because of the Authorization header), and browsers time out
+      // preflights faster than axios does — so the first buy after a long idle
+      // fails with "Network error" before axios even gets a chance to retry.
+      //
+      // Fix: fire a bare fetch() GET to /health first. A simple GET with no
+      // custom headers is a CORS "simple request" — no preflight needed — so
+      // it reaches the server even while it's still spinning up. Once it
+      // returns (backend is alive), the authenticated POST below succeeds.
+      await Promise.race([
+        fetch(`${API_BASE_URL}/health`).catch(() => {}),
+        new Promise<void>(resolve => setTimeout(resolve, 58000)),
+      ]);
+
       await api.post("/predictions/", {
         user_id: userId, scenario_id: scenarioId, simulated_amount: amount,
       });
