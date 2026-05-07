@@ -206,6 +206,12 @@ export default function SettingsScreen() {
             onPress={() => router.push("/notifications-settings")}
           />
 
+          <SectionLabel title="RESEARCH" />
+          <RowItem
+            label="Signal Lab"
+            onPress={() => router.push("/signal-lab")}
+          />
+
           <SectionLabel title={t.settings.appVersion} />
           <RowItem label={t.settings.version} />
 
