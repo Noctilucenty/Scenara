@@ -43,63 +43,77 @@ function nameHash(name: string): number {
 
 // ── Named pool — mirrors backend accounts.py _GHOST_NAMED exactly ────────────
 // [displayName, balance, totalPnL, winRate%, currentStreak]
+// Rules: no two entries share the same base word; bases are disjoint from
+// PROC_FIRST so the total pool never has more than 3 variants of any one name.
 const NAMED_RAW: [string, number, number, number, number][] = [
-  // Americas
+  // North America
+  ["luke_b",       14220,  4220, 70.0, 6],
+  ["james_t",      11820,  1820, 61.2, 3],
+  ["zack_m",        8910, -1090, 41.7, 0],
+  ["haley.p",      11200,  1200, 58.9, 2],
+  ["tyler.b",      10870,   870, 55.3, 1],
+  // South America
   ["sofia_v",      13450,  3450, 68.5, 5],
-  ["lucas_b",      11820,  1820, 61.2, 3],
-  ["ana.m",        15780,  5780, 72.4, 7],
-  ["gabriel_r",    12100,  2100, 59.8, 2],
-  ["camila_sp",     9340,  -660, 44.1, 0],
-  ["james_t",      14220,  4220, 70.0, 6],
-  ["emma_w",       10870,   870, 55.3, 1],
-  ["ryan_m",        8910, -1090, 41.7, 0],
-  ["sarah.b",      11200,  1200, 58.9, 2],
-  ["pedro_a",      13900,  3900, 66.7, 4],
+  ["valentina97",  15780,  5780, 72.4, 7],
+  ["gabo.r",       12100,  2100, 59.8, 2],
+  ["fernanda_q",    9340,  -660, 44.1, 0],
+  ["diogo_a",      13900,  3900, 66.7, 4],
   // Brazil
   ["beatriz_c",    12680,  2680, 63.0, 3],
-  ["mateus_r",     10540,   540, 52.4, 1],
-  ["julia.a",      14050,  4050, 69.8, 5],
-  ["thiago_b",      9720,  -280, 47.2, 0],
-  ["leticia_m",     8430, -1570, 39.5, 0],
+  ["rodrigo77",    10540,   540, 52.4, 1],
+  ["thais.o",      14050,  4050, 69.8, 5],
+  ["caio88",        9720,  -280, 47.2, 0],
+  ["isabela_m",     8430, -1570, 39.5, 0],
   // East Asia
   ["wei_y",        13100,  3100, 65.4, 4],
-  ["xia_l",        15600,  5600, 74.1, 8],
-  ["ming.z",       11490,  1490, 60.5, 2],
+  ["xiu.l",        15600,  5600, 74.1, 8],
   ["yuna_j",       12340,  2340, 62.7, 3],
-  ["ryo_m",        10050,    50, 50.8, 1],
+  ["kenji_h",      11490,  1490, 60.5, 2],
+  ["ryo_k",        10050,    50, 50.8, 1],
   // Europe
-  ["marie_f",      13670,  3670, 67.3, 5],
   ["henrik_s",     11950,  1950, 59.2, 2],
   ["marco_g",      14510,  4510, 71.6, 6],
-  ["nina_n",        9880,  -120, 48.9, 0],
-  ["carlos_e",     10660,   660, 54.0, 1],
+  ["britta.n",      9880,  -120, 48.9, 0],
+  ["ulrika_e",     10660,   660, 54.0, 1],
+  ["anya_f",       13670,  3670, 67.3, 5],
   // South & Southeast Asia
   ["priya_s",      14800,  4800, 71.0, 6],
   ["arjun_d",      13220,  3220, 66.0, 4],
-  ["omar_k",       12050,  2050, 61.5, 3],
-  ["kai_nz",       10780,   780, 54.8, 1],
-  ["aisha_r",       9560,  -440, 46.3, 0],
+  ["faisal_k",     12050,  2050, 61.5, 3],
+  ["nadia.nz",     10780,   780, 54.8, 1],
+  ["selin_r",       9560,  -440, 46.3, 0],
 ];
 
-// ── Procedural pool — first name + short suffix (looks human, not bot) ────────
+// ── Procedural pool ───────────────────────────────────────────────────────────
+// Base-name pool: every entry is disjoint from the named-pool first-word bases,
+// so no single base name ever appears more than 3 times in the full 120-user pool.
 const PROC_FIRST = [
-  "alex", "mia",  "jake", "zara", "noah", "lena", "omar", "ines",
-  "eli",  "nora", "ivan", "vera", "tao",  "rita", "sven", "luna",
-  "nico", "jade", "rafa", "dana", "leon", "alba", "finn", "yuki",
-  "drew", "zoe",  "hugo", "ada",  "cole", "iris",
+  "alex", "mia",   "jake", "zara", "noah", "petra", "cyrus", "rei",
+  "eli",  "gwen",  "ivan", "vera", "tao",  "bex",   "sven",  "cami",
+  "nico", "jade",  "rafa", "dana", "leon", "alba",  "finn",  "yuki",
+  "drew", "zoe",   "hugo", "kira", "cole", "iris",
 ];
+// Varied suffix vocabulary: single-char initials, numbers, tech tags, dot-initials.
+// Consecutive leaderboard rows look nothing alike.
 const PROC_SUFFIX = [
-  "_k",  "_m",  "_r",  "_v",  "_p",  "_h",  "_w",  "_d",
-  ".t",  ".s",  ".j",  ".c",  ".l",  ".n",  ".b",  ".a",
-  "42",  "88",  "21",  "77",  "99",  "007", "x",
+  "_k",  "_r",  "_v",  "_h",  "_d",
+  ".t",  ".j",  ".c",  ".n",  ".a",
+  "99",  "88",  "42",  "21",  "007",
+  "_77", "_0x", "_fx", "_nz", "_hq",
+  "pro", "x",   "bz",  "io",  "7k",
 ];
 
 const PROC_COUNT = 90;
 
+// Stride-7 interleave: consecutive indices pick different first-names AND
+// varied suffixes.  gcd(7, 25) = 1 guarantees all 25 suffixes are visited
+// before any repeats, so the 3 occurrences of each first-name use suffixes
+// that are 10 and 20 positions apart — visually nothing alike.
+// e.g. "alex" → alex_k / alex99 / alexpro across the full pool.
 function procName(idx: number): string {
-  const nSuf = PROC_SUFFIX.length;
   const nFirst = PROC_FIRST.length;
-  return `${PROC_FIRST[(Math.floor(idx / nSuf)) % nFirst]}${PROC_SUFFIX[idx % nSuf]}`;
+  const nSuf   = PROC_SUFFIX.length;
+  return `${PROC_FIRST[idx % nFirst]}${PROC_SUFFIX[(idx * 7) % nSuf]}`;
 }
 
 // ── Build the pool ───────────────────────────────────────────────────────────

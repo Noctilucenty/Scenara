@@ -15,57 +15,65 @@ router = APIRouter()
 # Ghost-trader pool  (deterministic padding for an empty / sparse leaderboard)
 # ---------------------------------------------------------------------------
 # Hand-crafted ghost users — realistic handles from a global community.
-# Deliberately diverse: different regions, naming styles, no bot tropes.
+# Rules: no two names share the same base word; named-pool bases are disjoint
+# from _PROC_FIRST so users never see 4+ variants of the same name.
 _GHOST_NAMED: list[tuple[str, float, float, float, int]] = [
     # display_name,     base_balance,  base_pnl,   win_rate%, streak
-    # ── Americas ────────────────────────────────────────────────────────────
+    # ── North America ───────────────────────────────────────────────────────
+    ("luke_b",          14_220.0,  4_220.0, 70.0, 6),
+    ("james_t",         11_820.0,  1_820.0, 61.2, 3),
+    ("zack_m",           8_910.0, -1_090.0, 41.7, 0),
+    ("haley.p",         11_200.0,  1_200.0, 58.9, 2),
+    ("tyler.b",         10_870.0,    870.0, 55.3, 1),
+    # ── South America ───────────────────────────────────────────────────────
     ("sofia_v",         13_450.0,  3_450.0, 68.5, 5),
-    ("lucas_b",         11_820.0,  1_820.0, 61.2, 3),
-    ("ana.m",           15_780.0,  5_780.0, 72.4, 7),
-    ("gabriel_r",       12_100.0,  2_100.0, 59.8, 2),
-    ("camila_sp",        9_340.0,   -660.0, 44.1, 0),
-    ("james_t",         14_220.0,  4_220.0, 70.0, 6),
-    ("emma_w",          10_870.0,   870.0,  55.3, 1),
-    ("ryan_m",           8_910.0, -1_090.0, 41.7, 0),
-    ("sarah.b",         11_200.0,  1_200.0, 58.9, 2),
-    ("pedro_a",         13_900.0,  3_900.0, 66.7, 4),
+    ("valentina97",     15_780.0,  5_780.0, 72.4, 7),
+    ("gabo.r",          12_100.0,  2_100.0, 59.8, 2),
+    ("fernanda_q",       9_340.0,   -660.0, 44.1, 0),
+    ("diogo_a",         13_900.0,  3_900.0, 66.7, 4),
     # ── Brazil ──────────────────────────────────────────────────────────────
     ("beatriz_c",       12_680.0,  2_680.0, 63.0, 3),
-    ("mateus_r",        10_540.0,   540.0,  52.4, 1),
-    ("julia.a",         14_050.0,  4_050.0, 69.8, 5),
-    ("thiago_b",         9_720.0,   -280.0, 47.2, 0),
-    ("leticia_m",        8_430.0, -1_570.0, 39.5, 0),
+    ("rodrigo77",       10_540.0,    540.0, 52.4, 1),
+    ("thais.o",         14_050.0,  4_050.0, 69.8, 5),
+    ("caio88",           9_720.0,   -280.0, 47.2, 0),
+    ("isabela_m",        8_430.0, -1_570.0, 39.5, 0),
     # ── East Asia ───────────────────────────────────────────────────────────
     ("wei_y",           13_100.0,  3_100.0, 65.4, 4),
-    ("xia_l",           15_600.0,  5_600.0, 74.1, 8),
-    ("ming.z",          11_490.0,  1_490.0, 60.5, 2),
+    ("xiu.l",           15_600.0,  5_600.0, 74.1, 8),
     ("yuna_j",          12_340.0,  2_340.0, 62.7, 3),
-    ("ryo_m",           10_050.0,    50.0,  50.8, 1),
+    ("kenji_h",         11_490.0,  1_490.0, 60.5, 2),
+    ("ryo_k",           10_050.0,     50.0, 50.8, 1),
     # ── Europe ──────────────────────────────────────────────────────────────
-    ("marie_f",         13_670.0,  3_670.0, 67.3, 5),
     ("henrik_s",        11_950.0,  1_950.0, 59.2, 2),
     ("marco_g",         14_510.0,  4_510.0, 71.6, 6),
-    ("nina_n",           9_880.0,   -120.0, 48.9, 0),
-    ("carlos_e",        10_660.0,   660.0,  54.0, 1),
+    ("britta.n",         9_880.0,   -120.0, 48.9, 0),
+    ("ulrika_e",        10_660.0,    660.0, 54.0, 1),
+    ("anya_f",          13_670.0,  3_670.0, 67.3, 5),
     # ── South & Southeast Asia ──────────────────────────────────────────────
     ("priya_s",         14_800.0,  4_800.0, 71.0, 6),
     ("arjun_d",         13_220.0,  3_220.0, 66.0, 4),
-    ("omar_k",          12_050.0,  2_050.0, 61.5, 3),
-    ("kai_nz",          10_780.0,   780.0,  54.8, 1),
-    ("aisha_r",          9_560.0,   -440.0, 46.3, 0),
+    ("faisal_k",        12_050.0,  2_050.0, 61.5, 3),
+    ("nadia.nz",        10_780.0,    780.0, 54.8, 1),
+    ("selin_r",          9_560.0,   -440.0, 46.3, 0),
 ]
 
-# Procedural name components — first names + suffix patterns that look human.
+# Procedural name components.
+# Base-name pool: disjoint from all named-pool first-word bases so there are
+# never more than 3 occurrences of any single base name in the whole 300-entry pool.
 _PROC_FIRST = [
-    "alex", "mia",  "jake", "zara", "noah", "lena", "omar", "ines",
-    "eli",  "nora", "ivan", "vera", "tao",  "rita", "sven", "luna",
-    "nico", "jade", "rafa", "dana", "leon", "alba", "finn", "yuki",
-    "drew", "zoe",  "hugo", "ada",  "cole", "iris",
+    "alex", "mia",   "jake", "zara", "noah", "petra", "cyrus", "rei",
+    "eli",  "gwen",  "ivan", "vera", "tao",  "bex",   "sven",  "cami",
+    "nico", "jade",  "rafa", "dana", "leon", "alba",  "finn",  "yuki",
+    "drew", "zoe",   "hugo", "kira", "cole", "iris",
 ]
+# Suffix pool: deliberately varied — single-char initials, numbers, tech tags,
+# dot-initials — so consecutive entries look nothing alike.
 _PROC_SUFFIX = [
-    "_k",  "_m",  "_r",  "_v",  "_p",  "_h",  "_w",  "_d",
-    ".t",  ".s",  ".j",  ".c",  ".l",  ".n",  ".b",  ".a",
-    "42",  "88",  "21",  "77",  "99",  "007", "x",
+    "_k",   "_r",   "_v",   "_h",   "_d",
+    ".t",   ".j",   ".c",   ".n",   ".a",
+    "99",   "88",   "42",   "21",   "007",
+    "_77",  "_0x",  "_fx",  "_nz",  "_hq",
+    "pro",  "x",    "bz",   "io",   "7k",
 ]
 
 _GHOST_LEVEL_XP = [120, 200, 350, 500, 750, 900, 1100, 1400]
@@ -75,13 +83,17 @@ _GHOST_POOL_SIZE = 300   # maximum ghost traders available
 def _ghost_name(idx: int) -> str:
     """Deterministic unique name for procedural ghost slot `idx`.
 
-    Combines a first-name with a short suffix (initial, number, dot-initial)
-    so the result looks like a real person's handle, not a trading bot.
+    Uses a stride-7 interleave so consecutive indices cycle through all
+    30 first-names before repeating any, and the suffix chosen for each
+    recurrence of the same first-name is maximally different (offsets of
+    +10 and +20 in suffix-space, guaranteed because gcd(7, 25) == 1).
+
+    Example: alex appears as alex_k / alex99 / alexpro — clearly distinct.
     """
     n_first = len(_PROC_FIRST)
     n_suf   = len(_PROC_SUFFIX)
-    suf_i   = idx % n_suf
-    first_i = (idx // n_suf) % n_first
+    first_i = idx % n_first
+    suf_i   = (idx * 7) % n_suf   # stride-7 coprime to 25 → no repeats in 25 steps
     return f"{_PROC_FIRST[first_i]}{_PROC_SUFFIX[suf_i]}"
 
 
