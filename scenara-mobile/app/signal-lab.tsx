@@ -189,12 +189,16 @@ export default function SignalLabScreen() {
                 />
 
                 {/* ── Comparison panel ───────────────────────────────── */}
-                <SectionTitle ispt={ispt} en="Comparison" pt="Comparação" />
-                <ComparisonPanelCard
-                  signal={signal}
-                  userProb={parseFloat(userProb.replace(",", ".")) / 100}
-                  ispt={ispt}
-                />
+                {signal && (
+                  <>
+                    <SectionTitle ispt={ispt} en="Comparison" pt="Comparação" />
+                    <ComparisonPanelCard
+                      signal={signal}
+                      userProb={parseFloat(userProb.replace(",", ".")) / 100}
+                      ispt={ispt}
+                    />
+                  </>
+                )}
               </>
             )}
 
