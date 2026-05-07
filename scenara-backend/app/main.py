@@ -95,6 +95,32 @@ def _migrate_zh_columns() -> None:
             logger.info("[Migration] Added title_zh to scenarios.")
 
 
+def _migrate_event_ai_columns() -> None:
+    """Idempotent: add AI auto-resolver state columns to events table."""
+    from sqlalchemy import text as sql_text, inspect
+    insp = inspect(engine)
+    cols = [c["name"] for c in insp.get_columns("events")]
+    with engine.begin() as conn:
+        if "ai_attempt_count" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN ai_attempt_count INTEGER NOT NULL DEFAULT 0"))
+            logger.info("[Migration] Added ai_attempt_count to events.")
+        if "last_ai_attempt_at" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN last_ai_attempt_at TIMESTAMP NULL"))
+            logger.info("[Migration] Added last_ai_attempt_at to events.")
+        if "ai_last_confidence" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN ai_last_confidence INTEGER NULL"))
+            logger.info("[Migration] Added ai_last_confidence to events.")
+        if "ai_last_note" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN ai_last_note TEXT NULL"))
+            logger.info("[Migration] Added ai_last_note to events.")
+        if "ai_source_url" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN ai_source_url VARCHAR(500) NULL"))
+            logger.info("[Migration] Added ai_source_url to events.")
+        if "ai_needs_review" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN ai_needs_review BOOLEAN NOT NULL DEFAULT FALSE"))
+            logger.info("[Migration] Added ai_needs_review to events.")
+
+
 def _backfill_xp() -> None:
     """
     Idempotent: retroactively award XP to users who placed bets before XP existed.
@@ -216,6 +242,7 @@ def create_app() -> FastAPI:
         _migrate_user_columns()
         _migrate_zh_columns()
         _migrate_brazil_category()
+        _migrate_event_ai_columns()
         _backfill_xp()
         # Indexes run after column migrations so every index target exists.
         from app.migrations.indexes import ensure_indexes

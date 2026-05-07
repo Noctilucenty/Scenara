@@ -131,6 +131,43 @@ def list_pending_events(
     return events
 
 
+class AIReviewItem(BaseModel):
+    """Event flagged by the AI auto-resolver for human review."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    category: str
+    closes_at: Optional[datetime]
+    ai_attempt_count: int
+    last_ai_attempt_at: Optional[datetime]
+    ai_last_confidence: Optional[int]
+    ai_last_note: Optional[str]
+    ai_source_url: Optional[str]
+    scenarios: list[ScenarioSimple]
+
+
+@router.get("/ai-review-queue", response_model=list[AIReviewItem])
+def list_ai_review_queue(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """
+    Events the AI auto-resolver flagged for human review — borderline confidence,
+    missing source citations, two-shot disagreement, or attempt-cap reached.
+    Admin should resolve or void these manually via /events/{id}/resolve.
+    """
+    return (
+        db.query(Event)
+        .options(joinedload(Event.scenarios))
+        .filter(
+            Event.status == "open",
+            Event.ai_needs_review.is_(True),
+        )
+        .order_by(Event.last_ai_attempt_at.desc().nullslast())
+        .all()
+    )
+
+
 @router.post("/ai-suggest", response_model=list[AISuggestion])
 async def ai_suggest_resolutions(
     db: Session = Depends(get_db),
@@ -163,13 +200,19 @@ async def ai_suggest_resolutions(
         scenarios_sorted = sorted(event.scenarios, key=lambda s: s.sort_order)
         scenario_titles = [s.title for s in scenarios_sorted]
 
-        winner_idx, confidence, note = await ai_resolve_event(
+        result = await ai_resolve_event(
             title=event.title or "",
             description=event.description or "",
             scenarios=scenario_titles,
+            closes_at=event.closes_at,
+            resolution_criteria=event.description or "",
         )
 
-        winner_id = scenarios_sorted[winner_idx].id if winner_idx is not None else None
+        winner_id = (
+            scenarios_sorted[result.winner_index].id
+            if result.winner_index is not None else None
+        )
+        note_with_src = result.note + (f" — source: {result.source_url}" if result.source_url else "")
 
         suggestions.append(AISuggestion(
             event_id=event.id,
@@ -178,8 +221,8 @@ async def ai_suggest_resolutions(
             closes_at=event.closes_at.isoformat() if event.closes_at else None,
             scenarios=[{"id": s.id, "title": s.title, "sort_order": s.sort_order} for s in scenarios_sorted],
             winner_scenario_id=winner_id,
-            confidence=confidence,
-            note=note,
+            confidence=result.confidence,
+            note=note_with_src,
         ))
 
         # Small delay between calls to respect Gemini rate limits

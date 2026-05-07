@@ -30,11 +30,19 @@ from app.models.scenario import Scenario
 from app.models.prediction import Prediction
 from app.services.resolution import settle_event, void_event
 from app.services.notifications import notify_market_closing_soon
-from app.services.ai_resolver import ai_resolve_event
+from app.services.ai_resolver import ai_resolve_event, AUTO_RESOLVE_THRESHOLD
 
-# Track which non-crypto event IDs we've already sent to AI this session.
-# Prevents hammering the Gemini API every 5 min for the same unresolvable event.
-_ai_attempted: set[int] = set()
+# AI auto-resolver tuning
+# ─────────────────────────────────────────────────────────────────────────────
+# Wait this long after closes_at before the FIRST AI attempt — gives news
+# time to propagate to search indexes and primary sources.
+AI_FIRST_ATTEMPT_DELAY_MIN = 45
+
+# Backoff between subsequent attempts (cumulative hours since closes_at).
+# Capped at MAX_AI_ATTEMPTS — after that we leave the event for admin review
+# rather than spending more API budget on it.
+AI_RETRY_HOURS = [1, 6, 24]   # attempt 2 at +1h, 3 at +6h, 4 at +24h after closes_at
+MAX_AI_ATTEMPTS = 1 + len(AI_RETRY_HOURS)
 
 logger = logging.getLogger(__name__)
 
@@ -273,49 +281,87 @@ async def run_auto_resolver() -> None:
                 notify_market_closing_soon(uid, event.id, event.title or "Your prediction", mins_left)
 
         # ── AI resolution for expired non-crypto events ─────────────────────
-        # Try Gemini Flash (Google Search) once per event on first expiry.
-        expired_noncrypto_new = (
+        # Schedule strategy (DB-persisted, survives restarts):
+        #   First attempt:  +AI_FIRST_ATTEMPT_DELAY_MIN minutes after closes_at
+        #   Retries:        backoff at AI_RETRY_HOURS[attempt-1] hours
+        #   Cap:            MAX_AI_ATTEMPTS attempts; then mark needs_review
+        candidate_events = (
             db.query(Event)
             .options(joinedload(Event.scenarios))
             .filter(
                 Event.status == "open",
                 Event.category != "crypto",
                 Event.closes_at != None,
-                Event.closes_at <= now,
-                ~Event.id.in_(_ai_attempted) if _ai_attempted else True,
+                Event.closes_at <= now - timedelta(minutes=AI_FIRST_ATTEMPT_DELAY_MIN),
+                Event.ai_attempt_count < MAX_AI_ATTEMPTS,
             )
             .all()
         )
 
-        for event in expired_noncrypto_new:
-            _ai_attempted.add(event.id)
+        for event in candidate_events:
+            # Enforce backoff: each attempt after the first must wait its share.
+            if event.ai_attempt_count > 0 and event.last_ai_attempt_at is not None:
+                hours_due = AI_RETRY_HOURS[min(event.ai_attempt_count - 1, len(AI_RETRY_HOURS) - 1)]
+                if (now - event.last_ai_attempt_at) < timedelta(hours=hours_due):
+                    continue
+
             scenarios_sorted = sorted(event.scenarios, key=lambda s: s.sort_order)
             scenario_titles = [s.title for s in scenarios_sorted]
 
-            winner_idx, confidence, note = await ai_resolve_event(
+            result = await ai_resolve_event(
                 title=event.title or "",
                 description=event.description or "",
                 scenarios=scenario_titles,
+                closes_at=event.closes_at,
+                resolution_criteria=event.description or "",
             )
 
-            if winner_idx is not None:
-                winning_id = scenarios_sorted[winner_idx].id
-                result = settle_event(db, event, winning_id, note)
-                if result["ok"]:
-                    _ai_attempted.discard(event.id)
+            # Persist attempt state regardless of outcome — this is the single
+            # source of truth across restarts.
+            event.ai_attempt_count = (event.ai_attempt_count or 0) + 1
+            event.last_ai_attempt_at = now
+            event.ai_last_confidence = result.confidence
+            event.ai_last_note = result.note[:1000] if result.note else None
+            if result.source_url:
+                event.ai_source_url = result.source_url[:500]
+
+            if result.decision == "resolve" and result.winner_index is not None:
+                winning_id = scenarios_sorted[result.winner_index].id
+                settled = settle_event(db, event, winning_id, result.note)
+                if settled["ok"]:
                     logger.info(
-                        f"[AIResolver] ✓ Resolved #{event.id} '{event.title[:50]}' "
-                        f"→ '{scenario_titles[winner_idx]}' ({confidence}% confident)"
+                        "[AIResolver] ✓ Resolved #%s '%s' → '%s' (%d%% consensus, src=%s)",
+                        event.id, (event.title or "")[:50],
+                        scenario_titles[result.winner_index], result.confidence,
+                        (result.source_url or "—")[:60],
                     )
                 else:
-                    logger.error(f"[AIResolver] ✗ settle_event failed #{event.id}: {result.get('error')}")
-            else:
+                    logger.error(
+                        "[AIResolver] ✗ settle_event failed #%s: %s",
+                        event.id, settled.get("error"),
+                    )
+            elif result.decision == "needs_review":
+                event.ai_needs_review = True
+                db.commit()
                 logger.info(
-                    f"[AIResolver] Skipped #{event.id} '{event.title[:40]}' "
-                    f"— confidence {confidence}% below threshold. {note}"
+                    "[AIResolver] → needs_review #%s '%s' (%d%%, src=%s) %s",
+                    event.id, (event.title or "")[:50], result.confidence,
+                    (result.source_url or "—")[:60], result.note[:120],
+                )
+            else:
+                # Reached attempt cap with no resolution → flag for review.
+                if event.ai_attempt_count >= MAX_AI_ATTEMPTS:
+                    event.ai_needs_review = True
+                db.commit()
+                logger.info(
+                    "[AIResolver] skip #%s attempt %d/%d (%d%%): %s",
+                    event.id, event.ai_attempt_count, MAX_AI_ATTEMPTS,
+                    result.confidence, result.note[:120],
                 )
 
         # ── Void non-crypto events after 7-day grace period ─────────────────
+        # Only void events that are NOT pending admin review; reviewers may
+        # still want to settle them manually.
         seven_day_cutoff = now - timedelta(days=7)
         very_old_noncrypto = (
             db.query(Event)
@@ -325,11 +371,11 @@ async def run_auto_resolver() -> None:
                 Event.category != "crypto",
                 Event.closes_at != None,
                 Event.closes_at <= seven_day_cutoff,
+                Event.ai_needs_review.is_(False),
             )
             .all()
         )
         for event in very_old_noncrypto:
-            _ai_attempted.discard(event.id)
             result = void_event(db, event, note="Event expired after 7-day grace period — all bets refunded")
             logger.info(f"[AutoResolver] Voided #{event.id} '{event.title[:50]}' — refunded {result['refunded']} bets")
 
