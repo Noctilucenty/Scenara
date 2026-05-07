@@ -362,7 +362,7 @@ export default function NewsScreen() {
 
         // Only fetch sparkline history for first 10 to avoid hammering backend
         const histResults = await Promise.allSettled(
-          sliced.slice(0, 10).map(e => api.get(`/events/${e.id}/history`))
+          sliced.filter(e => e.id != null).slice(0, 10).map(e => api.get(`/events/${e.id}/history`))
         );
         // Merge into existing cache so sparklines survive category switches
         setHistoryCache(prev => {

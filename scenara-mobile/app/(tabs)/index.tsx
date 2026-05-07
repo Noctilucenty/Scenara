@@ -1723,7 +1723,7 @@ export default function MarketsScreen() {
   const fetchHistory = useCallback((items: EventItem[]) => {
     // Prioritise featured events so carousel cards always get history data
     const sorted = [...items].sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0));
-    const toFetch = sorted.filter(e => !historyCacheRef.current[e.id]).slice(0, 20);
+    const toFetch = sorted.filter(e => e.id != null && !historyCacheRef.current[e.id]).slice(0, 20);
     if (toFetch.length === 0) return;
     Promise.allSettled(
       toFetch.map(e => api.get(`/events/${e.id}/history`))
