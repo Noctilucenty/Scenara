@@ -14,9 +14,6 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import {
-  useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
-} from "@expo-google-fonts/dm-sans";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -1626,7 +1623,6 @@ export default function MarketsScreen() {
   const { t, language } = useLanguage();
   const { isAuthenticated, userId, account, placePrediction, refreshPortfolio, logout } = useTrading();
   const { open: openSidebar } = React.useContext(SidebarContext);
-  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const { width: winW } = useWindowDimensions();
   const isWide = winW >= 700;
   // Responsive grid: 4 cols on desktop, 2 on tablet/large phone, 1 on phone
@@ -2060,9 +2056,6 @@ export default function MarketsScreen() {
       },
     });
   }, [router]);
-
-  // Fonts must be loaded before rendering — safe to return after all hooks
-  if (!fontsLoaded) return null;
 
   const featured = featuredEvent;
   const rest = featured ? events.filter(e => e.id !== featured.id) : events;

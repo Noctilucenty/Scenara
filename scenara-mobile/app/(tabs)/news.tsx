@@ -7,9 +7,6 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import {
-  useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
-} from "@expo-google-fonts/dm-sans";
 import { useLanguage } from "@/src/i18n";
 import { toChineseFallback } from "@/src/utils/zhFallback";
 import { api } from "@/src/api/client";
@@ -328,7 +325,6 @@ export default function NewsScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] = useState("all");
-  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const intervalRef    = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastFetchedAt  = useRef<Record<string, number>>({});
 
@@ -453,8 +449,6 @@ export default function NewsScreen() {
   const openEvent = (event: EventItem) => {
     router.push({ pathname: "/market-detail", params: { eventId: String(event.id) } });
   };
-
-  if (!fontsLoaded) return null;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>

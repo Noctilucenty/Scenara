@@ -5,10 +5,6 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import {
-  useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
-} from "@expo-google-fonts/dm-sans";
-
 import { api } from "@/src/api/client";
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
@@ -76,7 +72,6 @@ export default function InsightsScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [screenW, setScreenW] = useState(Dimensions.get("window").width);
-  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const isWeb = Platform.OS === "web" && screenW >= 900;
   const lastFetchedAt = useRef<number>(0);
   const AUTO_REFRESH_MS = 90_000;
@@ -109,7 +104,6 @@ export default function InsightsScreen() {
   }, [userId, t, language]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
-  if (!fontsLoaded) return null;
 
   const grade = summary ? getGrade(summary.accuracy_score, t) : null;
   const pnlPos = (summary?.total_pnl ?? 0) >= 0;

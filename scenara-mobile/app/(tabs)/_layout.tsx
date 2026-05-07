@@ -3,9 +3,6 @@ import React, { useState } from "react";
 import { View, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HapticTab } from "@/components/haptic-tab";
-import {
-  useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
-} from "@expo-google-fonts/dm-sans";
 import { useLanguage } from "@/src/i18n";
 import { Sidebar as AppSidebar } from "@/components/Sidebar";
 import Svg, { Path, Circle, Polyline, Rect } from "react-native-svg";
@@ -111,7 +108,6 @@ function IconSettings({ focused }: { focused: boolean }) {
 export const SidebarContext = React.createContext<{ open(): void }>({ open: () => {} });
 
 export default function TabLayout() {
-  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const { t } = useLanguage();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const insets = useSafeAreaInsets();
@@ -142,7 +138,7 @@ export default function TabLayout() {
             tabBarInactiveTintColor: INACTIVE,
             tabBarLabelStyle: {
               fontSize: 10,
-              fontFamily: fontsLoaded ? "DMSans_700Bold" : undefined,
+              fontFamily: "DMSans_700Bold",
               letterSpacing: 0.5,
               marginTop: 1,
             },

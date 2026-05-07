@@ -5,10 +5,6 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import {
-  useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
-} from "@expo-google-fonts/dm-sans";
-
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage, Language } from "@/src/i18n";
 import { api } from "@/src/api/client";
@@ -31,15 +27,12 @@ const GRAD_BRAND = [BLUE, PURPLE, PINK] as const;
 export default function SettingsScreen() {
   const { authUser, logout, isAuthenticated } = useTrading();
   const { t, language, setLanguage } = useLanguage();
-  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     api.get("/admin/me").then(() => setIsAdmin(true)).catch(() => setIsAdmin(false));
   }, [isAuthenticated]);
-
-  if (!fontsLoaded) return null;
 
   if (!isAuthenticated) {
     return (

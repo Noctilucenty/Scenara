@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { View, ActivityIndicator, Modal, Text, TouchableOpacity, Image, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, router, useSegments } from "expo-router";
+import {
+  useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
+} from "@expo-google-fonts/dm-sans";
 import { TradingProvider, useTrading } from "@/src/session/TradingContext";
 import { LanguageProvider, useLanguage } from "@/src/i18n";
 import { hasSeenOnboarding } from "./onboarding";
@@ -148,10 +151,20 @@ function AuthGuard() {
 }
 
 export default function RootLayout() {
-  // Fire a health ping immediately so the backend wakes up (Render free tier hibernates)
+  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
+
+  // Fire a health ping immediately so the backend wakes up (Render free tier hibernates).
+  // Runs unconditionally — we don't wait for fonts before waking the server.
   useEffect(() => {
     api.get("/health", { timeout: 30000 }).catch(() => {});
   }, []);
+
+  // Block the entire navigator until fonts are ready. Since fonts are bundled
+  // with the app (not fetched from network), this resolves in < 100 ms and
+  // prevents every tab screen from briefly flashing blank on first visit.
+  if (!fontsLoaded) {
+    return <View style={{ flex: 1, backgroundColor: BG }} />;
+  }
 
   return (
     <LanguageProvider>

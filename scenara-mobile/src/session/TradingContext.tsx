@@ -1,6 +1,6 @@
 import React, {
   createContext, useContext, useState,
-  useCallback, useEffect,
+  useCallback, useEffect, useRef,
 } from "react";
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
@@ -126,6 +126,12 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [predictions, setPredictions]   = useState<Prediction[]>([]);
   const [loadingPortfolio, setLoadingPortfolio] = useState(false);
   const [portfolioError, setPortfolioError]     = useState<string | null>(null);
+
+  // Prevents overlapping in-flight refreshes — e.g. TradingContext's own
+  // useEffect (fires on userId change) and the portfolio screen's useFocusEffect
+  // both call refreshPortfolio on first mount.  Without this, two parallel
+  // requests race to set the same state.
+  const isRefreshingRef = useRef(false);
 
   const userId = authUser?.id ?? null;
   const isAuthenticated = !!authUser;
@@ -257,20 +263,34 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const refreshPortfolio = useCallback(async () => {
     if (!userId) return;
+    // Deduplicate concurrent calls — e.g. TradingContext's userId-change effect
+    // and the portfolio screen's useFocusEffect both fire on first mount.
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
     setLoadingPortfolio(true);
     setPortfolioError(null);
     try {
-      const [accountRes, predictionsRes] = await Promise.all([
+      // allSettled lets each request succeed/fail independently.
+      // If predictions is slow, the account balance still updates (and vice-versa).
+      const [accountRes, predictionsRes] = await Promise.allSettled([
         api.get(`/accounts/user/${userId}`),
         api.get(`/predictions/user/${userId}`),
       ]);
-      setAccount(accountRes.data);
-      setPredictions(predictionsRes.data);
-      // Keep authUser balance in sync
-      setAuthUser(prev => prev ? { ...prev, balance: accountRes.data.balance } : prev);
-    } catch (err: any) {
-      setPortfolioError(err?.message ?? "Failed to load portfolio");
+      if (accountRes.status === "fulfilled") {
+        setAccount(accountRes.value.data);
+        // Keep authUser balance in sync with the latest account data.
+        setAuthUser(prev => prev ? { ...prev, balance: accountRes.value.data.balance } : prev);
+      }
+      if (predictionsRes.status === "fulfilled") {
+        setPredictions(predictionsRes.value.data);
+      }
+      // Only surface an error when BOTH requests failed — a partial success
+      // is still useful data and shouldn't block the portfolio view.
+      if (accountRes.status === "rejected" && predictionsRes.status === "rejected") {
+        setPortfolioError("Failed to load portfolio");
+      }
     } finally {
+      isRefreshingRef.current = false;
       setLoadingPortfolio(false);
     }
   }, [userId]);

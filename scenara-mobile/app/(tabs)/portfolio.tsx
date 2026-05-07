@@ -5,10 +5,6 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import {
-  useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
-} from "@expo-google-fonts/dm-sans";
-
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
 import { api } from "@/src/api/client";
@@ -440,7 +436,6 @@ export default function PortfolioScreen() {
   const [brierCats, setBrierCats] = useState<BrierByCategory | null>(null);
   const [shareCard, setShareCard] = useState<ShareCardData | null>(null);
   const [streakDismissed, setStreakDismissed] = useState(false);
-  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isFocused = useRef(false);
 
@@ -511,8 +506,6 @@ export default function PortfolioScreen() {
     if (!won[0]) return null;
     return { predictionId: won[0].id, eventTitle: won[0].event_title, pnl: Number(won[0].pnl) };
   }, [predictions]);
-
-  if (!fontsLoaded) return null;
 
   // ── Guest view ─────────────────────────────────────────────────────────────
   if (!isAuthenticated) {

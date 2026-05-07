@@ -6,10 +6,6 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import {
-  useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
-} from "@expo-google-fonts/dm-sans";
-
 import { api } from "@/src/api/client";
 import { useTrading } from "@/src/session/TradingContext";
 import { useLanguage } from "@/src/i18n";
@@ -202,7 +198,6 @@ export default function LeaderboardScreen() {
   const [error, setError]     = useState("");
   const [sortBy, setSortBy]   = useState<SortOption>("pnl");
   const [screenW, setScreenW] = useState(Dimensions.get("window").width);
-  const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
   const isWeb = Platform.OS === "web" && screenW >= 900;
 
   // Request-version guard — same pattern as SearchBar.tsx.
@@ -213,6 +208,18 @@ export default function LeaderboardScreen() {
   // unauthenticated response landing after a fast authenticated one
   // would wipe the is_following decorations.
   const reqVersion = useRef(0);
+
+  // tRef: keeps the current translation object accessible inside callbacks
+  // without adding `t` to their dependency arrays. Without this, every
+  // language change recreates `load`, which re-fires useFocusEffect and
+  // kicks off an unnecessary 300-entry refetch.
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  // Stale-while-revalidate: skip the network when we just fetched.
+  // 30 s threshold — fast enough that data feels live, slow enough to
+  // not hammer the backend on every back-navigation.
+  const lastFetchedAt = useRef<number>(0);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -229,11 +236,14 @@ export default function LeaderboardScreen() {
       // Omitting the param gives the public (unauthenticated) view.
       const qs = userId ? `&viewer_id=${userId}` : "";
       const res = await api.get(`/accounts/leaderboard?sort_by=${sort}&limit=300${qs}`);
-      if (myVersion === reqVersion.current) setData(res.data);
+      if (myVersion === reqVersion.current) {
+        setData(res.data);
+        lastFetchedAt.current = Date.now();
+      }
     }
-    catch { if (myVersion === reqVersion.current) setError(t.rankings.noTraders); }
+    catch { if (myVersion === reqVersion.current) setError(tRef.current.rankings.noTraders); }
     finally { if (myVersion === reqVersion.current) setLoading(false); }
-  }, [t, userId]);
+  }, [userId]);
 
   // Optimistic follow/unfollow: flip local state first, rollback on error.
   // Avoids waiting for the round-trip and avoids refetching the whole board.
@@ -264,11 +274,13 @@ export default function LeaderboardScreen() {
   }, [isAuthenticated]);
 
   useFocusEffect(useCallback(() => {
-    load(sortBy);
-    const interval = setInterval(() => load(sortBy), 30_000);
+    // Stale-while-revalidate: skip the network fetch when returning to this tab
+    // within 30 s of the last successful load — the cached data is fresh enough.
+    // The interval still fires every 60 s while the tab stays open.
+    if (Date.now() - lastFetchedAt.current > 30_000) load(sortBy);
+    const interval = setInterval(() => load(sortBy), 60_000);
     return () => clearInterval(interval);
   }, [sortBy, load]));
-  if (!fontsLoaded) return null;
 
   // Leaderboard is public — guests can see it but with a join prompt at the top
   const showJoinPrompt = !isAuthenticated;
