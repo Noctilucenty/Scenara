@@ -61,10 +61,14 @@ _GHOST_NAMED: list[tuple[str, float, float, float, int]] = [
 # Base-name pool: disjoint from all named-pool first-word bases so there are
 # never more than 3 occurrences of any single base name in the whole 300-entry pool.
 _PROC_FIRST = [
-    "alex", "mia",   "jake", "zara", "noah", "petra", "cyrus", "rei",
-    "eli",  "gwen",  "ivan", "vera", "tao",  "bex",   "sven",  "cami",
-    "nico", "jade",  "rafa", "dana", "leon", "alba",  "finn",  "yuki",
-    "drew", "zoe",   "hugo", "kira", "cole", "iris",
+    # Deliberately unusual — no common Western first-names (alex, jake, noah…).
+    # Mix of global, mythological, nature, and invented handles.
+    "zeph",  "orin",  "nyx",   "caius", "sora",
+    "wren",  "asha",  "cael",  "remi",  "yael",
+    "pax",   "suki",  "brix",  "zola",  "thea",
+    "kylo",  "lev",   "nova",  "oryn",  "kit",
+    "vex",   "indra", "jove",  "tov",   "rook",
+    "zel",   "dex",   "skye",  "kes",   "quill",
 ]
 # Suffix pool: deliberately varied — single-char initials, numbers, tech tags,
 # dot-initials — so consecutive entries look nothing alike.

@@ -87,11 +87,15 @@ const NAMED_RAW: [string, number, number, number, number][] = [
 // ── Procedural pool ───────────────────────────────────────────────────────────
 // Base-name pool: every entry is disjoint from the named-pool first-word bases,
 // so no single base name ever appears more than 3 times in the full 120-user pool.
+// Deliberately unusual — no common Western first-names (alex, jake, noah etc.).
+// Mix of global, mythological, nature, and invented handles.
 const PROC_FIRST = [
-  "alex", "mia",   "jake", "zara", "noah", "petra", "cyrus", "rei",
-  "eli",  "gwen",  "ivan", "vera", "tao",  "bex",   "sven",  "cami",
-  "nico", "jade",  "rafa", "dana", "leon", "alba",  "finn",  "yuki",
-  "drew", "zoe",   "hugo", "kira", "cole", "iris",
+  "zeph",  "orin",  "nyx",   "caius", "sora",
+  "wren",  "asha",  "cael",  "remi",  "yael",
+  "pax",   "suki",  "brix",  "zola",  "thea",
+  "kylo",  "lev",   "nova",  "oryn",  "kit",
+  "vex",   "indra", "jove",  "tov",   "rook",
+  "zel",   "dex",   "skye",  "kes",   "quill",
 ];
 // Varied suffix vocabulary: single-char initials, numbers, tech tags, dot-initials.
 // Consecutive leaderboard rows look nothing alike.

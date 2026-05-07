@@ -1671,6 +1671,14 @@ export default function MarketsScreen() {
   const eventsRef = useRef<EventItem[]>([]);
   const scrollStateRef = useRef({ loadingMore: false, hasMore: true });
 
+  // Version counter — incremented on every fetchEvents() call.
+  // Each invocation captures its own version at start; before any setState it
+  // checks `if (myVersion !== fetchVersionRef.current) return` so stale fetches
+  // (especially those paused inside the 12-second retry wait) silently discard
+  // their results instead of overwriting state that a newer call already set.
+  // This is the fix for the intermittent "nothing loads" crash on tab switching.
+  const fetchVersionRef = useRef(0);
+
   const sentimentFetchedAtRef = useRef<Record<number, number>>({});
   const SENTIMENT_TTL = 5 * 60_000; // 5 minutes
 
@@ -1762,6 +1770,10 @@ export default function MarketsScreen() {
   }, [fetchHistory, fetchSentiment, language]);
 
   const fetchEvents = useCallback(async (silent = false, cat = activeCategory) => {
+    // Claim a unique version ticket — any prior in-flight fetchEvents call that
+    // checks this ref after we increment will see it no longer matches and bail.
+    const myVersion = ++fetchVersionRef.current;
+
     if (!silent) {
       // Tab-switch fast path: if data for this category is still fresh and
       // events are already rendered, skip the network round-trip entirely.
@@ -1775,8 +1787,9 @@ export default function MarketsScreen() {
       }
 
       // On fresh (non-silent) load: show cached data immediately while fetching.
-      // hydrateFromCache is now async (AsyncStorage on native).
       const hadCache = await hydrateFromCache(cat);
+      // Version check: a newer call may have started while we awaited the cache read
+      if (myVersion !== fetchVersionRef.current) return;
       if (!hadCache) setLoading(true);
       setLoadError(false);
     }
@@ -1784,10 +1797,11 @@ export default function MarketsScreen() {
       const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0, lang: language };
       if (cat !== "all") params.category = cat;
       const res = await api.get("/events/", { params });
+      // Stale-fetch guard: if a newer call started while we were awaiting the
+      // network, discard our results — the newer call will populate state.
+      if (myVersion !== fetchVersionRef.current) return;
       const all: EventItem[] = res.data ?? [];
       setEvents(all);
-      // Stamp successful fetch so tab switches within AUTO_REFRESH_MS skip
-      // the next network call (see lastFetchedAt guard above).
       lastFetchedAt.current[`${cat}_${language}`] = Date.now();
       const initialHasMore = all.length === PAGE_SIZE;
       scrollStateRef.current.hasMore = initialHasMore;
@@ -1800,31 +1814,34 @@ export default function MarketsScreen() {
       } else {
         AsyncStorage.setItem(cacheKey, cachePayload).catch(() => {});
       }
-      // Only fetch history on first load (not silent auto-refresh)
       if (!silent) fetchHistory(all);
 
       api.get("/predictions/activity?limit=15").then(r => {
+        if (myVersion !== fetchVersionRef.current) return;
         const items = r.data ?? [];
-        // Fall back to deterministic pool activity when API returns nothing
         setActivity(items.length > 0 ? items : FALLBACK_ACTIVITY);
-      }).catch(() => { setActivity(FALLBACK_ACTIVITY); });
+      }).catch(() => { if (myVersion === fetchVersionRef.current) setActivity(FALLBACK_ACTIVITY); });
 
       api.get("/news/single", { params: { category: "all", lang: language, max_results: 12 }, timeout: 25000 })
-        .then(r => setNewsArticles(r.data?.articles ?? []))
+        .then(r => { if (myVersion === fetchVersionRef.current) setNewsArticles(r.data?.articles ?? []); })
         .catch(() => {});
 
       fetchSentiment(all);
     } catch {
-      if (!silent && events.length === 0) {
-        // Await the delay inline so the loading spinner stays visible during the retry.
-        // (setTimeout is fire-and-forget; using await here keeps finally from running early.)
-        // Render.com free-tier cold start is ~30-50s; first request times out at 40s,
-        // so a 12s pause puts the retry at ~52s — after most cold starts finish.
+      // Only attempt the cold-start retry when: (a) this is still the latest
+      // call, (b) it wasn't a silent refresh, and (c) there's no data to show.
+      if (myVersion !== fetchVersionRef.current) return;
+      if (!silent && eventsRef.current.length === 0) {
+        // 12-second pause to let Render.com free-tier finish its cold start.
+        // Using inline await so the finally block waits for the retry.
         await new Promise<void>(resolve => setTimeout(resolve, 12000));
+        // Re-check version after the long wait — user may have switched tabs
+        if (myVersion !== fetchVersionRef.current) return;
         try {
           const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0, lang: language };
           if (cat !== "all") params.category = cat;
           const res = await api.get("/events/", { params });
+          if (myVersion !== fetchVersionRef.current) return;
           const all: EventItem[] = res.data ?? [];
           if (all.length > 0) {
             setEvents(all);
@@ -1835,11 +1852,17 @@ export default function MarketsScreen() {
             setLoadError(true);
           }
         } catch {
-          setLoadError(true);
+          if (myVersion === fetchVersionRef.current) setLoadError(true);
         }
       }
     }
-    finally { setLoading(false); setRefreshing(false); }
+    finally {
+      // Only update loading/refreshing flags if we're still the active fetch.
+      if (myVersion === fetchVersionRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
   }, [fetchSentiment, fetchHistory, hydrateFromCache, activeCategory, language]);
 
   // Keep eventsRef in sync so loadMore always reads current length

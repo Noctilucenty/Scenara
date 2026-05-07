@@ -775,37 +775,29 @@ class ActivityItem(BaseModel):
 
 
 _SYNTHETIC_NAMES = [
-    # Brazilian
-    "Lucas M.", "Sofia R.", "Gabriel T.", "Ana C.", "Pedro H.",
-    "Isabella F.", "Mateus S.", "Juliana B.", "Rafael O.", "Camila N.",
-    "Bruno L.", "Fernanda P.", "Diego A.", "Larissa G.", "Vitor E.",
-    "Mariana K.", "Felipe W.", "Beatriz D.", "Thiago V.", "Natalia Z.",
-    "Caio A.", "Helena S.", "Gustavo R.", "Letícia M.", "Arthur P.",
-    "Valentina L.", "Enzo C.", "Manuela B.", "Davi F.", "Alice O.",
-    "Heitor G.", "Laura T.", "Murilo K.", "Yasmin V.", "Leonardo D.",
-    # US / English
-    "James K.", "Emma S.", "Noah P.", "Olivia R.", "Liam B.",
-    "Ava T.", "Ethan C.", "Sophia H.", "Mason L.", "Mia F.",
-    "Oliver N.", "Chloe D.", "Henry J.", "Aria C.", "Jack M.",
-    "Zoe V.", "Owen B.", "Nora P.", "Aiden S.", "Grace K.",
-    "Leo T.", "Ruby A.", "Max H.", "Tyler W.", "Michael B.",
-    "Jessica L.", "Ryan M.", "Ashley J.", "Brandon S.", "Samantha K.",
-    "Justin H.", "Amanda C.", "Kyle R.", "Rachel T.", "Dylan F.",
-    "Brittany A.", "Austin G.", "Kayla N.", "Caleb P.", "Megan W.",
-    "Hunter D.", "Lauren B.", "Chase M.", "Haley R.", "Bryce T.",
-    "Skyler J.", "Peyton A.", "Jordan H.", "Morgan L.", "Taylor V.",
-    # Chinese (pinyin romanization — authentic mainland + HK names)
-    "Wei L.", "Xin Y.", "Jun Z.", "Mei H.", "Hao C.",
-    "Lin W.", "Rui S.", "Jia T.", "Bo X.", "Yan Q.",
-    "Min K.", "Zhe P.", "Ning F.", "Kai J.", "Fei O.",
-    "Chen H.", "Zhang W.", "Liu Y.", "Yang X.", "Wang J.",
-    "Li Q.", "Zhao M.", "Sun B.", "Zhou T.", "Wu R.",
-    "Xu F.", "Hu G.", "Guo L.", "Song N.", "Liang C.",
-    "Cheng S.", "Cai D.", "Pan H.", "Tang W.", "Dong Y.",
-    "Jiang X.", "Xie Z.", "Han M.", "Feng Q.", "Deng B.",
-    # Crypto-twitter style aliases (anonymized look)
-    "0xAlex", "trader_v", "moonbo1", "btc_maxi", "degen_z",
-    "yoloKid", "chain.x", "whaIe88", "flash_t", "alpha_j",
+    # Brazilian / Lusophone
+    "Valentina R.", "Rodrigo T.", "Beatriz C.", "Caio F.", "Isabela M.",
+    "Thais O.", "Diogo A.", "Fernanda Q.", "Gustavo K.", "Larissa V.",
+    "Vitor Z.", "Helena P.", "Murilo B.", "Yasmin D.", "Leonardo S.",
+    "Manuela G.", "Heitor W.", "Letícia N.", "Arthur L.", "Davi E.",
+    # East & Southeast Asia
+    "Wei Y.", "Xiu L.", "Yuna J.", "Kenji H.", "Ryo K.",
+    "Zhang W.", "Liu Y.", "Chen Z.", "Mei X.", "Hao C.",
+    "Lin S.", "Rui T.", "Jia B.", "Yan Q.", "Bo F.",
+    "Thanh N.", "Minh P.", "Sura K.", "Priya D.", "Arjun V.",
+    # Europe (varied regions, not just English)
+    "Henrik S.", "Britta N.", "Ulrika E.", "Marco G.", "Anya F.",
+    "Selin R.", "Faisal K.", "Nadia Z.", "Luca B.", "Freya T.",
+    "Pilar O.", "Dmitri V.", "Astrid H.", "Zoltan M.", "Elif C.",
+    # Middle East / Africa / global south
+    "Omar B.", "Amara K.", "Kwame T.", "Zara H.", "Yusuf D.",
+    "Fatou S.", "Tariq N.", "Imane L.", "Chidi O.", "Asel R.",
+    # North America (less generic — no top-10 baby names)
+    "Haley P.", "Tyler B.", "Zack M.", "Luke V.", "Sofia W.",
+    "Rowan T.", "Sloane K.", "Beckett H.", "Waverly D.", "Caden F.",
+    # Crypto / prediction-market native handles
+    "0xvoid", "prism_9", "zeph.io", "nyx_trade", "caius88",
+    "rook_fx", "vex_pro", "sora_k", "oryn.7", "quill_0x",
 ]
 # Amounts: wider range, most bets small (retail-heavy), occasional whale
 _SYNTHETIC_AMOUNTS = ["$5", "$10", "$15", "$20", "$25", "$40", "$60", "$100", "$150", "$250"]
