@@ -1,6 +1,7 @@
 {
   "rewrites": [
-    { "source": "/sw.js",   "destination": "/sw.js"       },
-    { "source": "/(.*)",    "destination": "/index.html"  }
+    { "source": "/sw.js",              "destination": "/sw.js"                                       },
+    { "source": "/api/backend/:path*", "destination": "https://scenara-backend.onrender.com/:path*" },
+    { "source": "/(.*)",               "destination": "/index.html"                                  }
   ]
 }

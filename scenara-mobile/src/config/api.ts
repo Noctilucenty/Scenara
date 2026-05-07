@@ -9,9 +9,14 @@ function getApiBaseUrl(): string {
   }
 
   // Native dev builds: hit a local backend if __DEV__ is true.
-  // Web always uses production — there is no local Python backend to route to.
   if (Platform.OS !== "web" && typeof __DEV__ !== "undefined" && __DEV__) {
     return "http://127.0.0.1:8000";
+  }
+
+  // Web (Vercel): route through same-origin proxy rewrite — no CORS, no preflight,
+  // works even when Render's cold-start returns a 502 without CORS headers.
+  if (Platform.OS === "web") {
+    return "/api/backend";
   }
 
   return PROD_URL;
