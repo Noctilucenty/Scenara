@@ -168,6 +168,25 @@ def list_ai_review_queue(
     )
 
 
+@router.post("/events/{event_id}/clear-review")
+def clear_ai_review(
+    event_id: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """
+    Clear the ai_needs_review flag on an event (admin "skip for now").
+    The event remains open and the AI auto-resolver may re-flag it on a
+    later attempt if confidence is still in the review band.
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    event.ai_needs_review = False
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/ai-suggest", response_model=list[AISuggestion])
 async def ai_suggest_resolutions(
     db: Session = Depends(get_db),

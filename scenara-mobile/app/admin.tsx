@@ -351,12 +351,260 @@ function AnalyticsTab() {
   );
 }
 
+// ── AI Review Queue tab ───────────────────────────────────────────────────────
+
+type AIReviewItem = {
+  id: number;
+  title: string;
+  category: string;
+  closes_at: string | null;
+  ai_attempt_count: number;
+  last_ai_attempt_at: string | null;
+  ai_last_confidence: number | null;
+  ai_last_note: string | null;
+  ai_source_url: string | null;
+  scenarios: Scenario[];
+};
+
+function AIReviewTab() {
+  const [items, setItems] = useState<AIReviewItem[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoadError(null);
+    try {
+      const res = await api.get("/admin/ai-review-queue");
+      setItems(res.data ?? []);
+    } catch (e: any) {
+      setLoadError(e?.message ?? "Failed to load review queue");
+      setItems([]);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const resolveAs = async (item: AIReviewItem, scenarioId: number, note: string) => {
+    setBusyId(item.id);
+    try {
+      await api.post(`/admin/events/${item.id}/resolve`, {
+        winning_scenario_id: scenarioId,
+        resolution_note: note || `Resolved from AI review queue (admin override).`,
+      });
+      setItems(prev => prev?.filter(i => i.id !== item.id) ?? null);
+    } catch (e: any) {
+      Alert.alert("Resolve failed", e?.message ?? "Could not resolve");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const voidItem = async (item: AIReviewItem) => {
+    setBusyId(item.id);
+    try {
+      await api.post(`/admin/events/${item.id}/void`, {
+        note: "Voided by admin from AI review queue",
+      });
+      setItems(prev => prev?.filter(i => i.id !== item.id) ?? null);
+    } catch (e: any) {
+      Alert.alert("Void failed", e?.message ?? "Could not void");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const dismiss = async (item: AIReviewItem) => {
+    // "Not now" — clears the review flag; AI may re-flag later if a future
+    // attempt still hits the review threshold. Useful when the admin wants
+    // to come back to it once more news has dropped.
+    setBusyId(item.id);
+    try {
+      await api.post(`/admin/events/${item.id}/clear-review`);
+      setItems(prev => prev?.filter(i => i.id !== item.id) ?? null);
+    } catch {
+      // Endpoint optional — fall back to a local hide
+      setItems(prev => prev?.filter(i => i.id !== item.id) ?? null);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (items === null) {
+    return (
+      <View style={{ paddingVertical: 60, alignItems: "center" }}>
+        <ActivityIndicator color={PURPLE} />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 60 }}>
+      <View style={{ marginBottom: 4 }}>
+        <Text style={{ color: TEXT, fontSize: 18, fontFamily: "DMSans_700Bold" }}>
+          AI Review Queue
+        </Text>
+        <Text style={{ color: TEXT_SUB, fontSize: 12, marginTop: 4, lineHeight: 17 }}>
+          Events the auto-resolver flagged for human review — borderline confidence,
+          missing source citations, or two-shot disagreement. Pick a winner, void,
+          or skip back to queue.
+        </Text>
+      </View>
+
+      <TouchableOpacity onPress={load} style={{ alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD }}>
+        <Text style={{ color: TEXT_SUB, fontSize: 11, fontFamily: "DMSans_500Medium" }}>↻ Refresh</Text>
+      </TouchableOpacity>
+
+      {loadError && (
+        <View style={{ padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "rgba(239,68,68,0.3)", backgroundColor: "rgba(239,68,68,0.06)" }}>
+          <Text style={{ color: RED, fontSize: 12 }}>{loadError}</Text>
+        </View>
+      )}
+
+      {items.length === 0 && !loadError && (
+        <View style={{ padding: 24, alignItems: "center", borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD }}>
+          <Text style={{ color: TEXT_SUB, fontSize: 13 }}>Nothing to review. AI is keeping up.</Text>
+        </View>
+      )}
+
+      {items.map(item => (
+        <AIReviewCard
+          key={item.id}
+          item={item}
+          busy={busyId === item.id}
+          onResolve={(sid, note) => resolveAs(item, sid, note)}
+          onVoid={() => voidItem(item)}
+          onDismiss={() => dismiss(item)}
+        />
+      ))}
+    </ScrollView>
+  );
+}
+
+function AIReviewCard({
+  item, busy, onResolve, onVoid, onDismiss,
+}: {
+  item: AIReviewItem;
+  busy: boolean;
+  onResolve(scenarioId: number, note: string): void;
+  onVoid(): void;
+  onDismiss(): void;
+}) {
+  const [note, setNote] = useState("");
+  const conf = item.ai_last_confidence ?? 0;
+  const confColor = conf >= 75 ? GREEN : conf >= 60 ? YELLOW : RED;
+
+  return (
+    <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER }}>
+      {/* Header */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 10 }}>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, backgroundColor: `${categoryColor(item.category)}22` }}>
+              <Text style={{ color: categoryColor(item.category), fontSize: 10, fontFamily: "DMSans_700Bold" }}>{item.category.toUpperCase()}</Text>
+            </View>
+            <Text style={{ color: TEXT_MID, fontSize: 11 }}>{timeLeft(item.closes_at)}</Text>
+            <Text style={{ color: TEXT_MID, fontSize: 11 }}>· #{item.id}</Text>
+          </View>
+          <Text style={{ color: TEXT, fontSize: 14, fontFamily: "DMSans_700Bold" }}>{item.title}</Text>
+        </View>
+        <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: `${confColor}1F` }}>
+          <Text style={{ color: confColor, fontSize: 11, fontFamily: "DMSans_700Bold" }}>{conf}%</Text>
+        </View>
+      </View>
+
+      {/* AI note + source */}
+      {item.ai_last_note && (
+        <View style={{ padding: 10, borderRadius: 10, backgroundColor: SURFACE, borderWidth: 1, borderColor: BORDER, marginBottom: 10 }}>
+          <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_500Medium", marginBottom: 4 }}>AI NOTE</Text>
+          <Text style={{ color: TEXT_SUB, fontSize: 12, lineHeight: 17 }}>{item.ai_last_note}</Text>
+          {item.ai_source_url && (
+            <TouchableOpacity onPress={() => Platform.OS === "web" ? window.open(item.ai_source_url!, "_blank") : null} style={{ marginTop: 6 }}>
+              <Text style={{ color: BLUE, fontSize: 11, fontFamily: "DMSans_500Medium" }} numberOfLines={1}>
+                ↗ {item.ai_source_url}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <Text style={{ color: TEXT_MID, fontSize: 10, marginTop: 6 }}>
+            Attempt {item.ai_attempt_count}
+            {item.last_ai_attempt_at ? ` · ${new Date(item.last_ai_attempt_at).toLocaleString()}` : ""}
+          </Text>
+        </View>
+      )}
+
+      {/* Optional override note */}
+      <TextInput
+        value={note}
+        onChangeText={setNote}
+        placeholder="Override note (optional)"
+        placeholderTextColor={TEXT_MID}
+        style={{
+          color: TEXT, fontSize: 12, paddingHorizontal: 10, paddingVertical: 8,
+          backgroundColor: "rgba(255,255,255,0.02)", borderRadius: 8,
+          borderWidth: 1, borderColor: BORDER, marginBottom: 10,
+        }}
+      />
+
+      {/* Scenario action buttons */}
+      <View style={{ gap: 6, marginBottom: 10 }}>
+        {item.scenarios.map((s, idx) => {
+          const color = SCENARIO_COLORS[idx % SCENARIO_COLORS.length];
+          return (
+            <TouchableOpacity
+              key={s.id}
+              disabled={busy}
+              onPress={() => onResolve(s.id, note)}
+              style={{
+                flexDirection: "row", alignItems: "center", gap: 10,
+                paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
+                backgroundColor: `${color}14`, borderWidth: 1, borderColor: `${color}40`,
+                opacity: busy ? 0.5 : 1,
+              }}
+            >
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+              <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", flex: 1 }}>
+                Resolve as: {s.title}
+              </Text>
+              <Text style={{ color: TEXT_MID, fontSize: 10 }}>→</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Void / Dismiss */}
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <TouchableOpacity
+          disabled={busy}
+          onPress={onDismiss}
+          style={{
+            flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center",
+            borderWidth: 1, borderColor: BORDER, backgroundColor: "rgba(255,255,255,0.02)",
+            opacity: busy ? 0.5 : 1,
+          }}
+        >
+          <Text style={{ color: TEXT_SUB, fontSize: 12, fontFamily: "DMSans_700Bold" }}>Skip for now</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          disabled={busy}
+          onPress={onVoid}
+          style={{
+            flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: "center",
+            borderWidth: 1, borderColor: "rgba(239,68,68,0.3)", backgroundColor: "rgba(239,68,68,0.06)",
+            opacity: busy ? 0.5 : 1,
+          }}
+        >
+          <Text style={{ color: RED, fontSize: 12, fontFamily: "DMSans_700Bold" }}>Void & refund</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ── Main Admin Screen ─────────────────────────────────────────────────────────
 
 export default function AdminScreen() {
   const { language } = useLanguage();
   const [fontsLoaded] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
-  const [activeTab, setActiveTab] = useState<"resolve" | "analytics">("resolve");
+  const [activeTab, setActiveTab] = useState<"resolve" | "ai-review" | "analytics">("resolve");
   const [events, setEvents] = useState<PendingEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<number | null>(null);
@@ -517,7 +765,8 @@ export default function AdminScreen() {
         {/* Tab strip */}
         <View style={{ flexDirection: "row", paddingHorizontal: 20, paddingVertical: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)" }}>
           {([
-            { id: "resolve",   label: "⚖️  Resolve Events" },
+            { id: "resolve",   label: "⚖️  Resolve" },
+            { id: "ai-review", label: "🤖  AI Review" },
             { id: "analytics", label: "📊  Analytics" },
           ] as const).map(tab => (
             <TouchableOpacity
@@ -538,6 +787,9 @@ export default function AdminScreen() {
 
         {/* Analytics tab */}
         {activeTab === "analytics" && <AnalyticsTab />}
+
+        {/* AI Review queue tab */}
+        {activeTab === "ai-review" && <AIReviewTab />}
 
         {/* Resolve tab: search + list */}
         {activeTab === "resolve" && (
