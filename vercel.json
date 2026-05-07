@@ -4,7 +4,7 @@
   "installCommand": "echo 'install handled inside buildCommand'",
   "framework": null,
   "rewrites": [
-    { "source": "/api/backend/:path*", "destination": "https://scenara-backend.onrender.com/:path*" },
+    { "source": "/api/backend/(.*)",   "destination": "https://scenara-backend.onrender.com/$1"    },
     { "source": "/(.*)",               "destination": "/index.html"                                  }
   ]
 }
