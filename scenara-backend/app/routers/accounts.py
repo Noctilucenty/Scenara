@@ -234,9 +234,11 @@ DISPLAY_BASE_TRADERS = 1400
 # Each user starts with $10K simulated. At ~1% capital turnover/day
 # (mid-engagement for a prediction platform) that's ~$100/trader/day.
 # Volume baseline = base traders × this rate, so 1400 → $140K base.
-# Tweaking DISPLAY_BASE_TRADERS auto-scales volume; the two numbers
-# can never drift out of plausibility.
 PER_TRADER_DAILY_VOLUME_USD = 100.0
+# Open-market floor for non-admin display. The Polymarket sync brings the
+# real count well past this, but we floor it so the banner never reads as
+# half-empty during a sync hiccup or fresh deploy.
+DISPLAY_BASE_OPEN_MARKETS = 500
 
 
 def _displayed_traders(real_users: int) -> int:
@@ -256,6 +258,16 @@ def _displayed_volume_24h(real_volume: float) -> float:
     minute = int(datetime.utcnow().timestamp() // 60)
     base = DISPLAY_BASE_TRADERS * PER_TRADER_DAILY_VOLUME_USD
     return base + float(real_volume) + (minute % 23) * 100
+
+
+def _displayed_open_markets(real_open: int) -> int:
+    """Floor at DISPLAY_BASE_OPEN_MARKETS so the banner never undersells the
+    catalog. Real growth is reflected once it surpasses the floor."""
+    from datetime import datetime
+    minute = int(datetime.utcnow().timestamp() // 60)
+    if int(real_open) >= DISPLAY_BASE_OPEN_MARKETS:
+        return int(real_open)
+    return DISPLAY_BASE_OPEN_MARKETS + (minute % 11)
 
 
 def _is_admin(user: Optional[models.User]) -> bool:
@@ -304,7 +316,7 @@ def get_live_stats(
     return LiveStatsOut(
         traders=_displayed_traders(real_traders),
         volume_24h=_displayed_volume_24h(real_volume),
-        open_markets=int(open_markets),
+        open_markets=_displayed_open_markets(open_markets),
     )
 
 

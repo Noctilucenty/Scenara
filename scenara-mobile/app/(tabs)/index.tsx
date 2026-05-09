@@ -1425,31 +1425,53 @@ function LiveStatsBar({ eventCount, hasMore, language }: { eventCount: number; h
     return () => anim.stop();
   }, []);
 
-  // Real counters from /accounts/live-stats. We fetch once on mount and
-  // re-poll every 90s so the numbers feel alive without thrashing the API.
-  const [live, setLive] = useState<{ traders: number; volume24h: number; openMarkets: number } | null>(null);
+  // Real counters from /accounts/live-stats. Initialize at the same baseline
+  // the backend pads with so the banner never shows "0" while the first
+  // request is in flight. Cached last value persists across reloads via
+  // localStorage on web for instant first paint.
+  const LIVE_STATS_CACHE_KEY = "scenara_live_stats_cache";
+  const [live, setLive] = useState<{ traders: number; volume24h: number; openMarkets: number }>(() => {
+    if (Platform.OS === "web") {
+      try {
+        const raw = localStorage.getItem(LIVE_STATS_CACHE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed.traders === "number") return parsed;
+        }
+      } catch {}
+    }
+    // Cold-start defaults — match the backend's baseline so the banner reads
+    // sensibly within the first render. Real values arrive on the first poll.
+    return { traders: 1400, volume24h: 140_000, openMarkets: 500 };
+  });
+
   useEffect(() => {
     let cancelled = false;
     const load = () => {
       api.get("/accounts/live-stats", { timeout: 8000 })
         .then(r => {
           if (cancelled) return;
-          setLive({
-            traders:     r.data?.traders     ?? 0,
-            volume24h:   r.data?.volume_24h  ?? 0,
-            openMarkets: r.data?.open_markets ?? 0,
-          });
+          const next = {
+            traders:     r.data?.traders     ?? live.traders,
+            volume24h:   r.data?.volume_24h  ?? live.volume24h,
+            openMarkets: r.data?.open_markets ?? live.openMarkets,
+          };
+          setLive(next);
+          if (Platform.OS === "web") {
+            try { localStorage.setItem(LIVE_STATS_CACHE_KEY, JSON.stringify(next)); } catch {}
+          }
         })
         .catch(() => { /* keep last good value */ });
     };
     load();
     const id = setInterval(load, 90_000);
     return () => { cancelled = true; clearInterval(id); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const traders     = live?.traders     ?? 0;
-  const volume24h   = live?.volume24h   ?? 0;
-  const openMarkets = live?.openMarkets ?? eventCount;
+  const traders     = live.traders;
+  const volume24h   = live.volume24h;
+  const openMarkets = live.openMarkets;
   // Compact volume formatter: $1,234 → "$1.2K", $250,000 → "$250K", $1,200,000 → "$1.2M"
   const volumeLabel = volume24h >= 1_000_000
     ? `$${(volume24h / 1_000_000).toFixed(1)}M`
