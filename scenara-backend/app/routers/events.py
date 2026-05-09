@@ -360,6 +360,14 @@ def search_events(
     return events
 
 
+# In-process response cache for /events/. The events list barely changes
+# moment-to-moment (probabilities update but the *list* is stable for
+# minutes at a time), so caching the serialized response shaves seconds
+# off repeat requests on free-tier Render+Neon. Invalidates by TTL only.
+_EVENTS_CACHE: dict[tuple, tuple[float, list]] = {}
+_EVENTS_CACHE_TTL_SECONDS = 30
+
+
 @router.get("/", response_model=list[EventOut])
 def list_events(
     db: Session = Depends(get_db),
@@ -370,6 +378,12 @@ def list_events(
     offset: int = Query(default=0, ge=0),
     lang: str = Query(default="en"),
 ):
+    import time
+    cache_key = (status, featured_only, category, limit, offset, lang)
+    cached = _EVENTS_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < _EVENTS_CACHE_TTL_SECONDS:
+        return cached[1]
+
     from sqlalchemy import func
 
     base_q = db.query(Event).options(joinedload(Event.scenarios))
@@ -381,6 +395,7 @@ def list_events(
         base_q = base_q.filter(Event.category == category)
         events = base_q.order_by(Event.id.desc()).offset(offset).limit(limit).all()
         _fill_zh_translations(events)
+        _EVENTS_CACHE[cache_key] = (time.time(), events)
         return events
 
     # For "all" categories: interleave via round-robin row-number window function.
@@ -418,6 +433,7 @@ def list_events(
     )
     events.sort(key=lambda e: id_order.get(e.id, 999))
     _fill_zh_translations(events)
+    _EVENTS_CACHE[cache_key] = (time.time(), events)
     return events
 
 

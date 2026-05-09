@@ -775,29 +775,38 @@ class ActivityItem(BaseModel):
 
 
 _SYNTHETIC_NAMES = [
-    # Brazilian / Lusophone
-    "Valentina R.", "Rodrigo T.", "Beatriz C.", "Caio F.", "Isabela M.",
-    "Thais O.", "Diogo A.", "Fernanda Q.", "Gustavo K.", "Larissa V.",
-    "Vitor Z.", "Helena P.", "Murilo B.", "Yasmin D.", "Leonardo S.",
-    "Manuela G.", "Heitor W.", "Letícia N.", "Arthur L.", "Davi E.",
-    # East & Southeast Asia
-    "Wei Y.", "Xiu L.", "Yuna J.", "Kenji H.", "Ryo K.",
-    "Zhang W.", "Liu Y.", "Chen Z.", "Mei X.", "Hao C.",
-    "Lin S.", "Rui T.", "Jia B.", "Yan Q.", "Bo F.",
-    "Thanh N.", "Minh P.", "Sura K.", "Priya D.", "Arjun V.",
-    # Europe (varied regions, not just English)
-    "Henrik S.", "Britta N.", "Ulrika E.", "Marco G.", "Anya F.",
-    "Selin R.", "Faisal K.", "Nadia Z.", "Luca B.", "Freya T.",
-    "Pilar O.", "Dmitri V.", "Astrid H.", "Zoltan M.", "Elif C.",
-    # Middle East / Africa / global south
-    "Omar B.", "Amara K.", "Kwame T.", "Zara H.", "Yusuf D.",
-    "Fatou S.", "Tariq N.", "Imane L.", "Chidi O.", "Asel R.",
-    # North America (less generic — no top-10 baby names)
-    "Haley P.", "Tyler B.", "Zack M.", "Luke V.", "Sofia W.",
-    "Rowan T.", "Sloane K.", "Beckett H.", "Waverly D.", "Caden F.",
-    # Additional realistic handles — replaces the prior crypto-bot block
-    "Liam P.", "Noah K.", "Mia C.", "Emma R.", "Ethan B.",
-    "Lara T.", "Hiro N.", "Kai L.", "Rin S.", "Akira O.",
+    # Reddit-style adjective_noun handles — feel like real people picked
+    # the username themselves. Mixed with a small pool of "First L." names
+    # for variety so the feed doesn't read as one stylistic monoculture.
+    "significant_peach",   "electric_otter",      "midnight_voyage",
+    "careless_whisper",    "doomsday_wallaby",    "frozen_pancake",
+    "silent_storm42",      "velvet_thunder",      "crystal_horizon",
+    "neon_spider",         "coastal_drift",       "glass_helmet",
+    "rust_kingdom",        "amber_circuit",       "echo_pyramid",
+    "quiet_owl",           "rapid_arrow",         "pixel_harbor",
+    "lunar_ember",         "cosmic_falcon",       "woven_parade",
+    "paper_kettle",        "tangerine_garden",    "ember_glacier",
+    "ivory_signal",        "twilight_raven",      "marble_sparrow",
+    "copper_beacon",       "sage_comet",          "hollow_pulse",
+    "mosaic_drift",        "gentle_atlas",        "faded_basilica",
+    "marine_relay",        "slate_tundra",        "broken_lighthouse",
+    "rough_meadow",        "brass_tempo",         "basalt_fox",
+    "calm_buffalo",        "obsidian_mango",      "winter_papyrus",
+    "hex_cathedral",       "summer_lattice",      "cobalt_drift07",
+    "scarlet_anchor",      "noisy_meridian",      "tame_supernova",
+    "burnt_violet",        "honest_compass",      "cedar_avenue",
+    "wired_mongoose",      "polite_skirmish",     "drift_canyon",
+    "alpine_lemur",        "feral_octave",        "pale_canopy",
+    "umbra_sequoia",       "milk_serenade",       "hex_satellite",
+    "sour_quartz",         "loose_falcon",        "thirsty_terminal",
+    "halftone_atlas",      "blunt_almanac",       "linen_stargate",
+    "spiral_octopus",      "chrome_dunes",        "linear_otter",
+    "dusty_arboretum",     "graphite_canyon",     "mute_periscope",
+    "salted_planetarium",  "sleepy_marquee",      "feline_dossier",
+    "patient_canyon",      "drowsy_atlas",        "crooked_signal",
+    # A handful of "First L." for stylistic variety
+    "Wei Y.", "Marco G.", "Priya D.", "Thiago F.", "Nadia Z.",
+    "Hiro N.", "Rin S.", "Yuna J.", "Akira O.", "Astrid H.",
 ]
 # Amounts: wider range, most bets small (retail-heavy), occasional whale
 _SYNTHETIC_AMOUNTS = ["$5", "$10", "$15", "$20", "$25", "$40", "$60", "$100", "$150", "$250"]

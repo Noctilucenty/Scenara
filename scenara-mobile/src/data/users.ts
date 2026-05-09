@@ -89,23 +89,22 @@ const NAMED_RAW: [string, number, number, number, number][] = [
 // so no single base name ever appears more than 3 times in the full 120-user pool.
 // Deliberately unusual — no common Western first-names (alex, jake, noah etc.).
 // Mix of global, mythological, nature, and invented handles.
+// Reddit-style adjective_noun handles — feel like real people picked the
+// username themselves rather than synthetic firstname+suffix.
 const PROC_FIRST = [
-  "liam",   "noah",   "emma",   "mia",    "ethan",
-  "lia",    "luiz",   "paulo",  "rafa",   "lara",
-  "hiro",   "kai",    "rin",    "mika",   "akira",
-  "kavya",  "rohan",  "tanvi",  "nikhil", "anil",
-  "eva",    "jonas",  "olga",   "linus",  "petra",
-  "zaid",   "sana",   "karim",  "lina",   "omar",
+  "significant", "electric",  "midnight",   "careless",   "doomsday",
+  "frozen",      "silent",    "velvet",     "crystal",    "neon",
+  "coastal",     "glass",     "rust",       "amber",      "echo",
+  "quiet",       "rapid",     "pixel",      "lunar",      "cosmic",
+  "woven",       "paper",     "tangerine",  "ember",      "ivory",
+  "twilight",    "marble",    "copper",     "sage",       "hollow",
 ];
-// Only patterns that look like normal username choices — initials and
-// birth-year-style numbers. No "_0x" / "_fx" / "pro" / "io" — those read
-// as trading-bot handles, not real people.
 const PROC_SUFFIX = [
-  "_a", "_b", "_c", "_d", "_e",
-  "_l", "_m", "_p", "_r", "_s",
-  ".b", ".c", ".d", ".g", ".h",
-  ".m", ".n", ".p", ".s", ".t",
-  "84", "91", "94", "97", "02",
+  "_peach",     "_otter",     "_voyage",    "_whisper",   "_wallaby",
+  "_pancake",   "_storm",     "_thunder",   "_horizon",   "_spider",
+  "_drift",     "_helmet",    "_kingdom",   "_circuit",   "_pyramid",
+  "_owl",       "_arrow",     "_harbor",    "_falcon",    "_parade",
+  "_kettle",    "_garden",    "_glacier",   "_signal",    "_raven",
 ];
 
 const PROC_COUNT = 90;

@@ -60,25 +60,22 @@ _GHOST_NAMED: list[tuple[str, float, float, float, int]] = [
 # Procedural name components.
 # Base-name pool: disjoint from all named-pool first-word bases so there are
 # never more than 3 occurrences of any single base name in the whole 300-entry pool.
+# Reddit-style adjective_noun handles — feel like real people picked the
+# username themselves rather than synthetic firstname+suffix.
 _PROC_FIRST = [
-    # Realistic short first names from diverse cultures. Disjoint from
-    # _GHOST_NAMED first words. Avoids invented/mythological handles so
-    # the leaderboard looks like real people, not trading bots.
-    "liam",   "noah",   "emma",   "mia",    "ethan",
-    "lia",    "luiz",   "paulo",  "rafa",   "lara",
-    "hiro",   "kai",    "rin",    "mika",   "akira",
-    "kavya",  "rohan",  "tanvi",  "nikhil", "anil",
-    "eva",    "jonas",  "olga",   "linus",  "petra",
-    "zaid",   "sana",   "karim",  "lina",   "omar",
+    "significant", "electric",  "midnight",   "careless",   "doomsday",
+    "frozen",      "silent",    "velvet",     "crystal",    "neon",
+    "coastal",     "glass",     "rust",       "amber",      "echo",
+    "quiet",       "rapid",     "pixel",      "lunar",      "cosmic",
+    "woven",       "paper",     "tangerine",  "ember",      "ivory",
+    "twilight",    "marble",    "copper",     "sage",       "hollow",
 ]
-# Suffix pool: only patterns that look like normal username choices —
-# initials and birth-year-style numbers. No "_0x" / "_fx" / "pro" / "io" etc.
 _PROC_SUFFIX = [
-    "_a",   "_b",   "_c",   "_d",   "_e",
-    "_l",   "_m",   "_p",   "_r",   "_s",
-    ".b",   ".c",   ".d",   ".g",   ".h",
-    ".m",   ".n",   ".p",   ".s",   ".t",
-    "84",   "91",   "94",   "97",   "02",
+    "_peach",     "_otter",     "_voyage",    "_whisper",   "_wallaby",
+    "_pancake",   "_storm",     "_thunder",   "_horizon",   "_spider",
+    "_drift",     "_helmet",    "_kingdom",   "_circuit",   "_pyramid",
+    "_owl",       "_arrow",     "_harbor",    "_falcon",    "_parade",
+    "_kettle",    "_garden",    "_glacier",   "_signal",    "_raven",
 ]
 
 _GHOST_LEVEL_XP = [120, 200, 350, 500, 750, 900, 1100, 1400]
