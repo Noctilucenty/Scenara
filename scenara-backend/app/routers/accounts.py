@@ -231,7 +231,12 @@ class LiveStatsOut(BaseModel):
 # without flickering wildly on every poll.
 
 DISPLAY_BASE_TRADERS = 1400
-DISPLAY_BASE_VOLUME_USD = 85_000.0
+# Each user starts with $10K simulated. At ~1% capital turnover/day
+# (mid-engagement for a prediction platform) that's ~$100/trader/day.
+# Volume baseline = base traders × this rate, so 1400 → $140K base.
+# Tweaking DISPLAY_BASE_TRADERS auto-scales volume; the two numbers
+# can never drift out of plausibility.
+PER_TRADER_DAILY_VOLUME_USD = 100.0
 
 
 def _displayed_traders(real_users: int) -> int:
@@ -241,9 +246,16 @@ def _displayed_traders(real_users: int) -> int:
 
 
 def _displayed_volume_24h(real_volume: float) -> float:
+    """Synthetic baseline + real volume on top.
+
+    The baseline scales 1:1 with `DISPLAY_BASE_TRADERS × PER_TRADER_DAILY_VOLUME_USD`
+    so the trader count and volume number stay self-consistent. Real volume from
+    real predictions is added on top so growth shows up in real time.
+    """
     from datetime import datetime
     minute = int(datetime.utcnow().timestamp() // 60)
-    return DISPLAY_BASE_VOLUME_USD + float(real_volume) + (minute % 23) * 100
+    base = DISPLAY_BASE_TRADERS * PER_TRADER_DAILY_VOLUME_USD
+    return base + float(real_volume) + (minute % 23) * 100
 
 
 def _is_admin(user: Optional[models.User]) -> bool:
