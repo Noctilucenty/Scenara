@@ -183,6 +183,7 @@ export default function RootLayout() {
           <Stack.Screen name="user-profile"   options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="how-it-works"   options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="signal-lab"     options={{ animation: "slide_from_right" }} />
+          <Stack.Screen name="daily-challenge" options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="terms"          options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="notifications-settings" options={{ animation: "slide_from_right" }} />
           <Stack.Screen name="forgot-password"        options={{ animation: "slide_from_right" }} />

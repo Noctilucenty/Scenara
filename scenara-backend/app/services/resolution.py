@@ -27,8 +27,14 @@ def _update_streak(user: User, won: bool) -> None:
         user.current_streak = (user.current_streak or 0) + 1
         if user.current_streak > (user.best_streak or 0):
             user.best_streak = user.current_streak
-    else:
-        user.current_streak = 0
+        return
+    # Loss: consume a streak freeze if available, otherwise reset to 0.
+    # The freeze is set by /users/me/freeze-streak before the loss resolves,
+    # giving users active control over when to spend it.
+    if getattr(user, "streak_freeze_active", False):
+        user.streak_freeze_active = False
+        return
+    user.current_streak = 0
 
 
 def settle_event(

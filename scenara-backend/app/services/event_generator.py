@@ -36,12 +36,12 @@ COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price"
 COINS = {"bitcoin": "BTC", "ethereum": "ETH", "solana": "SOL", "binancecoin": "BNB"}
 CURRENCY = "usd"
 
-SNAPSHOT_INTERVAL_SECONDS = 5 * 60
+SNAPSHOT_INTERVAL_SECONDS = 15 * 60   # was 5 min — 15 cuts probability_history growth 3x
 _snapshot_count = 0
 
 _eg_price_cache: dict[str, float] = {}
 _eg_price_cache_time: float = 0
-EG_PRICE_CACHE_TTL = 180  # 3 minutes
+EG_PRICE_CACHE_TTL = 180  # 3 minutes (kept for backward compatibility; see app.services.price_cache)
 
 
 # ---------------------------------------------------------------------------

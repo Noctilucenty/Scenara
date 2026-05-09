@@ -211,37 +211,44 @@ async def run_auto_resolver() -> None:
         skipped_count = 0
 
         for event in expired_events:
-            coin = _detect_coin(event.title)
-            if not coin:
-                logger.warning(f"[AutoResolver] Could not detect coin for event #{event.id}: {event.title}")
+            # Each event is its own transaction unit — one bad event must NOT
+            # roll back the work already done for the others in this batch.
+            try:
+                coin = _detect_coin(event.title)
+                if not coin:
+                    logger.warning(f"[AutoResolver] Could not detect coin for event #{event.id}: {event.title}")
+                    skipped_count += 1
+                    continue
+
+                current_price = prices.get(coin)
+                if current_price is None:
+                    logger.warning(f"[AutoResolver] No price available for {coin}, skipping event #{event.id}")
+                    skipped_count += 1
+                    continue
+
+                winning_id, note = _determine_winner(event, current_price)
+                if winning_id is None:
+                    logger.warning(f"[AutoResolver] Could not determine winner for event #{event.id}: {note}")
+                    skipped_count += 1
+                    continue
+
+                result = settle_event(db, event, winning_id, note)
+                if result["ok"]:
+                    logger.info(
+                        f"[AutoResolver] ✓ Resolved event #{event.id} '{event.title[:50]}' | "
+                        f"{coin} @ ${current_price:,.2f} | "
+                        f"Winners: {result['total_winners']} · Losers: {result['total_losers']} · "
+                        f"Payout: ${result['total_payout']:,.2f} | {note}"
+                    )
+                    resolved_count += 1
+                else:
+                    logger.error(f"[AutoResolver] ✗ Failed event #{event.id}: {result.get('error')}")
+                    skipped_count += 1
+            except Exception as e:
+                logger.exception("[AutoResolver] Per-event error on #%s: %s", event.id, e)
+                db.rollback()
                 skipped_count += 1
                 continue
-
-            current_price = prices.get(coin)
-            if current_price is None:
-                logger.warning(f"[AutoResolver] No price available for {coin}, skipping event #{event.id}")
-                skipped_count += 1
-                continue
-
-            winning_id, note = _determine_winner(event, current_price)
-            if winning_id is None:
-                logger.warning(f"[AutoResolver] Could not determine winner for event #{event.id}: {note}")
-                skipped_count += 1
-                continue
-
-            result = settle_event(db, event, winning_id, note)
-
-            if result["ok"]:
-                logger.info(
-                    f"[AutoResolver] ✓ Resolved event #{event.id} '{event.title[:50]}' | "
-                    f"{coin} @ ${current_price:,.2f} | "
-                    f"Winners: {result['total_winners']} · Losers: {result['total_losers']} · "
-                    f"Payout: ${result['total_payout']:,.2f} | {note}"
-                )
-                resolved_count += 1
-            else:
-                logger.error(f"[AutoResolver] ✗ Failed event #{event.id}: {result.get('error')}")
-                skipped_count += 1
 
         if resolved_count > 0 or skipped_count > 0:
             logger.info(f"[AutoResolver] Done — resolved: {resolved_count}, skipped: {skipped_count}")

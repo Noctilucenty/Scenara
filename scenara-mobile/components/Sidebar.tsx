@@ -68,6 +68,8 @@ export function Sidebar({ visible, onClose }: Props) {
     simulation:  language === "pt" ? "Mercado Simulado" : language === "zh" ? "模拟市场" : "Simulated Market",
     howItWorks:  language === "pt" ? "Como Funciona" : language === "zh" ? "使用说明" : "How It Works",
     termsOfUse:  language === "pt" ? "Termos de Uso" : language === "zh" ? "使用条款" : "Terms of Use",
+    daily:       language === "pt" ? "Desafio Diário" : language === "zh" ? "每日挑战" : "Daily Challenge",
+    signalLab:   "Signal Lab",
   };
 
   // Web: use CSS transform for zero-jank animation
@@ -210,6 +212,8 @@ const SidebarContent = memo(function SidebarContent({ isAuthenticated, userId, l
         { icon: "◉", label: label.portfolio,  path: "/(tabs)/portfolio" },
         { icon: "📰", label: label.news,      path: "/(tabs)/news" },
         { icon: "◆", label: label.rankings,   path: "/(tabs)/leaderboard" },
+        { icon: "★", label: label.daily,     path: "/daily-challenge" },
+        { icon: "▲", label: label.signalLab, path: "/signal-lab" },
         { icon: "⚙", label: label.settings,   path: "/(tabs)/settings" },
       ].map(item => (
         <TouchableOpacity key={item.path} onPress={() => nav(item.path)} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingVertical: 12 }}>

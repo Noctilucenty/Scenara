@@ -25,6 +25,7 @@ from app.routers.admin import router as admin_router
 from app.routers.social import router as social_router
 from app.routers.notifications import router as notifications_router
 from app.routers.signal_lab import router as signal_lab_router
+from app.routers.daily_challenge import router as daily_challenge_router
 from app.models.user import User
 
 from app.services.event_generator import run_snapshot, run_event_generator, start_scheduler
@@ -63,6 +64,12 @@ def _migrate_user_columns() -> None:
         if "xp" not in cols:
             conn.execute(sql_text("ALTER TABLE users ADD COLUMN xp INTEGER NOT NULL DEFAULT 0"))
             logger.info("[Migration] Added xp column to users.")
+        if "streak_freeze_active" not in cols:
+            conn.execute(sql_text("ALTER TABLE users ADD COLUMN streak_freeze_active BOOLEAN NOT NULL DEFAULT FALSE"))
+            logger.info("[Migration] Added streak_freeze_active column to users.")
+        if "last_streak_freeze_at" not in cols:
+            conn.execute(sql_text("ALTER TABLE users ADD COLUMN last_streak_freeze_at TIMESTAMP NULL DEFAULT NULL"))
+            logger.info("[Migration] Added last_streak_freeze_at column to users.")
         for pref in ("notify_settled", "notify_followers", "notify_closing", "notify_weekly_recap"):
             if pref not in cols:
                 conn.execute(sql_text(
@@ -221,7 +228,8 @@ def create_app() -> FastAPI:
                     )
                     if not events:
                         break
-                    _fill_zh_translations(events, db)
+                    _fill_zh_translations(events)
+                    db.commit()
                     total += len(events)
                     logger.info("[ZH Backfill] Translated batch of %d (total so far: %d).", len(events), total)
                 logger.info("[ZH Backfill] Done — processed %d events.", total)
@@ -306,6 +314,7 @@ def create_app() -> FastAPI:
     app.include_router(social_router,        prefix="/social",        tags=["social"])
     app.include_router(notifications_router, prefix="/notifications", tags=["notifications"])
     app.include_router(signal_lab_router,    prefix="/signal-lab",    tags=["signal-lab"])
+    app.include_router(daily_challenge_router, prefix="/daily-challenge", tags=["daily-challenge"])
 
     return app
 

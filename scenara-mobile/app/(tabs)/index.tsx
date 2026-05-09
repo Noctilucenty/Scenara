@@ -1468,6 +1468,49 @@ function LiveStatsBar({ eventCount, hasMore, language }: { eventCount: number; h
 }
 
 // â�€â�€ Trending picks horizontal strip â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
+// ── Daily Challenge teaser ───────────────────────────────────────────────────
+// Lightweight banner that fetches /daily-challenge/today and CTAs into the page.
+// Renders nothing if backend has no open event yet — fails closed to avoid an
+// empty banner.
+function DailyChallengeTeaser({ language }: { language: string }) {
+  const router = useRouter();
+  const [data, setData] = useState<{ title: string; title_pt: string | null; title_zh: string | null; participants: number; you_predicted: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/daily-challenge/today", { timeout: 8000 })
+      .then(r => { if (!cancelled) setData(r.data); })
+      .catch(() => { /* silently hide */ });
+    return () => { cancelled = true; };
+  }, []);
+  if (!data) return null;
+  const ispt = language === "pt";
+  const iszh = language === "zh";
+  const title = iszh ? (data.title_zh || data.title) : ispt ? (data.title_pt || data.title) : data.title;
+  const labels = {
+    badge:   ispt ? "DESAFIO DIÁRIO" : iszh ? "每日挑战" : "DAILY CHALLENGE",
+    parts:   (n: number) => ispt ? `${n} previram hoje` : iszh ? `今日已有 ${n} 人预测` : `${n} predicted today`,
+    cta:     data.you_predicted
+      ? (ispt ? "Você palpitou →" : iszh ? "已预测 →" : "You predicted →")
+      : (ispt ? "Fazer palpite →" : iszh ? "做出预测 →" : "Predict now →"),
+  };
+  return (
+    <TouchableOpacity onPress={() => router.push("/daily-challenge" as any)} style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 4 }}>
+      <View style={{ borderRadius: 14, borderWidth: 1, borderColor: "rgba(124,92,252,0.28)", overflow: "hidden" }}>
+        <LinearGradient colors={["rgba(79,142,247,0.08)", "rgba(124,92,252,0.05)", "rgba(240,80,174,0.08)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ padding: 14, gap: 6 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, backgroundColor: "rgba(124,92,252,0.18)" }}>
+              <Text style={{ color: PURPLE, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>{labels.badge}</Text>
+            </View>
+            <Text style={{ color: TEXT_MID, fontSize: 10 }}>{labels.parts(data.participants)}</Text>
+          </View>
+          <Text numberOfLines={2} style={{ color: TEXT, fontSize: 14, fontFamily: "DMSans_700Bold" }}>{title}</Text>
+          <Text style={{ color: data.you_predicted ? GREEN : C.PINK, fontSize: 11, fontFamily: "DMSans_700Bold" }}>{labels.cta}</Text>
+        </LinearGradient>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function TrendingPicks({ events, language, onBetPress, onCardPress }: {
   events: EventItem[]; language: string;
   onBetPress(id: number): void; onCardPress(id: number): void;
@@ -2241,6 +2284,9 @@ export default function MarketsScreen() {
 
         {/* Live stats bar */}
         <LiveStatsBar eventCount={events.length} hasMore={hasMore} language={language} />
+
+        {/* Daily challenge teaser */}
+        <DailyChallengeTeaser language={language} />
 
         {/* Activity ticker */}
         <ActivityTicker items={activity} language={language} />

@@ -36,6 +36,13 @@ class User(Base):
     current_streak: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     best_streak: Mapped[int]    = mapped_column(Integer, default=0, nullable=False)
 
+    # ── Streak protection ──────────────────────────────────────────────────
+    # When `streak_freeze_active` is True, the next losing settlement consumes
+    # the freeze instead of resetting current_streak. last_streak_freeze_at
+    # gates how often a user can re-activate (one freeze per 7 days).
+    streak_freeze_active:    Mapped[bool]            = mapped_column(Boolean, default=False, nullable=False, server_default="0")
+    last_streak_freeze_at:   Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+
     # Total XP earned across the platform. Awarded on every prediction placed
     # (amount // 5). Never decreases. Drives the level badge (sqrt curve).
     xp: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
