@@ -90,21 +90,22 @@ const NAMED_RAW: [string, number, number, number, number][] = [
 // Deliberately unusual — no common Western first-names (alex, jake, noah etc.).
 // Mix of global, mythological, nature, and invented handles.
 const PROC_FIRST = [
-  "zeph",  "orin",  "nyx",   "caius", "sora",
-  "wren",  "asha",  "cael",  "remi",  "yael",
-  "pax",   "suki",  "brix",  "zola",  "thea",
-  "kylo",  "lev",   "nova",  "oryn",  "kit",
-  "vex",   "indra", "jove",  "tov",   "rook",
-  "zel",   "dex",   "skye",  "kes",   "quill",
+  "liam",   "noah",   "emma",   "mia",    "ethan",
+  "lia",    "luiz",   "paulo",  "rafa",   "lara",
+  "hiro",   "kai",    "rin",    "mika",   "akira",
+  "kavya",  "rohan",  "tanvi",  "nikhil", "anil",
+  "eva",    "jonas",  "olga",   "linus",  "petra",
+  "zaid",   "sana",   "karim",  "lina",   "omar",
 ];
-// Varied suffix vocabulary: single-char initials, numbers, tech tags, dot-initials.
-// Consecutive leaderboard rows look nothing alike.
+// Only patterns that look like normal username choices — initials and
+// birth-year-style numbers. No "_0x" / "_fx" / "pro" / "io" — those read
+// as trading-bot handles, not real people.
 const PROC_SUFFIX = [
-  "_k",  "_r",  "_v",  "_h",  "_d",
-  ".t",  ".j",  ".c",  ".n",  ".a",
-  "99",  "88",  "42",  "21",  "007",
-  "_77", "_0x", "_fx", "_nz", "_hq",
-  "pro", "x",   "bz",  "io",  "7k",
+  "_a", "_b", "_c", "_d", "_e",
+  "_l", "_m", "_p", "_r", "_s",
+  ".b", ".c", ".d", ".g", ".h",
+  ".m", ".n", ".p", ".s", ".t",
+  "84", "91", "94", "97", "02",
 ];
 
 const PROC_COUNT = 90;

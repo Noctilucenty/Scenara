@@ -61,23 +61,24 @@ _GHOST_NAMED: list[tuple[str, float, float, float, int]] = [
 # Base-name pool: disjoint from all named-pool first-word bases so there are
 # never more than 3 occurrences of any single base name in the whole 300-entry pool.
 _PROC_FIRST = [
-    # Deliberately unusual — no common Western first-names (alex, jake, noah…).
-    # Mix of global, mythological, nature, and invented handles.
-    "zeph",  "orin",  "nyx",   "caius", "sora",
-    "wren",  "asha",  "cael",  "remi",  "yael",
-    "pax",   "suki",  "brix",  "zola",  "thea",
-    "kylo",  "lev",   "nova",  "oryn",  "kit",
-    "vex",   "indra", "jove",  "tov",   "rook",
-    "zel",   "dex",   "skye",  "kes",   "quill",
+    # Realistic short first names from diverse cultures. Disjoint from
+    # _GHOST_NAMED first words. Avoids invented/mythological handles so
+    # the leaderboard looks like real people, not trading bots.
+    "liam",   "noah",   "emma",   "mia",    "ethan",
+    "lia",    "luiz",   "paulo",  "rafa",   "lara",
+    "hiro",   "kai",    "rin",    "mika",   "akira",
+    "kavya",  "rohan",  "tanvi",  "nikhil", "anil",
+    "eva",    "jonas",  "olga",   "linus",  "petra",
+    "zaid",   "sana",   "karim",  "lina",   "omar",
 ]
-# Suffix pool: deliberately varied — single-char initials, numbers, tech tags,
-# dot-initials — so consecutive entries look nothing alike.
+# Suffix pool: only patterns that look like normal username choices —
+# initials and birth-year-style numbers. No "_0x" / "_fx" / "pro" / "io" etc.
 _PROC_SUFFIX = [
-    "_k",   "_r",   "_v",   "_h",   "_d",
-    ".t",   ".j",   ".c",   ".n",   ".a",
-    "99",   "88",   "42",   "21",   "007",
-    "_77",  "_0x",  "_fx",  "_nz",  "_hq",
-    "pro",  "x",    "bz",   "io",   "7k",
+    "_a",   "_b",   "_c",   "_d",   "_e",
+    "_l",   "_m",   "_p",   "_r",   "_s",
+    ".b",   ".c",   ".d",   ".g",   ".h",
+    ".m",   ".n",   ".p",   ".s",   ".t",
+    "84",   "91",   "94",   "97",   "02",
 ]
 
 _GHOST_LEVEL_XP = [120, 200, 350, 500, 750, 900, 1100, 1400]
@@ -211,6 +212,45 @@ class LeaderboardOut(BaseModel):
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
+
+class LiveStatsOut(BaseModel):
+    """Public counters powering the home-screen LIVE banner."""
+    traders: int          # total active users
+    volume_24h: float     # USD-equivalent simulated volume in last 24h
+    open_markets: int     # events with status="open"
+
+
+@router.get("/live-stats", response_model=LiveStatsOut)
+def get_live_stats(db: Session = Depends(get_db)):
+    """
+    Lightweight public counters for the LIVE banner. No auth required.
+    Real numbers from the DB — no synthetic padding here.
+    """
+    from datetime import datetime, timedelta
+    from sqlalchemy import func
+
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    traders = (
+        db.query(func.count(models.User.id))
+        .filter(models.User.is_active.is_(True))
+        .scalar() or 0
+    )
+    volume_24h = (
+        db.query(func.coalesce(func.sum(models.Prediction.simulated_amount), 0.0))
+        .filter(models.Prediction.created_at >= cutoff)
+        .scalar() or 0.0
+    )
+    open_markets = (
+        db.query(func.count(models.Event.id))
+        .filter(models.Event.status == "open")
+        .scalar() or 0
+    )
+    return LiveStatsOut(
+        traders=int(traders),
+        volume_24h=float(volume_24h),
+        open_markets=int(open_markets),
+    )
+
 
 @router.get("/user/{user_id}", response_model=AccountOut)
 def get_user_simulation_account(

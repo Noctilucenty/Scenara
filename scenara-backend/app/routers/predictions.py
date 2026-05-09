@@ -795,9 +795,9 @@ _SYNTHETIC_NAMES = [
     # North America (less generic — no top-10 baby names)
     "Haley P.", "Tyler B.", "Zack M.", "Luke V.", "Sofia W.",
     "Rowan T.", "Sloane K.", "Beckett H.", "Waverly D.", "Caden F.",
-    # Crypto / prediction-market native handles
-    "0xvoid", "prism_9", "zeph.io", "nyx_trade", "caius88",
-    "rook_fx", "vex_pro", "sora_k", "oryn.7", "quill_0x",
+    # Additional realistic handles — replaces the prior crypto-bot block
+    "Liam P.", "Noah K.", "Mia C.", "Emma R.", "Ethan B.",
+    "Lara T.", "Hiro N.", "Kai L.", "Rin S.", "Akira O.",
 ]
 # Amounts: wider range, most bets small (retail-heavy), occasional whale
 _SYNTHETIC_AMOUNTS = ["$5", "$10", "$15", "$20", "$25", "$40", "$60", "$100", "$150", "$250"]

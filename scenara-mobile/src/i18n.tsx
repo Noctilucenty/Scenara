@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { APP_VERSION } from "./version";
 
 export type Language = "en" | "pt" | "zh";
 
@@ -142,7 +143,7 @@ const en = {
     logoutConfirm: "Are you sure you want to sign out?",
     logoutCancel: "Cancel",
     appVersion: "APP VERSION",
-    version: "Scenara v0.9.4",
+    version: `Scenara v${APP_VERSION}`,
     notifications: "NOTIFICATIONS",
     notificationsRow: "Notification Preferences",
     notifSettled: "Bet settled",
@@ -349,7 +350,7 @@ const pt: typeof en = {
     logoutConfirm: "Tem certeza de que deseja sair?",
     logoutCancel: "Cancelar",
     appVersion: "VERSÃO DO APP",
-    version: "Scenara v0.9.4",
+    version: `Scenara v${APP_VERSION}`,
     notifications: "NOTIFICAÇÕES",
     notificationsRow: "Preferências de Notificação",
     notifSettled: "Aposta resolvida",
@@ -554,7 +555,7 @@ const zh: typeof en = {
     logoutConfirm: "确定要退出登录吗？",
     logoutCancel: "取消",
     appVersion: "应用版本",
-    version: "Scenara v0.9.4",
+    version: `Scenara v${APP_VERSION}`,
     notifications: "通知",
     notificationsRow: "通知偏好",
     notifSettled: "投注结算",

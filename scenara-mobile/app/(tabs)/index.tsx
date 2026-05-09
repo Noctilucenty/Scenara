@@ -1402,18 +1402,42 @@ function LiveStatsBar({ eventCount, hasMore, language }: { eventCount: number; h
     return () => anim.stop();
   }, []);
 
-  // Deterministic but "live-looking" fake stats based on time + event count.
-  // Traders drifts between ~820 and ~1540, volume between $90K and $310K.
-  // The slow sine wave makes it feel alive rather than random-flicker.
-  const base = Math.floor(Date.now() / 60000);
-  const tide = Math.sin(base / 37) * 0.5 + 0.5;  // 0..1, slowly oscillating
-  const traders = 820 + Math.floor(tide * 720) + (base % 23);
-  const volume  = 90  + Math.floor(tide * 220) + (base % 11);
+  // Real counters from /accounts/live-stats. We fetch once on mount and
+  // re-poll every 90s so the numbers feel alive without thrashing the API.
+  const [live, setLive] = useState<{ traders: number; volume24h: number; openMarkets: number } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      api.get("/accounts/live-stats", { timeout: 8000 })
+        .then(r => {
+          if (cancelled) return;
+          setLive({
+            traders:     r.data?.traders     ?? 0,
+            volume24h:   r.data?.volume_24h  ?? 0,
+            openMarkets: r.data?.open_markets ?? 0,
+          });
+        })
+        .catch(() => { /* keep last good value */ });
+    };
+    load();
+    const id = setInterval(load, 90_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  const traders     = live?.traders     ?? 0;
+  const volume24h   = live?.volume24h   ?? 0;
+  const openMarkets = live?.openMarkets ?? eventCount;
+  // Compact volume formatter: $1,234 → "$1.2K", $250,000 → "$250K", $1,200,000 → "$1.2M"
+  const volumeLabel = volume24h >= 1_000_000
+    ? `$${(volume24h / 1_000_000).toFixed(1)}M`
+    : volume24h >= 1_000
+      ? `$${Math.round(volume24h / 1_000)}K`
+      : `$${Math.round(volume24h)}`;
 
   const stats = [
     { value: String(traders), label: language === "pt" ? "traders" : language === "zh" ? "交易者" : "traders", color: BLUE },
-    { value: `$${volume}K`,   label: language === "pt" ? "volume hoje" : language === "zh" ? "今日成交量" : "vol. today",  color: GREEN },
-    { value: hasMore ? `${eventCount}+` : String(eventCount), label: language === "pt" ? "mercados" : language === "zh" ? "市场" : "markets",  color: PURPLE },
+    { value: volumeLabel,     label: language === "pt" ? "volume hoje" : language === "zh" ? "今日成交量" : "vol. today",  color: GREEN },
+    { value: hasMore ? `${openMarkets}+` : String(openMarkets), label: language === "pt" ? "mercados" : language === "zh" ? "市场" : "markets",  color: PURPLE },
   ];
 
   return (
