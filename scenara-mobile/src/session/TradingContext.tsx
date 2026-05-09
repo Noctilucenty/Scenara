@@ -157,30 +157,34 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         setAxiosToken(token);
 
-        // Use a tighter timeout for the hydration path — the root layout
-        // already fires a health ping to wake Render.com, so 20 s is enough.
-        // If the server is still cold the request will fail with isTimeout=true
-        // and we'll keep the token rather than logging the user out.
-        const res = await api.get("/auth/me", { timeout: 20_000 });
-
-        // Fetch balance separately; if this fails (e.g. temporary network
-        // hiccup) we still log the user in — balance syncs on next portfolio
-        // refresh rather than blocking auth entirely.
+        // Combined identity + balance in ONE round trip — saves a serial
+        // /auth/me → /accounts/user/{id} chain that doubled cold-start
+        // hydration time. Falls back to the old two-call path if the new
+        // endpoint isn't available (e.g. backend just deployed without it).
+        let user: any = null;
         let balance = 0;
         try {
-          const accountRes = await api.get(
-            `/accounts/user/${res.data.id}`,
-            { timeout: 20_000 },
-          );
-          balance = accountRes.data.balance;
-        } catch {
-          // Balance fetch failed — non-fatal; portfolio refresh will recover it.
+          const combined = await api.get("/auth/me-with-account", { timeout: 20_000 });
+          user = combined.data;
+          balance = combined.data.balance ?? 0;
+        } catch (e: any) {
+          if (e?.status === 401 || e?.status === 403) throw e;
+          // Fallback: old serial path. Tolerated, just slower.
+          const res = await api.get("/auth/me", { timeout: 20_000 });
+          user = res.data;
+          try {
+            const accountRes = await api.get(
+              `/accounts/user/${res.data.id}`,
+              { timeout: 20_000 },
+            );
+            balance = accountRes.data.balance;
+          } catch { /* balance non-fatal */ }
         }
 
         setAuthUser({
-          id: res.data.id,
-          email: res.data.email,
-          display_name: res.data.display_name,
+          id: user.id,
+          email: user.email,
+          display_name: user.display_name,
           balance,
         });
       } catch (e: any) {

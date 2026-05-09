@@ -286,6 +286,38 @@ def get_me(current_user: User = Depends(get_current_user)):
     )
 
 
+class MeWithAccountResponse(BaseModel):
+    """Combined identity + balance in one round-trip — saves the hydrate
+    flow from doing /auth/me + /accounts/user/{id} sequentially on every
+    cold-start app open."""
+    id: int
+    email: str
+    display_name: str
+    balance: float
+
+
+@router.get("/me-with-account", response_model=MeWithAccountResponse)
+def get_me_with_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    account = (
+        db.query(Account)
+        .filter(
+            Account.user_id == current_user.id,
+            Account.account_type == "simulation",
+            Account.is_active.is_(True),
+        )
+        .first()
+    )
+    return MeWithAccountResponse(
+        id=current_user.id,
+        email=current_user.email,
+        display_name=current_user.display_name,
+        balance=float(account.balance) if account else 0.0,
+    )
+
+
 @router.post("/logout")
 def logout():
     """Client should delete the token. Nothing to do server-side for JWT."""

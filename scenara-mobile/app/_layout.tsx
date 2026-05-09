@@ -139,14 +139,11 @@ function AuthGuard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasChosenLanguage, isAuthenticated, isLanguageHydrated, isLoadingAuth, segmentKey]);
 
-  if (isLoadingAuth || !isLanguageHydrated) {
-    return (
-      <View style={{ flex: 1, backgroundColor: BG, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={PURPLE} size="large" />
-      </View>
-    );
-  }
-
+  // AuthGuard is now effect-only — no blocking UI. The home tab renders
+  // immediately with the live-stats baseline + cached events, and any
+  // auth-dependent widgets manage their own loading state. This trades a
+  // brief "looks logged out for a beat" flash for a near-instant first
+  // paint on cold-start, which is far higher-leverage on free-tier hosting.
   return null;
 }
 
