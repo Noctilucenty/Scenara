@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 
@@ -33,6 +33,16 @@ class Event(Base):
     ai_last_note:        Mapped[str | None]      = mapped_column(Text, nullable=True)
     ai_source_url:       Mapped[str | None]      = mapped_column(String(500), nullable=True)
     ai_needs_review:     Mapped[bool]            = mapped_column(Boolean, default=False, nullable=False)
+
+    # External market origin — Polymarket today, room for Kalshi/Manifold later.
+    # When external_source is set, the snapshot loop refreshes probabilities
+    # from the source's public API instead of running a random-walk model.
+    external_source:    Mapped[str | None]      = mapped_column(String(40), nullable=True, index=True)
+    external_id:        Mapped[str | None]      = mapped_column(String(120), nullable=True, index=True)
+    external_url:       Mapped[str | None]      = mapped_column(String(500), nullable=True)
+    external_volume:    Mapped[float | None]    = mapped_column(Float, nullable=True)
+    external_liquidity: Mapped[float | None]    = mapped_column(Float, nullable=True)
+    external_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     scenarios           = relationship("Scenario", back_populates="event", cascade="all, delete-orphan")
     probability_history = relationship("ScenarioProbabilityHistory", back_populates="event", cascade="all, delete-orphan")

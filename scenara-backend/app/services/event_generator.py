@@ -2131,6 +2131,13 @@ def _snapshot_open_events(db: Session) -> int:
         _snapshot_open_events._trends = {}
 
     for event in open_events:
+        # External markets (Polymarket etc.) get their probabilities refreshed
+        # from the source's public API by the dedicated sync loop. Don't
+        # random-walk them here — that would overwrite real crowd consensus
+        # with synthetic noise.
+        if event.external_source:
+            continue
+
         scenarios = db.query(Scenario).filter(
             Scenario.event_id == event.id,
             Scenario.status == "active",

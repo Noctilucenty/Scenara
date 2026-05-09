@@ -53,6 +53,10 @@ type EventItem = {
   description: string | null; description_pt: string | null; description_zh: string | null;
   category: string; status: string; is_featured: boolean;
   closes_at: string | null; scenarios: Scenario[];
+  external_source?: string | null;
+  external_url?: string | null;
+  external_volume?: number | null;
+  external_liquidity?: number | null;
 };
 type SentimentItem = { scenario_id: number; player_count: number; percentage: number };
 
@@ -205,6 +209,24 @@ function HotBadge({ total, language }: { total: number; language: string }) {
 }
 
 // â�€â�€ Urgency badge â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
+// ── Real-market badge ─────────────────────────────────────────────────────
+// Signals that this event is mirrored from a real-world prediction market
+// (Polymarket today). Visually distinct so users understand the probability
+// reflects real crowd consensus, not Scenara's internal random-walk model.
+function RealMarketBadge() {
+  return (
+    <View style={{
+      paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5,
+      borderWidth: 1, borderColor: "rgba(34,197,94,0.4)",
+      backgroundColor: "rgba(34,197,94,0.10)",
+    }}>
+      <Text style={{ color: GREEN, fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.6 }}>
+        REAL
+      </Text>
+    </View>
+  );
+}
+
 function UrgencyBadge({ closesAt, language }: { closesAt: string | null; language: string }) {
   if (!closesAt) return null;
   const diff = new Date(closesAt).getTime() - Date.now();
@@ -332,6 +354,7 @@ const MarketCard = React.memo(function MarketCard({ event, onPress, onBetPress, 
             </View>
             <UrgencyBadge closesAt={event.closes_at} language={language} />
             {sentiment && <HotBadge total={sentiment.total} language={language} />}
+            {event.external_source === "polymarket" && <RealMarketBadge />}
           </View>
           <ArcGauge probability={prob} size={isWide ? 54 : 46} />
         </View>

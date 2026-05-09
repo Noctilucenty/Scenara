@@ -102,6 +102,34 @@ def _migrate_zh_columns() -> None:
             logger.info("[Migration] Added title_zh to scenarios.")
 
 
+def _migrate_event_external_columns() -> None:
+    """Idempotent: add external-market origin columns to events table."""
+    from sqlalchemy import text as sql_text, inspect
+    insp = inspect(engine)
+    cols = [c["name"] for c in insp.get_columns("events")]
+    with engine.begin() as conn:
+        if "external_source" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN external_source VARCHAR(40) NULL"))
+            conn.execute(sql_text("CREATE INDEX IF NOT EXISTS ix_events_external_source ON events (external_source)"))
+            logger.info("[Migration] Added external_source to events.")
+        if "external_id" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN external_id VARCHAR(120) NULL"))
+            conn.execute(sql_text("CREATE INDEX IF NOT EXISTS ix_events_external_id ON events (external_id)"))
+            logger.info("[Migration] Added external_id to events.")
+        if "external_url" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN external_url VARCHAR(500) NULL"))
+            logger.info("[Migration] Added external_url to events.")
+        if "external_volume" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN external_volume DOUBLE PRECISION NULL"))
+            logger.info("[Migration] Added external_volume to events.")
+        if "external_liquidity" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN external_liquidity DOUBLE PRECISION NULL"))
+            logger.info("[Migration] Added external_liquidity to events.")
+        if "external_synced_at" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN external_synced_at TIMESTAMP NULL"))
+            logger.info("[Migration] Added external_synced_at to events.")
+
+
 def _migrate_event_ai_columns() -> None:
     """Idempotent: add AI auto-resolver state columns to events table."""
     from sqlalchemy import text as sql_text, inspect
@@ -251,6 +279,7 @@ def create_app() -> FastAPI:
         _migrate_zh_columns()
         _migrate_brazil_category()
         _migrate_event_ai_columns()
+        _migrate_event_external_columns()
         _backfill_xp()
         # Indexes run after column migrations so every index target exists.
         from app.migrations.indexes import ensure_indexes
@@ -258,6 +287,10 @@ def create_app() -> FastAPI:
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
         asyncio.create_task(_backfill_zh_translations())
+        # Polymarket ingestion: hourly. Pulls real-world crowd consensus into
+        # Scenara as external markets. Pure read-only — never trades.
+        from app.services.polymarket_sync import start_polymarket_sync_loop
+        asyncio.create_task(start_polymarket_sync_loop(interval_seconds=60 * 60))
         logger.info("[Startup] Scenara backend v0.6.0 ready.")
 
     @app.get("/", tags=["health"])

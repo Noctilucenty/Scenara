@@ -74,6 +74,13 @@ class EventOut(BaseModel):
     closes_at: datetime | None
     resolved_at: datetime | None
     scenarios: list[ScenarioOut]
+    # External-market origin — present when the market is mirrored from a
+    # public source like Polymarket. Frontend uses this to show a "REAL"
+    # badge so users know the probabilities reflect real crowd consensus.
+    external_source:    str | None  = None
+    external_url:       str | None  = None
+    external_volume:    float | None = None
+    external_liquidity: float | None = None
 
 
 class ScenarioUpdateProbability(BaseModel):

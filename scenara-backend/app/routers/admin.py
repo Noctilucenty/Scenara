@@ -168,6 +168,21 @@ def list_ai_review_queue(
     )
 
 
+@router.post("/polymarket/sync")
+async def trigger_polymarket_sync(
+    _admin: User = Depends(get_admin_user),
+):
+    """
+    Manually run one Polymarket ingestion pass. Returns the sync report
+    (how many markets refreshed, inserted, skipped, and why).
+    Useful right after deploys or when a notable market needs to land
+    immediately rather than waiting for the hourly tick.
+    """
+    from app.services.polymarket_sync import sync_markets_once
+    report = await sync_markets_once()
+    return report
+
+
 @router.post("/events/{event_id}/clear-review")
 def clear_ai_review(
     event_id: int,
