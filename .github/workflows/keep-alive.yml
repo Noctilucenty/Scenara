@@ -1,18 +1,32 @@
 name: Keep Render Alive
 
+# GitHub Actions schedules can drift 5–15 min during high-load periods.
+# Render free tier sleeps after ~15 min of inactivity, so we need pings
+# that reliably land *under* that window even with worst-case jitter:
+#  - Every 7 minutes (≈ 8.5 pings/hour vs 6 with */10)
+#  - Offset from hour boundaries (`3-59/7`) — those align with GitHub's
+#    high-load periods and get the longest delays
 on:
   schedule:
-    - cron: '*/10 * * * *'  # every 10 minutes — Render spins down after ~15 min
-  workflow_dispatch:         # allow manual trigger from GitHub Actions UI
+    - cron: '3-59/7 * * * *'
+  workflow_dispatch:           # manual trigger from the Actions UI
+
+# Don't pile up runs if a previous one is still going.
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
 
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
-      - name: Ping backend health
+      - name: Wake backend (allows up to 90s for cold start)
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://scenara-backend.onrender.com/health)
-          echo "Health check status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "Warning: backend returned $STATUS"
-          fi
+          for path in "/health" "/events/?status=open&limit=1"; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 \
+              "https://scenara-backend.onrender.com${path}" || echo "000")
+            echo "${path} → ${STATUS}"
+          done
+          # Don't fail the workflow on transient errors — next ping handles it.
+          exit 0
