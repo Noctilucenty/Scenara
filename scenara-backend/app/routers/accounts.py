@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app import models
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, get_current_user_optional
 
 router = APIRouter()
 
@@ -220,22 +220,59 @@ class LiveStatsOut(BaseModel):
     open_markets: int     # events with status="open"
 
 
+# ── Display padding ──────────────────────────────────────────────────────────
+# Public counters (LIVE banner traders count, leaderboard total_users) are
+# padded so the platform doesn't look empty to non-admin users. Admins see
+# real numbers — they need them for product decisions, growth tracking and
+# the funnel/retention dashboards.
+#
+# Padding strategy: BASE + real + small time-based jitter. Numbers grow as
+# real growth happens, and the per-minute drift makes the banner feel alive
+# without flickering wildly on every poll.
+
+DISPLAY_BASE_TRADERS = 1400
+DISPLAY_BASE_VOLUME_USD = 85_000.0
+
+
+def _displayed_traders(real_users: int) -> int:
+    from datetime import datetime
+    minute = int(datetime.utcnow().timestamp() // 60)
+    return DISPLAY_BASE_TRADERS + int(real_users) + (minute % 47)
+
+
+def _displayed_volume_24h(real_volume: float) -> float:
+    from datetime import datetime
+    minute = int(datetime.utcnow().timestamp() // 60)
+    return DISPLAY_BASE_VOLUME_USD + float(real_volume) + (minute % 23) * 100
+
+
+def _is_admin(user: Optional[models.User]) -> bool:
+    return bool(user and getattr(user, "is_admin", False))
+
+
 @router.get("/live-stats", response_model=LiveStatsOut)
-def get_live_stats(db: Session = Depends(get_db)):
+def get_live_stats(
+    db: Session = Depends(get_db),
+    current_user: Optional[models.User] = Depends(get_current_user_optional),
+):
     """
-    Lightweight public counters for the LIVE banner. No auth required.
-    Real numbers from the DB — no synthetic padding here.
+    Lightweight counters for the LIVE banner.
+
+    - Admins receive real numbers (needed for funnel/retention work).
+    - All other callers (anonymous + regular users) receive padded numbers
+      so the platform reads as populated. Open-market count is never padded
+      because users can scroll and count markets directly.
     """
     from datetime import datetime, timedelta
     from sqlalchemy import func
 
     cutoff = datetime.utcnow() - timedelta(hours=24)
-    traders = (
+    real_traders = (
         db.query(func.count(models.User.id))
         .filter(models.User.is_active.is_(True))
         .scalar() or 0
     )
-    volume_24h = (
+    real_volume = (
         db.query(func.coalesce(func.sum(models.Prediction.simulated_amount), 0.0))
         .filter(models.Prediction.created_at >= cutoff)
         .scalar() or 0.0
@@ -245,9 +282,16 @@ def get_live_stats(db: Session = Depends(get_db)):
         .filter(models.Event.status == "open")
         .scalar() or 0
     )
+
+    if _is_admin(current_user):
+        return LiveStatsOut(
+            traders=int(real_traders),
+            volume_24h=float(real_volume),
+            open_markets=int(open_markets),
+        )
     return LiveStatsOut(
-        traders=int(traders),
-        volume_24h=float(volume_24h),
+        traders=_displayed_traders(real_traders),
+        volume_24h=_displayed_volume_24h(real_volume),
         open_markets=int(open_markets),
     )
 
@@ -290,6 +334,7 @@ def get_leaderboard(
     sort_by: str = Query(default="pnl", enum=["pnl", "balance", "win_rate"]),
     limit: int = Query(default=20, ge=1, le=300),
     viewer_id: Optional[int] = Query(default=None, description="If provided, returns is_following per row"),
+    current_user: Optional[models.User] = Depends(get_current_user_optional),
 ):
     from sqlalchemy import func, case
     from app.models import UserFollow
@@ -433,4 +478,16 @@ def get_leaderboard(
             e.follower_count = fc_map.get(e.user_id, 0)
             e.is_following = e.user_id in following_set
 
-    return LeaderboardOut(entries=entries, total_users=total_users)
+    # Match the LIVE banner: admins see real platform size; everyone else
+    # sees the padded number so the rankings page reads as populated.
+    real_user_count = (
+        db.query(func.count(models.User.id))
+        .filter(models.User.is_active.is_(True))
+        .scalar() or 0
+    )
+    if _is_admin(current_user):
+        displayed_total = int(real_user_count)
+    else:
+        displayed_total = _displayed_traders(real_user_count)
+
+    return LeaderboardOut(entries=entries, total_users=displayed_total)
