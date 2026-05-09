@@ -230,33 +230,59 @@ class LiveStatsOut(BaseModel):
 # real growth happens, and the per-minute drift makes the banner feel alive
 # without flickering wildly on every poll.
 
-DISPLAY_BASE_TRADERS = 1400
+DISPLAY_MIN_TRADERS = 400
+DISPLAY_MAX_TRADERS = 1800
 # Each user starts with $10K simulated. At ~1% capital turnover/day
 # (mid-engagement for a prediction platform) that's ~$100/trader/day.
-# Volume baseline = base traders × this rate, so 1400 → $140K base.
+# Volume rides the same time-of-day curve as traders, so the two numbers
+# can never drift out of plausibility.
 PER_TRADER_DAILY_VOLUME_USD = 100.0
-# Open-market floor for non-admin display. The Polymarket sync brings the
-# real count well past this, but we floor it so the banner never reads as
-# half-empty during a sync hiccup or fresh deploy.
+# Open-market floor for non-admin display. Polymarket sync brings the real
+# count well past this, but we floor it so the banner never reads empty.
 DISPLAY_BASE_OPEN_MARKETS = 500
 
 
-def _displayed_traders(real_users: int) -> int:
+def _time_of_day_factor() -> float:
+    """0..1 daily activity curve.
+    Peaks at 18:00 UTC (covers EU evening + US daytime — the heaviest global
+    prediction-market hours) and troughs at 06:00 UTC (global sleep window).
+    Smooth cosine, second-resolution, so the banner drifts continuously
+    rather than stepping per hour.
+    """
+    import math
     from datetime import datetime
-    minute = int(datetime.utcnow().timestamp() // 60)
-    return DISPLAY_BASE_TRADERS + int(real_users) + (minute % 47)
+    now = datetime.utcnow()
+    sod = now.hour * 3600 + now.minute * 60 + now.second
+    # cos peaks at phase=0 → set phase=0 at sod=18:00 UTC.
+    phase = 2.0 * math.pi * (sod - 18 * 3600) / 86_400.0
+    return (math.cos(phase) + 1.0) / 2.0
 
 
-def _displayed_volume_24h(real_volume: float) -> float:
-    """Synthetic baseline + real volume on top.
+def _curve_traders() -> float:
+    """Untruncated time-curve trader count (used by the volume formula
+    so volume tracks traders without double-clamping)."""
+    factor = _time_of_day_factor()
+    return DISPLAY_MIN_TRADERS + (DISPLAY_MAX_TRADERS - DISPLAY_MIN_TRADERS) * factor
 
-    The baseline scales 1:1 with `DISPLAY_BASE_TRADERS × PER_TRADER_DAILY_VOLUME_USD`
-    so the trader count and volume number stay self-consistent. Real volume from
-    real predictions is added on top so growth shows up in real time.
+
+def _displayed_traders(real_users: int) -> int:
+    """Time-of-day-driven trader count clamped to [400, 1800].
+    Real platform growth nudges the number up; jitter keeps it lively.
     """
     from datetime import datetime
     minute = int(datetime.utcnow().timestamp() // 60)
-    base = DISPLAY_BASE_TRADERS * PER_TRADER_DAILY_VOLUME_USD
+    jitter = (minute % 47) - 23                    # -23..+23
+    raw = int(_curve_traders() + jitter + int(real_users))
+    return max(DISPLAY_MIN_TRADERS, min(DISPLAY_MAX_TRADERS, raw))
+
+
+def _displayed_volume_24h(real_volume: float) -> float:
+    """Volume rides the same daily curve as traders.
+    Real predictions add on top so live activity actually shows up.
+    """
+    from datetime import datetime
+    minute = int(datetime.utcnow().timestamp() // 60)
+    base = _curve_traders() * PER_TRADER_DAILY_VOLUME_USD
     return base + float(real_volume) + (minute % 23) * 100
 
 

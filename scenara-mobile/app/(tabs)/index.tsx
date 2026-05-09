@@ -1440,9 +1440,10 @@ function LiveStatsBar({ eventCount, hasMore, language }: { eventCount: number; h
         }
       } catch {}
     }
-    // Cold-start defaults — match the backend's baseline so the banner reads
-    // sensibly within the first render. Real values arrive on the first poll.
-    return { traders: 1400, volume24h: 140_000, openMarkets: 500 };
+    // Cold-start defaults — midpoint of the backend's daily curve (400–1800,
+    // 1100 average). Plausible at any time of day, with the actual curve
+    // value arriving on the first poll.
+    return { traders: 1100, volume24h: 110_000, openMarkets: 500 };
   });
 
   useEffect(() => {
