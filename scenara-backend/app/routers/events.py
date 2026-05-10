@@ -57,6 +57,7 @@ class ScenarioOut(BaseModel):
 
 
 class EventOut(BaseModel):
+    """Full event schema — used for the single-event detail endpoint."""
     model_config = ConfigDict(from_attributes=True)
     id: int
     slug: str
@@ -74,9 +75,29 @@ class EventOut(BaseModel):
     closes_at: datetime | None
     resolved_at: datetime | None
     scenarios: list[ScenarioOut]
-    # External-market origin — present when the market is mirrored from a
-    # public source like Polymarket. Frontend uses this to show a "REAL"
-    # badge so users know the probabilities reflect real crowd consensus.
+    external_source:    str | None  = None
+    external_url:       str | None  = None
+    external_volume:    float | None = None
+    external_liquidity: float | None = None
+
+
+class EventListOut(BaseModel):
+    """Slim list schema — omits long description text to cut data transfer ~40 %.
+    The markets feed only needs title + category + scenarios + metadata;
+    the full description is only loaded when a user opens the detail view."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    slug: str
+    title: str
+    title_pt: str | None
+    title_zh: str | None
+    category: str
+    source: str | None
+    status: str
+    is_featured: bool
+    closes_at: datetime | None
+    resolved_at: datetime | None
+    scenarios: list[ScenarioOut]
     external_source:    str | None  = None
     external_url:       str | None  = None
     external_volume:    float | None = None
@@ -368,7 +389,7 @@ _EVENTS_CACHE: dict[tuple, tuple[float, list]] = {}
 _EVENTS_CACHE_TTL_SECONDS = 120
 
 
-@router.get("/", response_model=list[EventOut])
+@router.get("/", response_model=list[EventListOut])
 def list_events(
     db: Session = Depends(get_db),
     status: Optional[str] = Query(default=None),
@@ -440,7 +461,12 @@ def list_events(
             iters = next_iters
         events = interleaved[:limit]
 
-    _fill_zh_translations(events)
+    # Only trigger background ZH translation when the user is actually viewing
+    # in Chinese — for en/pt requests the background thread would fire extra
+    # read+write DB queries on every uncached response for no user benefit,
+    # burning Neon free-tier data transfer quota unnecessarily.
+    if lang == "zh":
+        _fill_zh_translations(events)
     _EVENTS_CACHE[cache_key] = (time.time(), events)
     return events
 

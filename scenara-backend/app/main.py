@@ -270,25 +270,39 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def _startup() -> None:
-        # Ensure the user_follows table's model class is imported before create_all
-        # so it's included in Base.metadata (not just auto-imported by routers).
-        from app.models import user_follow  # noqa: F401
-        Base.metadata.create_all(bind=engine)
-        _migrate_is_admin_column()
-        _migrate_user_columns()
-        _migrate_zh_columns()
-        _migrate_brazil_category()
-        _migrate_event_ai_columns()
-        _migrate_event_external_columns()
-        _backfill_xp()
-        # Indexes run after column migrations so every index target exists.
-        from app.migrations.indexes import ensure_indexes
-        ensure_indexes(engine)
+        # ── DB-dependent startup: wrapped so the process never exits on quota
+        # errors or transient DB failures.  If the DB is unreachable (e.g. Neon
+        # free-tier data-transfer quota exceeded), the server still starts and
+        # serves the /health endpoint.  DB-backed endpoints return 500 until the
+        # quota resets, but Render.com won't loop-crash the container.
+        from app.models import user_follow  # noqa: F401  (must import before create_all)
+        try:
+            Base.metadata.create_all(bind=engine)
+            _migrate_is_admin_column()
+            _migrate_user_columns()
+            _migrate_zh_columns()
+            _migrate_brazil_category()
+            _migrate_event_ai_columns()
+            _migrate_event_external_columns()
+            _backfill_xp()
+            from app.migrations.indexes import ensure_indexes
+            ensure_indexes(engine)
+            logger.info("[Startup] DB migrations and indexes applied.")
+        except Exception as db_err:
+            # Log clearly so the Render dashboard shows the root cause, but do
+            # NOT re-raise — let the server start so /health stays reachable.
+            logger.error(
+                "[Startup] DB unavailable — skipping migrations: %s. "
+                "Check Neon quota / connection string and redeploy.",
+                db_err,
+            )
+
+        # Background tasks start regardless of DB state; each will fail
+        # gracefully when they first try to use the DB and will retry on their
+        # normal schedule.
         asyncio.create_task(start_scheduler())
         asyncio.create_task(start_auto_resolver())
         asyncio.create_task(_backfill_zh_translations())
-        # Polymarket ingestion: hourly. Pulls real-world crowd consensus into
-        # Scenara as external markets. Pure read-only — never trades.
         from app.services.polymarket_sync import start_polymarket_sync_loop
         asyncio.create_task(start_polymarket_sync_loop(interval_seconds=60 * 60))
         logger.info("[Startup] Scenara backend v0.6.0 ready.")
