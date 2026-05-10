@@ -1765,6 +1765,8 @@ export default function MarketsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  // Shown below the skeleton during cold-start retries so users know to wait.
+  const [warmingMsg, setWarmingMsg] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState("all");
   const [betPanelId, setBetPanelId] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -1945,6 +1947,7 @@ export default function MarketsScreen() {
       if (myVersion !== fetchVersionRef.current) return;
       if (!hadCache) setLoading(true);
       setLoadError(false);
+      setWarmingMsg(null);
     }
     try {
       const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0, lang: language };
@@ -1981,31 +1984,46 @@ export default function MarketsScreen() {
 
       fetchSentiment(all);
     } catch {
-      // Only attempt the cold-start retry when: (a) this is still the latest
-      // call, (b) it wasn't a silent refresh, and (c) there's no data to show.
+      // Cold-start retry loop.  Render.com free-tier can take 30–60 s to wake;
+      // one 12 s wait is rarely enough.  We try up to 3 more times at 20 s
+      // intervals (total patience ≈ 60 s) and keep the skeleton visible the
+      // whole time so the user sees a progress message instead of an error.
       if (myVersion !== fetchVersionRef.current) return;
       if (!silent && eventsRef.current.length === 0) {
-        // 12-second pause to let Render.com free-tier finish its cold start.
-        // Using inline await so the finally block waits for the retry.
-        await new Promise<void>(resolve => setTimeout(resolve, 12000));
-        // Re-check version after the long wait — user may have switched tabs
-        if (myVersion !== fetchVersionRef.current) return;
-        try {
-          const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0, lang: language };
-          if (cat !== "all") params.category = cat;
-          const res = await api.get("/events/", { params });
+        const RETRY_DELAYS = [20_000, 20_000, 20_000]; // 3 attempts × 20 s
+        const RETRY_MSGS   = [
+          "Server waking up, please wait…",
+          "Still warming up, almost there…",
+          "One last try…",
+        ];
+        let loaded = false;
+        for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
           if (myVersion !== fetchVersionRef.current) return;
-          const all: EventItem[] = res.data ?? [];
-          if (all.length > 0) {
-            setEvents(all);
-            setLoadError(false);
-            if (!silent) fetchHistory(all);
-            fetchSentiment(all);
-          } else {
-            setLoadError(true);
+          if (myVersion === fetchVersionRef.current) setWarmingMsg(RETRY_MSGS[attempt]);
+          await new Promise<void>(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
+          if (myVersion !== fetchVersionRef.current) return;
+          try {
+            const params: Record<string, any> = { status: "open", limit: PAGE_SIZE, offset: 0, lang: language };
+            if (cat !== "all") params.category = cat;
+            const res = await api.get("/events/", { params });
+            if (myVersion !== fetchVersionRef.current) return;
+            const all: EventItem[] = res.data ?? [];
+            if (all.length > 0) {
+              setEvents(all);
+              setLoadError(false);
+              setWarmingMsg(null);
+              if (!silent) fetchHistory(all);
+              fetchSentiment(all);
+              loaded = true;
+              break; // success — exit retry loop
+            }
+          } catch {
+            // continue to next attempt
           }
-        } catch {
-          if (myVersion === fetchVersionRef.current) setLoadError(true);
+        }
+        if (!loaded && myVersion === fetchVersionRef.current) {
+          setWarmingMsg(null);
+          setLoadError(true);
         }
       }
     }
@@ -2390,6 +2408,14 @@ export default function MarketsScreen() {
           // reflow jank when real markets land.
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
             <MarketsGridSkeleton count={gridCols * 3} columns={gridCols} />
+            {/* Cold-start progress message — only visible during retries */}
+            {warmingMsg && (
+              <View style={{ alignItems: "center", paddingVertical: 16, gap: 6 }}>
+                <Text style={{ color: TEXT_MID, fontSize: 12, fontFamily: "DMSans_400Regular" }}>
+                  {warmingMsg}
+                </Text>
+              </View>
+            )}
           </ScrollView>
         ) : loadError ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>

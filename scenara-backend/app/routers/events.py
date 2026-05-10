@@ -360,12 +360,12 @@ def search_events(
     return events
 
 
-# In-process response cache for /events/. The events list barely changes
-# moment-to-moment (probabilities update but the *list* is stable for
-# minutes at a time), so caching the serialized response shaves seconds
-# off repeat requests on free-tier Render+Neon. Invalidates by TTL only.
+# In-process response cache for /events/.  The event LIST is stable for
+# several minutes (probabilities drift but new events are rare), so a 120 s
+# TTL removes almost all repeat DB hits on free-tier Render+Neon while still
+# surfacing newly created events within 2 minutes.
 _EVENTS_CACHE: dict[tuple, tuple[float, list]] = {}
-_EVENTS_CACHE_TTL_SECONDS = 30
+_EVENTS_CACHE_TTL_SECONDS = 120
 
 
 @router.get("/", response_model=list[EventOut])
@@ -379,12 +379,12 @@ def list_events(
     lang: str = Query(default="en"),
 ):
     import time
+    from collections import defaultdict
+
     cache_key = (status, featured_only, category, limit, offset, lang)
     cached = _EVENTS_CACHE.get(cache_key)
     if cached and (time.time() - cached[0]) < _EVENTS_CACHE_TTL_SECONDS:
         return cached[1]
-
-    from sqlalchemy import func
 
     base_q = db.query(Event).options(joinedload(Event.scenarios))
     if status:
@@ -393,45 +393,53 @@ def list_events(
         base_q = base_q.filter(Event.is_featured.is_(True))
     if category and category != "all":
         base_q = base_q.filter(Event.category == category)
-        events = base_q.order_by(Event.id.desc()).offset(offset).limit(limit).all()
-        _fill_zh_translations(events)
-        _EVENTS_CACHE[cache_key] = (time.time(), events)
-        return events
 
-    # For "all" categories: interleave via round-robin row-number window function.
-    # Step 1: get ordered IDs using window function
-    rn_filter = []
-    if status:
-        rn_filter.append(Event.status == status)
-    if featured_only:
-        rn_filter.append(Event.is_featured.is_(True))
-
-    rn_rows = (
-        db.query(
-            Event.id,
-            func.row_number().over(
-                partition_by=Event.category,
-                order_by=Event.id.desc(),
-            ).label("rn"),
-        )
-        .filter(*rn_filter)
-        .order_by("rn", Event.id.desc())
+    # ── Fast single-query path ────────────────────────────────────────────────
+    # Previously "all" categories used a two-round-trip approach:
+    #   1) window-function query to get ordered IDs
+    #   2) second query to fetch full Event objects
+    # On cold Neon/Render connections this doubled latency and often caused
+    # the "failed to load markets" error.  Now we use one ORDER BY id DESC
+    # query (hits the ix_events_status_category index) and do a lightweight
+    # Python-side round-robin interleave — no extra DB round-trip, no window
+    # function overhead.
+    events: list[Event] = (
+        base_q
+        .order_by(Event.is_featured.desc(), Event.id.desc())
         .offset(offset)
         .limit(limit)
         .all()
     )
-    if not rn_rows:
-        return []
 
-    # Step 2: fetch full Event objects for those IDs, preserving order
-    id_order = {row.id: i for i, row in enumerate(rn_rows)}
-    events = (
-        db.query(Event)
-        .options(joinedload(Event.scenarios))
-        .filter(Event.id.in_(id_order.keys()))
-        .all()
-    )
-    events.sort(key=lambda e: id_order.get(e.id, 999))
+    # Round-robin category interleave (first page only — pagination pages are
+    # already deterministic by id DESC so interleaving would break continuity).
+    if offset == 0 and (not category or category == "all"):
+        by_cat: dict[str, list] = defaultdict(list)
+        for e in events:
+            by_cat[e.category].append(e)
+        # Featured events first, then round-robin by category
+        featured = [e for e in events if e.is_featured]
+        rest_by_cat: dict[str, list] = defaultdict(list)
+        for e in events:
+            if not e.is_featured:
+                rest_by_cat[e.category].append(e)
+        cats = sorted(rest_by_cat.keys())
+        interleaved: list[Event] = list(featured)
+        iters = [iter(rest_by_cat[c]) for c in cats]
+        while iters:
+            next_iters = []
+            for it in iters:
+                try:
+                    interleaved.append(next(it))
+                except StopIteration:
+                    continue
+                else:
+                    next_iters.append(it)
+            if not next_iters:
+                break
+            iters = next_iters
+        events = interleaved[:limit]
+
     _fill_zh_translations(events)
     _EVENTS_CACHE[cache_key] = (time.time(), events)
     return events
