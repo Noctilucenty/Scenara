@@ -1410,7 +1410,19 @@ const NewsGrid = React.memo(function NewsGrid({ articles, language, onPress }: {
 });
 
 // â�€â�€ Live stats bar â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€â�€
-function LiveStatsBar({ eventCount, hasMore, language }: { eventCount: number; hasMore: boolean; language: string }) {
+// Admin-stats shape — used by LiveStatsBar when the logged-in user is admin.
+type AdminStats = {
+  users:       { total: number; dau_today: number };
+  predictions: { volume_today: number };
+  markets:     { open: number };
+};
+
+function LiveStatsBar({
+  eventCount, hasMore, language, isAdmin, realStats,
+}: {
+  eventCount: number; hasMore: boolean; language: string;
+  isAdmin: boolean; realStats: AdminStats | null;
+}) {
   const { width: winW } = useWindowDimensions();
   const isWide = winW >= 700;
   const pulse = useRef(new Animated.Value(0)).current;
@@ -1470,8 +1482,12 @@ function LiveStatsBar({ eventCount, hasMore, language }: { eventCount: number; h
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const traders     = live.traders;
-  const volume24h   = live.volume24h;
+  // ── Admin override: show real DB counts instead of simulated ─────────────
+  // Non-admin: live.traders/volume24h come from /accounts/live-stats (time-of-day
+  //   curve computed on the backend — 400 at 4am, 1800 at 2pm).
+  // Admin: swap in the real total user count + today's actual prediction volume.
+  const traders     = isAdmin && realStats ? realStats.users.total : live.traders;
+  const volume24h   = isAdmin && realStats ? realStats.predictions.volume_today : live.volume24h;
   const openMarkets = live.openMarkets;
   // Compact volume formatter: $1,234 → "$1.2K", $250,000 → "$250K", $1,200,000 → "$1.2M"
   const volumeLabel = volume24h >= 1_000_000
@@ -1758,6 +1774,30 @@ export default function MarketsScreen() {
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
   const [featuredComments, setFeaturedComments] = useState<{ id: number; body: string; display_name: string | null; created_at: string }[]>([]);
   const [featuredNews, setFeaturedNews] = useState<NewsArticle[]>([]);
+
+  // ── Admin real-stats (only populated for admin accounts) ──────────────────
+  // Non-admin users always see the simulated stats in LiveStatsBar.
+  // Admin users see live DB counts refreshed on the same 30-second cadence.
+  const [isAdmin, setIsAdmin]       = useState(false);
+  const [realStats, setRealStats]   = useState<AdminStats | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) { setIsAdmin(false); setRealStats(null); return; }
+    api.get("/admin/me")
+      .then(() => setIsAdmin(true))
+      .catch(() => { setIsAdmin(false); setRealStats(null); });
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAdmin) { setRealStats(null); return; }
+    const fetchAdminStats = () =>
+      api.get("/admin/stats-overview")
+        .then(res => setRealStats(res.data as AdminStats))
+        .catch(() => {});
+    fetchAdminStats();
+    const id = setInterval(fetchAdminStats, 30_000);
+    return () => clearInterval(id);
+  }, [isAdmin]);
 
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -2329,7 +2369,13 @@ export default function MarketsScreen() {
         </View>
 
         {/* Live stats bar */}
-        <LiveStatsBar eventCount={events.length} hasMore={hasMore} language={language} />
+        <LiveStatsBar
+          eventCount={events.length}
+          hasMore={hasMore}
+          language={language}
+          isAdmin={isAdmin}
+          realStats={realStats}
+        />
 
         {/* Daily challenge teaser */}
         <DailyChallengeTeaser language={language} />
