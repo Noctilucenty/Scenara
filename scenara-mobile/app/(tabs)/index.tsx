@@ -1878,7 +1878,19 @@ export default function MarketsScreen() {
   const fetchHistory = useCallback((items: EventItem[]) => {
     // Prioritise featured events so carousel cards always get history data
     const sorted = [...items].sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0));
-    const toFetch = sorted.filter(e => e.id != null && !historyCacheRef.current[e.id]).slice(0, 20);
+    // Bug-fix: an empty array is truthy in JS, so the old `!cached` check
+    // permanently cached "no data" arrays returned when the DB was fresh,
+    // even after the backend later filled in real history.  Now we refetch
+    // whenever cached data is too sparse to draw a chart (no scenarios with
+    // ≥2 points) — gives newly-backfilled history a chance to land.
+    const toFetch = sorted.filter(e => {
+      if (e.id == null) return false;
+      const cached = historyCacheRef.current[e.id];
+      if (!cached) return true;                       // never fetched
+      if (cached.length === 0) return true;           // empty array cached
+      const renderable = cached.some(s => (s.points?.length ?? 0) >= 2);
+      return !renderable;                             // cached but not enough for a chart
+    }).slice(0, 20);
     if (toFetch.length === 0) return;
     Promise.allSettled(
       toFetch.map(e => api.get(`/events/${e.id}/history`))
