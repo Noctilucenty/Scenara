@@ -28,8 +28,22 @@ def _api_call(texts: list[str], target: str) -> list[str | None]:
                 return result
             for i, t in enumerate(translations):
                 result[i] = t["translatedText"]
+    except httpx.HTTPStatusError as e:
+        # Log only status code + reason — never the URL.  Google's HTTPStatusError
+        # str() includes the full request URL with the API key as a query
+        # parameter, so logging `e` directly would leak the secret to deploy logs.
+        logger.error(
+            "TRANSLATE: API call failed — HTTP %s %s",
+            e.response.status_code, e.response.reason_phrase,
+        )
+    except httpx.RequestError as e:
+        # Network-level failures (timeouts, DNS, TLS).  Log only the error class
+        # name, not str(e) which can also embed the URL.
+        logger.error("TRANSLATE: API call failed — network error: %s", type(e).__name__)
     except Exception as e:
-        logger.error("TRANSLATE: API call failed — %s", e)
+        # Catch-all: log only the type, never the message, in case a future
+        # exception class also embeds the URL.
+        logger.error("TRANSLATE: API call failed — %s", type(e).__name__)
     return result
 
 
