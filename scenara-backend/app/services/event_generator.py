@@ -1984,13 +1984,22 @@ CATEGORY_ICONS = {
 }
 
 
-def _log_snapshot(db: Session, scenario: Scenario, source: str = "5min") -> None:
+def _log_snapshot(
+    db: Session,
+    scenario: Scenario,
+    source: str = "5min",
+    recorded_at: datetime | None = None,
+    probability: float | None = None,
+) -> None:
+    """Insert one snapshot row.  recorded_at and probability default to "now"
+    and the scenario's current value, but can be overridden so the chart
+    backfill logic can stamp synthetic past points."""
     db.add(ScenarioProbabilityHistory(
         scenario_id=scenario.id,
         event_id=scenario.event_id,
-        probability=scenario.probability,
+        probability=scenario.probability if probability is None else probability,
         source=source,
-        recorded_at=datetime.utcnow(),
+        recorded_at=recorded_at or datetime.utcnow(),
     ))
 
 
@@ -2121,10 +2130,67 @@ def _generate_crypto_events(prices: dict[str, float], db: Session) -> int:
     return inserted
 
 
+def _backfill_chart_history(db: Session, scenario: Scenario) -> int:
+    """Seed 5 synthetic history points spread over the past hour for a scenario
+    that has too few real snapshots for the chart to render.  Used when:
+      - The DB is brand new (just migrated, no history accumulated yet)
+      - A scenario was created mid-snapshot-cycle and only has 1 point
+    Without this, the frontend chart needs ≥2 points so it stays blank for
+    5–10 minutes until the natural snapshot cadence catches up.
+
+    Each backfilled point uses a small ±1.5 % drift around current probability
+    — deterministic per scenario so refreshes stay stable, but visually
+    distinct enough that the chart line isn't perfectly flat.
+    """
+    import random
+    from datetime import timedelta
+    rng = random.Random(scenario.id)
+    now = datetime.utcnow()
+    inserted = 0
+    for i in range(5):
+        # Spread the 5 points across the past 60 minutes (12-min steps),
+        # newest first so the timeline reads correctly.
+        minutes_ago = 60 - (i * 12)
+        drift = (rng.random() - 0.5) * 3  # ±1.5 %
+        prob = max(2.0, min(98.0, scenario.probability + drift))
+        _log_snapshot(
+            db, scenario,
+            source="backfill",
+            recorded_at=now - timedelta(minutes=minutes_ago),
+            probability=round(prob, 1),
+        )
+        inserted += 1
+    return inserted
+
+
 def _snapshot_open_events(db: Session) -> int:
     """Nudge probabilities with crypto-chart-like volatility."""
+    from sqlalchemy import func as _sql_func
+
     open_events = db.query(Event).filter(Event.status == "open").all()
     snapped = 0
+
+    # ── Chart backfill: any scenario with <2 history rows gets 5 backdated
+    # snapshots so the frontend chart can render immediately. Cheap one-shot:
+    # one COUNT-by-scenario query, then per-needy-scenario inserts.
+    all_scenario_ids = [s.id for ev in open_events for s in ev.scenarios]
+    if all_scenario_ids:
+        history_counts = dict(
+            db.query(
+                ScenarioProbabilityHistory.scenario_id,
+                _sql_func.count(ScenarioProbabilityHistory.id),
+            )
+            .filter(ScenarioProbabilityHistory.scenario_id.in_(all_scenario_ids))
+            .group_by(ScenarioProbabilityHistory.scenario_id)
+            .all()
+        )
+        backfilled = 0
+        for ev in open_events:
+            for sc in ev.scenarios:
+                if history_counts.get(sc.id, 0) < 2:
+                    backfilled += _backfill_chart_history(db, sc)
+        if backfilled:
+            logger.info(f"[Snapshot] Backfilled {backfilled} chart history points for new scenarios.")
 
     # Persistent trend state per event
     if not hasattr(_snapshot_open_events, "_trends"):
