@@ -1929,6 +1929,11 @@ export default function MarketsScreen() {
     // checks this ref after we increment will see it no longer matches and bail.
     const myVersion = ++fetchVersionRef.current;
 
+    // Hoisted so the catch block can read it — avoids a race where hydrateFromCache
+    // calls setEvents() but eventsRef.current hasn't been synced yet by its useEffect,
+    // causing the retry loop to fire even though cached markets are visible.
+    let hadCache = false;
+
     if (!silent) {
       // Tab-switch fast path: if data for this category is still fresh and
       // events are already rendered, skip the network round-trip entirely.
@@ -1942,7 +1947,7 @@ export default function MarketsScreen() {
       }
 
       // On fresh (non-silent) load: show cached data immediately while fetching.
-      const hadCache = await hydrateFromCache(cat);
+      hadCache = await hydrateFromCache(cat);
       // Version check: a newer call may have started while we awaited the cache read
       if (myVersion !== fetchVersionRef.current) return;
       if (!hadCache) setLoading(true);
@@ -1989,8 +1994,11 @@ export default function MarketsScreen() {
       // intervals (total patience ≈ 60 s) and keep the skeleton visible the
       // whole time so the user sees a progress message instead of an error.
       if (myVersion !== fetchVersionRef.current) return;
-      if (!silent && eventsRef.current.length === 0) {
-        const RETRY_DELAYS = [20_000, 20_000, 20_000]; // 3 attempts × 20 s
+      // Skip the cold-start retry loop if we already have cached markets to show —
+      // hadCache means setEvents() was called in hydrateFromCache, so the skeleton
+      // will clear in finally. No need to keep the user waiting 45 more seconds.
+      if (!silent && !hadCache && eventsRef.current.length === 0) {
+        const RETRY_DELAYS = [15_000, 15_000, 15_000]; // 3 attempts × 15 s = 45 s total
         const RETRY_MSGS   = [
           "Server waking up, please wait…",
           "Still warming up, almost there…",
