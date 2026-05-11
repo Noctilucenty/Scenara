@@ -1892,22 +1892,31 @@ export default function MarketsScreen() {
       return !renderable;                             // cached but not enough for a chart
     }).slice(0, 20);
     if (toFetch.length === 0) return;
-    Promise.allSettled(
-      toFetch.map(e => api.get(`/events/${e.id}/history`))
-    ).then(results => {
-      const newEntries: Record<number, ScenarioHistory[]> = {};
-      results.forEach((r, i) => {
-        if (r.status === "fulfilled") {
-          newEntries[toFetch[i].id] = r.value.data?.scenarios ?? [];
+
+    // Single batched request instead of 20 parallel /events/{id}/history
+    // calls — saves 19 HTTP round-trips and 19 DB connection checkouts on
+    // free-tier hosting where the connection pool is small.  Server caches
+    // the response for 60 s so refreshes within the snapshot cadence are
+    // near-instant.
+    const ids = toFetch.map(e => e.id).join(",");
+    api.get(`/events/history/batch?ids=${ids}`)
+      .then(res => {
+        const histories: { event_id: number; scenarios: ScenarioHistory[] }[] =
+          res.data?.histories ?? [];
+        const newEntries: Record<number, ScenarioHistory[]> = {};
+        for (const h of histories) {
+          newEntries[h.event_id] = h.scenarios ?? [];
         }
-      });
-      historyCacheRef.current = { ...historyCacheRef.current, ...newEntries };
-      setHistoryCache(prev => {
-        const keys = Object.keys(prev);
-        const trimmed = keys.length > 150 ? Object.fromEntries(Object.entries(prev).slice(-100)) : prev;
-        return { ...trimmed, ...newEntries };
-      });
-    });
+        historyCacheRef.current = { ...historyCacheRef.current, ...newEntries };
+        setHistoryCache(prev => {
+          const keys = Object.keys(prev);
+          const trimmed = keys.length > 150
+            ? Object.fromEntries(Object.entries(prev).slice(-100))
+            : prev;
+          return { ...trimmed, ...newEntries };
+        });
+      })
+      .catch(() => { /* silent: chart absence isn't worth disrupting the UI */ });
   }, []);
 
   const EVENTS_CACHE_KEY = "scenara_events_cache";

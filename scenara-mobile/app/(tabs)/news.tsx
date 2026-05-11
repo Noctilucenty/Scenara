@@ -360,25 +360,34 @@ export default function NewsScreen() {
         const sliced = evts.slice(0, 20);
         setEvents(sliced);
 
-        // Only fetch sparkline history for first 10 to avoid hammering backend
-        const histResults = await Promise.allSettled(
-          sliced.filter(e => e.id != null).slice(0, 10).map(e => api.get(`/events/${e.id}/history`))
-        );
-        // Merge into existing cache so sparklines survive category switches
-        setHistoryCache(prev => {
-          const next = { ...prev };
-          histResults.forEach((r, i) => {
-            if (r.status === "fulfilled") {
-              const scenarios = r.value.data?.scenarios ?? [];
-              if (scenarios[0]?.points?.length >= 2) {
-                const pts: number[] = scenarios[0].points.map((p: any) => p.probability);
-                const step = Math.max(1, Math.floor(pts.length / 20));
-                next[sliced[i].id] = pts.filter((_: any, idx: number) => idx % step === 0);
+        // Single batched call instead of 10 parallel /events/{id}/history
+        // requests — same response data, but 10× fewer HTTP round-trips and
+        // 10× fewer DB connection checkouts on free-tier hosting.
+        const histIds = sliced
+          .filter(e => e.id != null)
+          .slice(0, 10)
+          .map(e => e.id)
+          .join(",");
+        if (histIds) {
+          try {
+            const batchRes = await api.get(`/events/history/batch?ids=${histIds}`);
+            const histories: { event_id: number; scenarios: any[] }[] =
+              batchRes.data?.histories ?? [];
+            // Merge into existing cache so sparklines survive category switches
+            setHistoryCache(prev => {
+              const next = { ...prev };
+              for (const h of histories) {
+                const scenarios = h.scenarios ?? [];
+                if (scenarios[0]?.points?.length >= 2) {
+                  const pts: number[] = scenarios[0].points.map((p: any) => p.probability);
+                  const step = Math.max(1, Math.floor(pts.length / 20));
+                  next[h.event_id] = pts.filter((_: any, idx: number) => idx % step === 0);
+                }
               }
-            }
-          });
-          return next;
-        });
+              return next;
+            });
+          } catch { /* silent — sparkline absence isn't critical */ }
+        }
       }
 
       if (newsRes.status === "fulfilled") {

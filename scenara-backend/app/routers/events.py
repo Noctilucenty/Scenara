@@ -583,6 +583,131 @@ def get_event_probability_history(
     return EventHistoryOut(event_id=event_id, scenarios=result)
 
 
+# ── Batch history cache ──────────────────────────────────────────────────────
+# Same 5-min TTL as the natural snapshot cadence — within that window, history
+# data hasn't actually changed.  Keyed by sorted-tuple of event IDs so the
+# cache hits for the typical "fetch top 20 events on page load" pattern.
+_BATCH_HISTORY_CACHE: dict[tuple, tuple[float, list]] = {}
+_BATCH_HISTORY_CACHE_TTL_SECONDS = 60   # 1 minute — short enough to feel live
+
+
+class BatchHistoryOut(BaseModel):
+    """Response for /events/history/batch — one entry per requested event."""
+    histories: list[EventHistoryOut]
+
+
+@router.get("/history/batch", response_model=BatchHistoryOut)
+def get_batch_probability_history(
+    ids: str = Query(..., description="Comma-separated event IDs, e.g. ?ids=1,2,3"),
+    db: Session = Depends(get_db),
+):
+    """Bulk-fetch probability history for many events in one round-trip.
+
+    Massive speedup vs N parallel /events/{id}/history calls on free-tier
+    hosting where each request needs its own DB connection from a small pool.
+    Caches the assembled response for 60 s — within that window, real
+    snapshots haven't moved (5-min cadence) so re-using is safe.
+    """
+    import time
+    from collections import defaultdict as _dd
+
+    # Parse + deduplicate IDs; cap at 50 to bound memory/query size.
+    try:
+        event_ids = sorted({int(x) for x in ids.split(",") if x.strip()})[:50]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="ids must be comma-separated integers")
+    if not event_ids:
+        return BatchHistoryOut(histories=[])
+
+    cache_key = tuple(event_ids)
+    cached = _BATCH_HISTORY_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < _BATCH_HISTORY_CACHE_TTL_SECONDS:
+        return BatchHistoryOut(histories=cached[1])
+
+    # ── ONE query for all events (with scenarios joined) ─────────────────────
+    events = (
+        db.query(Event)
+        .options(joinedload(Event.scenarios))
+        .filter(Event.id.in_(event_ids))
+        .all()
+    )
+    events_by_id = {e.id: e for e in events}
+
+    # ── ONE query for all history rows across all events ─────────────────────
+    all_history = (
+        db.query(ScenarioProbabilityHistory)
+        .filter(ScenarioProbabilityHistory.event_id.in_(event_ids))
+        .order_by(
+            ScenarioProbabilityHistory.event_id,
+            ScenarioProbabilityHistory.scenario_id,
+            ScenarioProbabilityHistory.recorded_at.asc(),
+        )
+        .all()
+    )
+    history_by_scenario: dict = _dd(list)
+    for h in all_history:
+        history_by_scenario[h.scenario_id].append(h)
+
+    MAX_POINTS = 100  # smaller than the single-endpoint cap (200) since we batch
+    def _downsample(rows, n):
+        if len(rows) <= n:
+            return rows
+        step = len(rows) / n
+        return [rows[int(i * step)] for i in range(n)]
+
+    histories: list[EventHistoryOut] = []
+    for eid in event_ids:
+        event = events_by_id.get(eid)
+        if not event:
+            continue
+        scenario_results: list[ScenarioHistoryOut] = []
+        for scenario in event.scenarios:
+            raw = history_by_scenario.get(scenario.id, [])
+            history = _downsample(raw, MAX_POINTS)
+            points = [
+                ProbabilityPoint(
+                    scenario_id=h.scenario_id,
+                    scenario_title=scenario.title,
+                    probability=h.probability,
+                    recorded_at=h.recorded_at,
+                    source=h.source,
+                )
+                for h in history
+            ]
+            # Same synthetic-fallback logic as the single-event endpoint —
+            # ensures every chart has at least 12 points so it always renders.
+            if len(points) < 2:
+                rng = random.Random(eid * 7919 + scenario.id * 31)
+                now = datetime.utcnow()
+                current_prob = scenario.probability
+                start_offset = rng.uniform(-8, 8)
+                start_prob = max(2.0, min(98.0, current_prob + start_offset))
+                synth: list[ProbabilityPoint] = []
+                for i in range(12):
+                    frac = i / 11
+                    base = start_prob + (current_prob - start_prob) * frac
+                    noise = rng.uniform(-3, 3) * math.sin(frac * math.pi)
+                    prob = max(1.0, min(99.0, base + noise))
+                    ts = now - timedelta(hours=24 * (1 - frac))
+                    synth.append(ProbabilityPoint(
+                        scenario_id=scenario.id,
+                        scenario_title=scenario.title,
+                        probability=round(prob, 1),
+                        recorded_at=ts,
+                        source="synthetic",
+                    ))
+                points = synth + points
+            scenario_results.append(ScenarioHistoryOut(
+                scenario_id=scenario.id,
+                scenario_title=scenario.title,
+                points=points,
+            ))
+        histories.append(EventHistoryOut(event_id=eid, scenarios=scenario_results))
+
+    _BATCH_HISTORY_CACHE[cache_key] = (time.time(), histories)
+    return BatchHistoryOut(histories=histories)
+
+
 @router.patch("/scenarios/{scenario_id}/probability", response_model=ScenarioOut)
 def update_scenario_probability(
     scenario_id: int,
