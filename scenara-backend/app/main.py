@@ -28,7 +28,9 @@ from app.routers.signal_lab import router as signal_lab_router
 from app.routers.daily_challenge import router as daily_challenge_router
 from app.models.user import User
 
-from app.services.event_generator import run_snapshot, run_event_generator, start_scheduler
+# event_generator is the legacy module — kept as a thin shim re-exporting
+# from polymarket_sync.  Import from polymarket_sync directly going forward.
+from app.services.polymarket_sync import start_polymarket_sync_loop, sync_markets_once
 from app.services.auto_resolver import run_auto_resolver, start_auto_resolver
 
 logger = logging.getLogger(__name__)
@@ -128,6 +130,9 @@ def _migrate_event_external_columns() -> None:
         if "external_synced_at" not in cols:
             conn.execute(sql_text("ALTER TABLE events ADD COLUMN external_synced_at TIMESTAMP NULL"))
             logger.info("[Migration] Added external_synced_at to events.")
+        if "image_url" not in cols:
+            conn.execute(sql_text("ALTER TABLE events ADD COLUMN image_url VARCHAR(500) NULL"))
+            logger.info("[Migration] Added image_url to events.")
 
 
 def _migrate_event_ai_columns() -> None:
@@ -345,11 +350,13 @@ def create_app() -> FastAPI:
         # Background tasks start regardless of DB state; each will fail
         # gracefully when they first try to use the DB and will retry on their
         # normal schedule.
-        asyncio.create_task(start_scheduler())
+        #
+        # Polymarket sync is Scenara's sole market source — runs every 20 min,
+        # ingests new markets, refreshes probabilities on existing ones, and
+        # expires past-due events with prediction refunds.
+        asyncio.create_task(start_polymarket_sync_loop(interval_seconds=20 * 60))
         asyncio.create_task(start_auto_resolver())
         asyncio.create_task(_backfill_zh_translations())
-        from app.services.polymarket_sync import start_polymarket_sync_loop
-        asyncio.create_task(start_polymarket_sync_loop(interval_seconds=60 * 60))
         logger.info("[Startup] Scenara backend v0.6.0 ready.")
 
     @app.get("/", tags=["health"])
@@ -372,13 +379,19 @@ def create_app() -> FastAPI:
 
     @app.post("/admin/generate-events", tags=["admin"])
     async def trigger_event_generation(current_user: User = Depends(get_current_user)):
-        await run_event_generator()
-        return {"ok": True, "message": "Events generated"}
+        """Manually trigger one Polymarket sync pass — fetches fresh markets,
+        refreshes probabilities on existing ones, expires past-due events."""
+        from app.services.polymarket_sync import sync_markets_once
+        report = await sync_markets_once()
+        return {"ok": True, "message": "Polymarket sync triggered", "report": report}
 
     @app.post("/admin/snapshot", tags=["admin"])
     async def trigger_snapshot(current_user: User = Depends(get_current_user)):
-        await run_snapshot()
-        return {"ok": True, "message": "Snapshot logged"}
+        """Kept for backward compatibility.  Polymarket sync handles probability
+        updates natively, so this is now a no-op alias for /admin/generate-events."""
+        from app.services.polymarket_sync import sync_markets_once
+        report = await sync_markets_once()
+        return {"ok": True, "message": "Polymarket sync triggered", "report": report}
 
     @app.post("/admin/resolve-expired", tags=["admin"])
     async def trigger_auto_resolve(current_user: User = Depends(get_current_user)):

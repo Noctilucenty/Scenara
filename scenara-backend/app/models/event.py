@@ -43,6 +43,10 @@ class Event(Base):
     external_volume:    Mapped[float | None]    = mapped_column(Float, nullable=True)
     external_liquidity: Mapped[float | None]    = mapped_column(Float, nullable=True)
     external_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Hero image for the market card.  Polymarket provides one per market;
+    # internally-generated events can leave this null and fall back to the
+    # category icon.
+    image_url:          Mapped[str | None]      = mapped_column(String(500), nullable=True)
 
     scenarios           = relationship("Scenario", back_populates="event", cascade="all, delete-orphan")
     probability_history = relationship("ScenarioProbabilityHistory", back_populates="event", cascade="all, delete-orphan")

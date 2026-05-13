@@ -75,6 +75,7 @@ class EventOut(BaseModel):
     closes_at: datetime | None
     resolved_at: datetime | None
     scenarios: list[ScenarioOut]
+    image_url:          str | None  = None
     external_source:    str | None  = None
     external_url:       str | None  = None
     external_volume:    float | None = None
@@ -98,6 +99,7 @@ class EventListOut(BaseModel):
     closes_at: datetime | None
     resolved_at: datetime | None
     scenarios: list[ScenarioOut]
+    image_url:          str | None  = None
     external_source:    str | None  = None
     external_url:       str | None  = None
     external_volume:    float | None = None
@@ -387,6 +389,60 @@ def search_events(
 # surfacing newly created events within 2 minutes.
 _EVENTS_CACHE: dict[tuple, tuple[float, list]] = {}
 _EVENTS_CACHE_TTL_SECONDS = 120
+
+
+@router.get("/trending", response_model=list[EventListOut])
+def trending_events(
+    limit: int = Query(default=20, ge=1, le=50),
+    lang: str = Query(default="en"),
+    db: Session = Depends(get_db),
+):
+    """Top open markets sorted by Polymarket trading volume.
+
+    Returns the highest-volume open Polymarket-sourced markets — these are
+    the markets the world is actually betting on right now.  Falls back to
+    `is_featured` order when no Polymarket events exist yet (fresh DB).
+
+    Cached for 60 s server-side so a tab-switch refresh on the markets
+    screen never re-queries the DB within that window.
+    """
+    import time
+    cache_key = ("trending", limit, lang)
+    cached = _EVENTS_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < _EVENTS_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    # Polymarket events first, ordered by their reported volume.  Non-Polymarket
+    # open events are appended after (rare now — only legacy data from before
+    # the Polymarket migration) so the response is never empty just because
+    # external_volume is null for some row.
+    polymarket_events = (
+        db.query(Event)
+        .options(joinedload(Event.scenarios))
+        .filter(Event.status == "open", Event.external_source == "polymarket")
+        .order_by(Event.external_volume.desc().nullslast(), Event.id.desc())
+        .limit(limit)
+        .all()
+    )
+    remaining = limit - len(polymarket_events)
+    if remaining > 0:
+        seen = {e.id for e in polymarket_events}
+        legacy_events = (
+            db.query(Event)
+            .options(joinedload(Event.scenarios))
+            .filter(Event.status == "open", Event.id.notin_(seen) if seen else True)
+            .order_by(Event.is_featured.desc(), Event.id.desc())
+            .limit(remaining)
+            .all()
+        )
+        events = polymarket_events + legacy_events
+    else:
+        events = polymarket_events
+
+    if lang == "zh":
+        _fill_zh_translations(events)
+    _EVENTS_CACHE[cache_key] = (time.time(), events)
+    return events
 
 
 @router.get("/", response_model=list[EventListOut])
@@ -808,10 +864,11 @@ async def top_up_events(
     _current_user: User = Depends(get_current_user),
 ):
     """
-    On-demand event generation — requires authentication to prevent anonymous
-    callers from burning LLM API credits. Called by the frontend when the
-    authenticated user scrolls past all available events.
+    On-demand market refresh — requires authentication.  Was previously a
+    template-based event generator; now triggers a Polymarket sync pass so
+    users who scroll past all current markets can pull in fresh ones from
+    the live source.
     """
-    from app.services.event_generator import run_event_generator
-    await run_event_generator()
-    return {"ok": True}
+    from app.services.polymarket_sync import sync_markets_once
+    report = await sync_markets_once()
+    return {"ok": True, "report": report}
