@@ -12,7 +12,6 @@ import { toChineseFallback } from "@/src/utils/zhFallback";
 import { api } from "@/src/api/client";
 import { SidebarContext } from "./_layout";
 import React from "react";
-import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
@@ -34,25 +33,6 @@ const AUTO_REFRESH_MS = 90_000;
 const { width: SCREEN_W } = Dimensions.get("window");
 const IS_WEB = Platform.OS === "web";
 const MAX_W = Math.min(SCREEN_W, 900);
-
-type Scenario = {
-  id: number;
-  title: string;
-  title_pt: string | null;
-  title_zh: string | null;
-  probability: number;
-};
-
-type EventItem = {
-  id: number;
-  title: string;
-  title_pt: string | null;
-  title_zh: string | null;
-  category: string;
-  status: string;
-  scenarios: Scenario[];
-  closes_at: string | null;
-};
 
 type Article = {
   title: string;
@@ -127,178 +107,6 @@ function timeAgo(dateStr: string, lang: string): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
-}
-
-function eventTitle(e: EventItem, lang: string) {
-  if (lang === "zh") return e.title_zh || toChineseFallback(e.title, lang);
-  if (lang === "pt") return e.title_pt || e.title;
-  return e.title;
-}
-
-function scenarioTitle(s: Scenario, lang: string) {
-  if (lang === "zh") {
-    if (s.title_zh) return s.title_zh;
-    const value = (s.title_pt || s.title || "").trim().toLowerCase();
-    if (value === "yes") return "是";
-    if (value === "no") return "否";
-    if (value === "passes") return "通过";
-    if (value === "delayed") return "推迟";
-    return toChineseFallback(s.title, lang);
-  }
-  if (lang === "pt") return s.title_pt || s.title;
-  return s.title;
-}
-
-// ── Sparkline mini chart ──────────────────────────────────────────────────────
-function Sparkline({ points, color, w = 64, h = 32 }: { points: number[]; color: string; w?: number; h?: number }) {
-  if (points.length < 2) return null;
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = max - min || 1;
-  const pad = 2;
-  const xs = points.map((_, i) => pad + (i / (points.length - 1)) * (w - pad * 2));
-  const ys = points.map(p => pad + (1 - (p - min) / range) * (h - pad * 2));
-  const d = xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(" ");
-  const fill = `${d} L${xs[xs.length - 1].toFixed(1)},${h} L${xs[0].toFixed(1)},${h} Z`;
-  const isUp = points[points.length - 1] >= points[0];
-  const lineColor = isUp ? GREEN : RED;
-
-  return (
-    <Svg width={w} height={h} style={{ overflow: "hidden" }}>
-      <Defs>
-        <SvgGrad id={`sg${color.replace("#","")}`} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={lineColor} stopOpacity={0.25} />
-          <Stop offset="1" stopColor={lineColor} stopOpacity={0} />
-        </SvgGrad>
-      </Defs>
-      <Path d={fill} fill={`url(#sg${color.replace("#","")})`} />
-      <Path d={d} stroke={lineColor} strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
-
-// ── Related-market matcher ────────────────────────────────────────────────────
-// Score markets by how many significant words their title shares with the
-// article title.  Falls back to "any market in the same category" if no
-// keyword overlap exists, so every article gets at least one suggestion when
-// markets are available.
-const STOP_WORDS = new Set([
-  // English
-  "will","would","could","should","with","from","that","this","have","been","were","what","when","where",
-  "their","there","they","then","than","into","over","under","about","after","before","between",
-  "your","yours","mine","says","said","also","just","like","more","most","some","such",
-  // Portuguese
-  "para","como","mais","menos","entre","sobre","quando","onde","porque","sendo","muito","mesmo","ainda","então",
-  "isso","esse","essa","aquele","aquela","seus","suas","nosso","nossa",
-]);
-
-function _significantWords(s: string): Set<string> {
-  return new Set(
-    (s || "")
-      .toLowerCase()
-      .split(/[^\p{L}\p{N}]+/u) // any non-letter/number splits the string (Unicode-aware)
-      .filter(w => w.length >= 4 && !STOP_WORDS.has(w))
-  );
-}
-
-function findRelatedMarkets(
-  article: Article,
-  events: EventItem[],
-  category: string,
-  max: number = 2,
-): EventItem[] {
-  if (events.length === 0) return [];
-  const articleWords = _significantWords(article.title + " " + (article.description ?? ""));
-
-  // Score each event; tie-break by recency (higher id = newer).
-  const scored = events.map(e => {
-    const eventWords = _significantWords(e.title + " " + (e.scenarios?.[0]?.title ?? ""));
-    let overlap = 0;
-    for (const w of articleWords) if (eventWords.has(w)) overlap++;
-    return { event: e, score: overlap };
-  });
-
-  // Prefer keyword matches first
-  const matches = scored
-    .filter(s => s.score > 0)
-    .sort((a, b) => b.score - a.score || b.event.id - a.event.id);
-
-  if (matches.length >= max) return matches.slice(0, max).map(m => m.event);
-
-  // Fallback: top events in same category to fill remaining slots
-  const haveIds = new Set(matches.map(m => m.event.id));
-  const fallback = events
-    .filter(e => !haveIds.has(e.id) && (category === "all" || e.category === category))
-    .sort((a, b) => b.id - a.id)
-    .slice(0, max - matches.length);
-
-  return [...matches.map(m => m.event), ...fallback];
-}
-
-
-// ── Market row (Polymarket style) ─────────────────────────────────────────────
-function MarketRow({ event, onPress, language, catColor, index, image, history }: {
-  event: EventItem; onPress(): void; language: string; catColor: string; index: number; image?: string; history?: number[];
-}) {
-  const topScenario = event.scenarios[0];
-  const prob = topScenario?.probability ?? 0;
-  const isHigh = prob >= 60;
-  const isLow = prob <= 40;
-  const probColor = isHigh ? GREEN : isLow ? RED : TEXT_SUB;
-  const cat = CATEGORIES.find(c => c.key === event.category);
-
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.8}
-      style={{ flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 10 }}
-    >
-      {/* Thumbnail */}
-      <View style={{ width: 48, height: 48, borderRadius: 10, overflow: "hidden", flexShrink: 0 }}>
-        {image ? (
-          <Image source={{ uri: image }} style={{ width: 48, height: 48 }} resizeMode="cover" />
-        ) : (
-          <View style={{ width: 48, height: 48, backgroundColor: catColor + "18", alignItems: "center", justifyContent: "center", borderRadius: 10, borderWidth: 1, borderColor: catColor + "30" }}>
-            <Text style={{ fontSize: 20 }}>{cat?.icon ?? "◈"}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Title + meta */}
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: TEXT, fontSize: 13, fontFamily: "DMSans_700Bold", lineHeight: 19, marginBottom: 4 }} numberOfLines={2}>
-          {eventTitle(event, language)}
-        </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: catColor + "15" }}>
-            <Text style={{ color: catColor, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 0.5 }}>
-              {cat?.[language === "pt" ? "label_pt" : language === "zh" ? "label_zh" : "label_en"] ?? event.category}
-            </Text>
-          </View>
-          {event.scenarios.slice(0, 2).map((s, i) => (
-            <Text key={s.id} style={{ color: TEXT_MID, fontSize: 10 }}>
-              {scenarioTitle(s, language)} {s.probability.toFixed(0)}%{i === 0 && event.scenarios.length > 1 ? " ·" : ""}
-            </Text>
-          ))}
-        </View>
-      </View>
-
-      {/* Sparkline + probability */}
-      <View style={{ alignItems: "flex-end", gap: 2 }}>
-        {history && history.length >= 2 && (
-          <Sparkline points={history} color={catColor} w={60} h={28} />
-        )}
-        <Text style={{ color: probColor, fontSize: 20, fontFamily: "DMSans_700Bold", letterSpacing: -0.5 }}>
-          {prob.toFixed(0)}%
-        </Text>
-        <Text style={{ color: TEXT_MID, fontSize: 9, marginTop: 1 }} numberOfLines={1}>
-          {topScenario ? scenarioTitle(topScenario, language) : ""}
-        </Text>
-      </View>
-
-      <Text style={{ color: TEXT_MID, fontSize: 16 }}>›</Text>
-    </TouchableOpacity>
-  );
 }
 
 // ── News card — with image hero + AI summary ──────────────────────────────────
@@ -376,9 +184,7 @@ export default function NewsScreen() {
   const { t, language } = useLanguage();
   const router = useRouter();
   const { open: openSidebar } = React.useContext(SidebarContext);
-  const [events, setEvents] = useState<EventItem[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [historyCache, setHistoryCache] = useState<Record<number, number[]>>({});
   const [summaries, setSummaries] = useState<Record<number, string>>({});
   const [loadingSummaries, setLoadingSummaries] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(false);
@@ -406,48 +212,14 @@ export default function NewsScreen() {
     try {
       if (!silent) setLoading(true);
 
-      // Fetch events and news in parallel
-      const [eventsRes, newsRes] = await Promise.allSettled([
-        api.get("/events/", { params: cat !== "all" ? { category: cat } : undefined }),
-        api.get("/news/single", { params: { category: cat, lang: language, max_results: 15 }, timeout: 25000 }),
-      ]);
-
-      if (eventsRes.status === "fulfilled") {
-        let evts: EventItem[] = eventsRes.value.data ?? [];
-        evts = evts.filter(e => e.status === "open");
-        if (cat !== "all") evts = evts.filter(e => e.category === cat);
-        const sliced = evts.slice(0, 20);
-        setEvents(sliced);
-
-        // Single batched call instead of 10 parallel /events/{id}/history
-        // requests — same response data, but 10× fewer HTTP round-trips and
-        // 10× fewer DB connection checkouts on free-tier hosting.
-        const histIds = sliced
-          .filter(e => e.id != null)
-          .slice(0, 10)
-          .map(e => e.id)
-          .join(",");
-        if (histIds) {
-          try {
-            const batchRes = await api.get(`/events/history/batch?ids=${histIds}`);
-            const histories: { event_id: number; scenarios: any[] }[] =
-              batchRes.data?.histories ?? [];
-            // Merge into existing cache so sparklines survive category switches
-            setHistoryCache(prev => {
-              const next = { ...prev };
-              for (const h of histories) {
-                const scenarios = h.scenarios ?? [];
-                if (scenarios[0]?.points?.length >= 2) {
-                  const pts: number[] = scenarios[0].points.map((p: any) => p.probability);
-                  const step = Math.max(1, Math.floor(pts.length / 20));
-                  next[h.event_id] = pts.filter((_: any, idx: number) => idx % step === 0);
-                }
-              }
-              return next;
-            });
-          } catch { /* silent — sparkline absence isn't critical */ }
-        }
-      }
+      // News-only tab: a single /news/single fetch is all we need.  Markets
+      // live exclusively in their own tab now, so we no longer pay for an
+      // /events/ call + a /events/history/batch call on every news view.
+      const newsRes = await api.get("/news/single", {
+        params: { category: cat, lang: language, max_results: 15 },
+        timeout: 25000,
+      }).then(r => ({ status: "fulfilled" as const, value: r }))
+       .catch(e => ({ status: "rejected" as const, reason: e }));
 
       if (newsRes.status === "fulfilled") {
         const arts: Article[] = newsRes.value.data.articles ?? [];
@@ -491,7 +263,6 @@ export default function NewsScreen() {
 
   const handleCategory = (cat: string) => {
     setActiveCategory(cat);
-    setEvents([]);
     setArticles([]);
     setSummaries({});
     // Invalidate cache so the new category always fetches fresh data
@@ -512,10 +283,6 @@ export default function NewsScreen() {
         source_url:  article.source_url ?? "",
       },
     });
-  };
-
-  const openEvent = (event: EventItem) => {
-    router.push({ pathname: "/market-detail", params: { eventId: String(event.id) } });
   };
 
   return (
@@ -577,10 +344,7 @@ export default function NewsScreen() {
           >
             <View style={{ maxWidth: IS_WEB ? MAX_W : undefined, alignSelf: IS_WEB ? "center" : undefined, width: "100%" }}>
 
-              {/* News-first feed: each article shows its keyword-matched
-                  related markets directly beneath it.  Markets no longer
-                  occupy their own top-of-page section — they live as
-                  contextual suggestions tied to each story. */}
+              {/* Pure breaking-news feed.  Markets live in their own tab. */}
               {articles.length > 0 && (
                 <>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 }}>
@@ -592,43 +356,17 @@ export default function NewsScreen() {
                     </Text>
                   </View>
                   <View style={{ paddingHorizontal: 16 }}>
-                    {articles.map((article, idx) => {
-                      const related = findRelatedMarkets(article, events, activeCategory, 2);
-                      return (
-                        <View key={article.url || String(idx)} style={{ marginBottom: 14 }}>
-                          <NewsCard
-                            article={article}
-                            onPress={() => openArticle(article)}
-                            language={language}
-                            catColor={activeCat.color}
-                            summary={summaries[idx]}
-                            loadingSummary={loadingSummaries[idx]}
-                          />
-                          {related.length > 0 && (
-                            <View style={{ marginTop: -4, marginHorizontal: 8, backgroundColor: CARD, borderRadius: 10, borderWidth: 1, borderColor: BORDER_P, overflow: "hidden" }}>
-                              <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>
-                                <View style={{ width: 3, height: 10, borderRadius: 1.5, backgroundColor: PURPLE }} />
-                                <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
-                                  {language === "pt" ? "MERCADOS RELACIONADOS" : language === "zh" ? "相关市场" : "RELATED MARKETS"}
-                                </Text>
-                              </View>
-                              {related.map((event, ridx) => (
-                                <MarketRow
-                                  key={event.id}
-                                  event={event}
-                                  index={ridx + 1}
-                                  onPress={() => openEvent(event)}
-                                  language={language}
-                                  catColor={CATEGORIES.find(c => c.key === event.category)?.color ?? PURPLE}
-                                  image={CATEGORY_IMAGES[event.category]}
-                                  history={historyCache[event.id]}
-                                />
-                              ))}
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
+                    {articles.map((article, idx) => (
+                      <NewsCard
+                        key={article.url || String(idx)}
+                        article={article}
+                        onPress={() => openArticle(article)}
+                        language={language}
+                        catColor={activeCat.color}
+                        summary={summaries[idx]}
+                        loadingSummary={loadingSummaries[idx]}
+                      />
+                    ))}
                   </View>
                 </>
               )}
