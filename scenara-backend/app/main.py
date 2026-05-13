@@ -244,12 +244,10 @@ def create_app() -> FastAPI:
         actually shrank after waiting for the background translation, and
         abort after 2 consecutive no-progress iterations.
         """
-        # Skip entirely when the key isn't configured — the translate service
-        # already logs a single warning in that case.
-        from app.config import settings as _settings
-        if not _settings.google_translate_api_key:
-            logger.info("[ZH Backfill] Skipped — no Translate API key configured.")
-            return
+        # MyMemory is keyless, so the backfill can always run.  The no-progress
+        # detector below will abort after 2 ineffective batches if MyMemory is
+        # rate-limiting or returning errors, so this never burns CPU when the
+        # API is unhappy.
 
         def _run() -> None:
             import time as _time

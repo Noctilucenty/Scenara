@@ -42,7 +42,14 @@ class Settings(BaseSettings):
     drivewealth_app_secret: str | None = None
     drivewealth_use_mock: bool = True
 
-    # ---------- Google Translate ----------
+    # ---------- Translation (MyMemory) ----------
+    # MyMemory is a free translation API.  No key required — but providing
+    # an email raises the daily quota from ~1 000 to 50 000 words/day and
+    # gives them a way to contact you if there's an issue with your traffic.
+    # Set MYMEMORY_EMAIL on Render to any address you control.
+    mymemory_email: str | None = None
+    # Legacy Google Translate key — kept for backward compat, no longer used.
+    # Safe to leave unset.
     google_translate_api_key: str | None = None
 
     # ---------- AI Auto-Resolver ----------
