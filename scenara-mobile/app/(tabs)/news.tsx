@@ -177,6 +177,65 @@ function Sparkline({ points, color, w = 64, h = 32 }: { points: number[]; color:
   );
 }
 
+// ── Related-market matcher ────────────────────────────────────────────────────
+// Score markets by how many significant words their title shares with the
+// article title.  Falls back to "any market in the same category" if no
+// keyword overlap exists, so every article gets at least one suggestion when
+// markets are available.
+const STOP_WORDS = new Set([
+  // English
+  "will","would","could","should","with","from","that","this","have","been","were","what","when","where",
+  "their","there","they","then","than","into","over","under","about","after","before","between",
+  "your","yours","mine","says","said","also","just","like","more","most","some","such",
+  // Portuguese
+  "para","como","mais","menos","entre","sobre","quando","onde","porque","sendo","muito","mesmo","ainda","então",
+  "isso","esse","essa","aquele","aquela","seus","suas","nosso","nossa",
+]);
+
+function _significantWords(s: string): Set<string> {
+  return new Set(
+    (s || "")
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u) // any non-letter/number splits the string (Unicode-aware)
+      .filter(w => w.length >= 4 && !STOP_WORDS.has(w))
+  );
+}
+
+function findRelatedMarkets(
+  article: Article,
+  events: EventItem[],
+  category: string,
+  max: number = 2,
+): EventItem[] {
+  if (events.length === 0) return [];
+  const articleWords = _significantWords(article.title + " " + (article.description ?? ""));
+
+  // Score each event; tie-break by recency (higher id = newer).
+  const scored = events.map(e => {
+    const eventWords = _significantWords(e.title + " " + (e.scenarios?.[0]?.title ?? ""));
+    let overlap = 0;
+    for (const w of articleWords) if (eventWords.has(w)) overlap++;
+    return { event: e, score: overlap };
+  });
+
+  // Prefer keyword matches first
+  const matches = scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score || b.event.id - a.event.id);
+
+  if (matches.length >= max) return matches.slice(0, max).map(m => m.event);
+
+  // Fallback: top events in same category to fill remaining slots
+  const haveIds = new Set(matches.map(m => m.event.id));
+  const fallback = events
+    .filter(e => !haveIds.has(e.id) && (category === "all" || e.category === category))
+    .sort((a, b) => b.id - a.id)
+    .slice(0, max - matches.length);
+
+  return [...matches.map(m => m.event), ...fallback];
+}
+
+
 // ── Market row (Polymarket style) ─────────────────────────────────────────────
 function MarketRow({ event, onPress, language, catColor, index, image, history }: {
   event: EventItem; onPress(): void; language: string; catColor: string; index: number; image?: string; history?: number[];
@@ -518,69 +577,67 @@ export default function NewsScreen() {
           >
             <View style={{ maxWidth: IS_WEB ? MAX_W : undefined, alignSelf: IS_WEB ? "center" : undefined, width: "100%" }}>
 
-              {/* Markets section */}
-              {events.length > 0 && (
+              {/* News-first feed: each article shows its keyword-matched
+                  related markets directly beneath it.  Markets no longer
+                  occupy their own top-of-page section — they live as
+                  contextual suggestions tied to each story. */}
+              {articles.length > 0 && (
                 <>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 }}>
                     <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>
-                      {language === "pt" ? "MERCADOS ABERTOS" : language === "zh" ? "开放市场" : "OPEN MARKETS"}
-                    </Text>
-                    <Text style={{ color: TEXT_MID, fontSize: 10, fontFamily: "DMSans_400Regular" }}>
-                      {events.length} {language === "pt" ? "ativos" : language === "zh" ? "活跃中" : "active"}
-                    </Text>
-                  </View>
-                  <View style={{ backgroundColor: CARD, borderTopWidth: 1, borderBottomWidth: 1, borderColor: BORDER }}>
-                    {events.map((event, idx) => {
-                      const catImage = CATEGORY_IMAGES[event.category];
-                      return (
-                        <MarketRow
-                          key={event.id}
-                          event={event}
-                          index={idx + 1}
-                          onPress={() => openEvent(event)}
-                          language={language}
-                          catColor={CATEGORIES.find(c => c.key === event.category)?.color ?? PURPLE}
-                          image={catImage}
-                          history={historyCache[event.id]}
-                        />
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-
-              {/* News section */}
-              {articles.length > 0 && (
-                <>
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, marginTop: 8 }}>
-                    <Text style={{ color: PURPLE_D, fontSize: 10, fontFamily: "DMSans_700Bold", letterSpacing: 1.5 }}>
-                      {language === "zh" ? "相关新闻" : language === "pt" ? "NOTÍCIAS RELACIONADAS" : "RELATED NEWS"}
+                      {language === "zh" ? "头条新闻" : language === "pt" ? "ÚLTIMAS NOTÍCIAS" : "BREAKING NEWS"}
                     </Text>
                     <Text style={{ color: TEXT_MID, fontSize: 9, fontFamily: "DMSans_400Regular" }}>
                       {language === "zh" ? "含AI摘要" : language === "pt" ? "Com resumo por IA" : "With AI summary"}
                     </Text>
                   </View>
                   <View style={{ paddingHorizontal: 16 }}>
-                    {articles.map((article, idx) => (
-                      <NewsCard
-                        key={article.url || String(idx)}
-                        article={article}
-                        onPress={() => openArticle(article)}
-                        language={language}
-                        catColor={activeCat.color}
-                        summary={summaries[idx]}
-                        loadingSummary={loadingSummaries[idx]}
-                      />
-                    ))}
+                    {articles.map((article, idx) => {
+                      const related = findRelatedMarkets(article, events, activeCategory, 2);
+                      return (
+                        <View key={article.url || String(idx)} style={{ marginBottom: 14 }}>
+                          <NewsCard
+                            article={article}
+                            onPress={() => openArticle(article)}
+                            language={language}
+                            catColor={activeCat.color}
+                            summary={summaries[idx]}
+                            loadingSummary={loadingSummaries[idx]}
+                          />
+                          {related.length > 0 && (
+                            <View style={{ marginTop: -4, marginHorizontal: 8, backgroundColor: CARD, borderRadius: 10, borderWidth: 1, borderColor: BORDER_P, overflow: "hidden" }}>
+                              <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                <View style={{ width: 3, height: 10, borderRadius: 1.5, backgroundColor: PURPLE }} />
+                                <Text style={{ color: PURPLE_D, fontSize: 9, fontFamily: "DMSans_700Bold", letterSpacing: 1 }}>
+                                  {language === "pt" ? "MERCADOS RELACIONADOS" : language === "zh" ? "相关市场" : "RELATED MARKETS"}
+                                </Text>
+                              </View>
+                              {related.map((event, ridx) => (
+                                <MarketRow
+                                  key={event.id}
+                                  event={event}
+                                  index={ridx + 1}
+                                  onPress={() => openEvent(event)}
+                                  language={language}
+                                  catColor={CATEGORIES.find(c => c.key === event.category)?.color ?? PURPLE}
+                                  image={CATEGORY_IMAGES[event.category]}
+                                  history={historyCache[event.id]}
+                                />
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
                   </View>
                 </>
               )}
 
-              {events.length === 0 && articles.length === 0 && !loading && (
+              {articles.length === 0 && !loading && (
                 <View style={{ alignItems: "center", paddingTop: 80 }}>
                   <Text style={{ color: PURPLE_D, fontSize: 32, marginBottom: 14 }}>◈</Text>
                   <Text style={{ color: TEXT_SUB, fontSize: 15, fontFamily: "DMSans_500Medium" }}>
-                    {language === "zh" ? "未找到市场" : language === "pt" ? "Nenhum mercado encontrado" : "No markets found"}
+                    {language === "zh" ? "暂无新闻" : language === "pt" ? "Nenhuma notícia encontrada" : "No news available"}
                   </Text>
                 </View>
               )}
