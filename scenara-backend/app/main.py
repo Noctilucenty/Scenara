@@ -234,8 +234,25 @@ def create_app() -> FastAPI:
     )
 
     async def _backfill_zh_translations() -> None:
-        """Background task: translate all events/scenarios missing title_zh."""
+        """Background task: translate all events/scenarios missing title_zh.
+
+        Loop-safety: relies on _fill_zh_translations actually filling title_zh
+        so the IS NULL filter advances each iteration.  If the Translate API
+        is broken (e.g., bad key, billing not enabled), title_zh stays NULL
+        and the same 50 rows would be re-translated forever — burning quota
+        and flooding logs.  We detect this by checking whether the batch
+        actually shrank after waiting for the background translation, and
+        abort after 2 consecutive no-progress iterations.
+        """
+        # Skip entirely when the key isn't configured — the translate service
+        # already logs a single warning in that case.
+        from app.config import settings as _settings
+        if not _settings.google_translate_api_key:
+            logger.info("[ZH Backfill] Skipped — no Translate API key configured.")
+            return
+
         def _run() -> None:
+            import time as _time
             from app.db import SessionLocal
             from app.models.event import Event
             from sqlalchemy.orm import joinedload
@@ -244,9 +261,9 @@ def create_app() -> FastAPI:
             try:
                 batch_size = 50
                 total = 0
+                no_progress_count = 0
+                MAX_NO_PROGRESS = 2  # abort after 2 consecutive ineffective batches
                 while True:
-                    # Always offset=0: each translated batch is removed from the
-                    # title_zh IS NULL filter, so the next query naturally advances.
                     events = (
                         db.query(Event)
                         .options(joinedload(Event.scenarios))
@@ -256,13 +273,43 @@ def create_app() -> FastAPI:
                     )
                     if not events:
                         break
+                    untranslated_ids = [e.id for e in events]
                     _fill_zh_translations(events)
+                    # _fill_zh_translations dispatches a background thread —
+                    # wait briefly for it to commit before re-querying.
+                    _time.sleep(3)
                     db.commit()
-                    total += len(events)
-                    logger.info("[ZH Backfill] Translated batch of %d (total so far: %d).", len(events), total)
+                    db.expire_all()  # force a fresh read on the next query
+                    # Did any of this batch actually get translated?
+                    still_null = (
+                        db.query(Event.id)
+                        .filter(Event.id.in_(untranslated_ids), Event.title_zh.is_(None))
+                        .count()
+                    )
+                    progress = len(untranslated_ids) - still_null
+                    if progress == 0:
+                        no_progress_count += 1
+                        logger.warning(
+                            "[ZH Backfill] No progress on batch of %d (attempt %d/%d) — "
+                            "Translate API likely failing.",
+                            len(events), no_progress_count, MAX_NO_PROGRESS,
+                        )
+                        if no_progress_count >= MAX_NO_PROGRESS:
+                            logger.error(
+                                "[ZH Backfill] Aborting — Translate API not working. "
+                                "Fix GOOGLE_TRANSLATE_API_KEY or enable the Cloud Translation API."
+                            )
+                            return
+                    else:
+                        no_progress_count = 0
+                        total += progress
+                        logger.info(
+                            "[ZH Backfill] Translated %d of %d (total so far: %d).",
+                            progress, len(events), total,
+                        )
                 logger.info("[ZH Backfill] Done — processed %d events.", total)
             except Exception as e:
-                logger.error("[ZH Backfill] Failed: %s", e)
+                logger.error("[ZH Backfill] Failed: %s", type(e).__name__)
             finally:
                 db.close()
 
