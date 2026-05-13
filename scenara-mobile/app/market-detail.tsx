@@ -19,6 +19,7 @@ import { toChineseFallback } from "@/src/utils/zhFallback";
 import { ProbabilityChart } from "@/components/ProbabilityChart";
 import { CommentSection } from "@/components/CommentSection";
 import { MarketDetailSkeleton } from "@/components/Skeleton";
+import { PositionOpenedModal } from "@/components/PositionOpenedModal";
 
 const BG       = "#08090C";
 const CARD     = "#0D1117";
@@ -114,6 +115,9 @@ export default function MarketDetailScreen() {
   const [amount, setAmount] = useState("100");
   const [placing, setPlacing] = useState(false);
   const [message, setMessage] = useState("");
+  // Drives the centered "Position opened" modal.  message stays in place to
+  // keep the existing Share-this-bet flow working in the success-state UI.
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [relatedNews, setRelatedNews] = useState<any[]>([]);
   const [summary, setSummary] = useState<string>("");
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -259,6 +263,10 @@ export default function MarketDetailScreen() {
     const result = await placePrediction(selId, amt);
     setPlacing(false);
     if (result.ok) {
+      // Centered modal pops up over the whole screen.
+      setShowSuccessModal(true);
+      // Keep the inline `message` so the existing "share your bet" affordance
+      // continues to render under the BUY button after the modal dismisses.
       setMessage(language === "pt" ? `✓ Posição aberta · $${amt.toFixed(2)}` : language === "zh" ? `✓ 仓位已开 · $${amt.toFixed(2)}` : `✓ Position opened · $${amt.toFixed(2)}`);
       setTimeout(() => setMessage(""), 4000);
     } else {
@@ -308,6 +316,14 @@ export default function MarketDetailScreen() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <StatusBar barStyle="light-content" />
+      <PositionOpenedModal
+        visible={showSuccessModal}
+        amount={`$${(parseFloat(amount) || 0).toLocaleString()}`}
+        scenarioLabel={selScene ? scenarioTitle(selScene, language) : undefined}
+        marketTitle={title}
+        language={language}
+        onDismiss={() => setShowSuccessModal(false)}
+      />
       <SafeAreaView style={{ flex: 1 }}>
 
         {/* Header */}

@@ -27,6 +27,7 @@ import {
 import { ProbabilityChart, ScenarioHistory } from "@/components/ProbabilityChart";
 import { MarketsGridSkeleton } from "@/components/Skeleton";
 import { SearchBar } from "@/components/SearchBar";
+import { PositionOpenedModal } from "@/components/PositionOpenedModal";
 import { shareContent } from "@/src/utils/useShare";
 import { toChineseFallback } from "@/src/utils/zhFallback";
 import { SIDEBAR_SEED as POOL_SIDEBAR_SEED, FALLBACK_ACTIVITY } from "@/src/data/users";
@@ -488,15 +489,30 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
     const result = await placePrediction(selId, amt);
     setPlacing(false);
     if (result.ok) {
+      // Modal handles its own 2.5 s auto-dismiss → on dismiss we close the
+      // bet panel.  No extra setTimeout needed here.
       setSuccess(true);
       refreshPortfolio();
-      setTimeout(() => { setSuccess(false); onClose(); }, 2500);
     } else {
       setError(result.error ?? (language === "pt" ? "Erro ao comprar" : language === "zh" ? "购买失败，请重试" : "Failed to buy"));
     }
   };
 
+  const handleSuccessDismiss = () => {
+    setSuccess(false);
+    onClose();
+  };
+
   return (
+    <>
+      <PositionOpenedModal
+        visible={success}
+        amount={`$${(parseFloat(amount) || 0).toLocaleString()}`}
+        scenarioLabel={selScene ? scenarioTitle(selScene, language) : undefined}
+        marketTitle={eventTitle(event, language)}
+        language={language}
+        onDismiss={handleSuccessDismiss}
+      />
     <Animated.View style={{
       backgroundColor: SURFACE, borderRadius: 18, borderWidth: 1, borderColor: BORDER_P,
       marginTop: 4, marginBottom: 12, overflow: "hidden",
@@ -613,15 +629,9 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
             </View>
           ) : null}
 
-          {/* Success */}
-          {success ? (
-            <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 12, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(34,197,94,0.25)" }}>
-              <Text style={{ fontSize: 28, marginBottom: 6 }}>✓</Text>
-              <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 15 }}>
-                {language === "pt" ? `✓ Posição aberta · ${amount}` : language === "zh" ? `✓ 已下单 · ${amount}` : `✓ Position opened · ${amount}`}
-              </Text>
-            </View>
-          ) : pendingConfirm ? (
+          {/* Inline success block removed — replaced by PositionOpenedModal
+              which renders as a centered overlay above the whole screen. */}
+          {pendingConfirm ? (
             <View style={{ backgroundColor: "rgba(251,146,60,0.07)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(251,146,60,0.3)", padding: 14 }}>
               <Text style={{ color: "#FB923C", fontFamily: "DMSans_700Bold", fontSize: 14, textAlign: "center", marginBottom: 12 }}>
                 {language === "pt" ? `Confirmar ${amount}?` : language === "zh" ? `确认 ${amount}？` : `Confirm ${amount}?`}
@@ -658,6 +668,7 @@ function BetPanel({ event, language, t, onClose, isAuthenticated, userId, placeP
         </View>
       </KeyboardAvoidingView>
     </Animated.View>
+    </>
   );
 }
 
@@ -703,15 +714,24 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
     const result = await placePrediction(selId, amt);
     setPlacing(false);
     if (result.ok) {
+      // PositionOpenedModal owns its 2.5s auto-dismiss; no setTimeout here.
       setSuccess(true);
       refreshPortfolio();
-      setTimeout(() => setSuccess(false), 3000);
     } else {
       setError(result.error ?? (language === "pt" ? "Erro ao comprar" : language === "zh" ? "购买失败，请重试" : "Failed to buy"));
     }
   };
 
   return (
+    <>
+    <PositionOpenedModal
+      visible={success}
+      amount={`$${(parseFloat(amount) || 0).toLocaleString()}`}
+      scenarioLabel={selScene ? scenarioTitle(selScene, language) : undefined}
+      marketTitle={eventTitle(event, language)}
+      language={language}
+      onDismiss={() => setSuccess(false)}
+    />
     <View style={{ backgroundColor: SURFACE, borderRadius: 16, borderWidth: 1, borderColor: BORDER_P, overflow: "hidden" }}>
       {/* Header */}
       <LinearGradient
@@ -809,14 +829,8 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
           </View>
         ) : null}
 
-        {success ? (
-          <View style={{ backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 11, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "rgba(34,197,94,0.25)" }}>
-            <Text style={{ fontSize: 24, marginBottom: 4 }}>✓</Text>
-            <Text style={{ color: GREEN, fontFamily: "DMSans_700Bold", fontSize: 13 }}>
-              {language === "pt" ? `✓ Posição aberta · ${amount}` : language === "zh" ? `✓ 已下单 · ${amount}` : `✓ Position opened · ${amount}`}
-            </Text>
-          </View>
-        ) : pendingConfirm ? (
+        {/* Inline success block removed — PositionOpenedModal covers it now. */}
+        {pendingConfirm ? (
           <View style={{ backgroundColor: "rgba(251,146,60,0.07)", borderRadius: 11, borderWidth: 1, borderColor: "rgba(251,146,60,0.3)", padding: 12 }}>
             <Text style={{ color: "#FB923C", fontFamily: "DMSans_700Bold", fontSize: 13, textAlign: "center", marginBottom: 10 }}>
               {language === "pt" ? `Confirmar ${amount}?` : language === "zh" ? `确认 ${amount}？` : `Confirm ${amount}?`}
@@ -852,6 +866,7 @@ function SidebarTradePanel({ event, language, isAuthenticated, userId, placePred
         )}
       </View>
     </View>
+    </>
   );
 }
 

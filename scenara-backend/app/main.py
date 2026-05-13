@@ -222,6 +222,82 @@ def _migrate_brazil_category() -> None:
     logger.info("[Migration] brazil category sync complete.")
 
 
+def _purge_legacy_non_polymarket_events() -> None:
+    """One-time post-Polymarket-refactor cleanup.
+
+    Closes every open event whose source isn't Polymarket and refunds any
+    still-open predictions on them.  These rows are leftovers from the
+    deleted STATIC_EVENTS template generator — they show up in the markets
+    feed mixed in with real Polymarket events, with no probability updates
+    and visibly broken charts (random-walk noise from the deleted snapshot
+    loop).
+
+    Safety gate: only runs when Polymarket sync has produced at least 10
+    open events.  If sync is broken (network down, API quota, etc.), we'd
+    rather show stale legacy events than wipe the table to zero.
+
+    Idempotent: once every legacy row is closed, subsequent runs find none
+    to close and return early.
+    """
+    from sqlalchemy import text as sql_text
+    with engine.begin() as conn:
+        pm_count = conn.execute(sql_text(
+            "SELECT COUNT(*) FROM events "
+            "WHERE status = 'open' AND external_source = 'polymarket'"
+        )).scalar() or 0
+        if pm_count < 10:
+            logger.info(
+                "[Migration] Legacy purge skipped — only %d Polymarket events. "
+                "Will retry on next startup.", pm_count,
+            )
+            return
+
+        legacy_ids = [r[0] for r in conn.execute(sql_text(
+            "SELECT id FROM events "
+            "WHERE status = 'open' "
+            "AND (external_source IS NULL OR external_source <> 'polymarket')"
+        )).fetchall()]
+        if not legacy_ids:
+            return
+
+        # Refund every open prediction on a legacy event.  Done in bulk via
+        # subquery rather than a Python loop to avoid N round-trips against
+        # Render-Postgres.
+        id_csv = ",".join(str(i) for i in legacy_ids)
+        refunded = conn.execute(sql_text(f"""
+            UPDATE accounts
+            SET balance = balance + sub.refund
+            FROM (
+                SELECT user_id, SUM(simulated_amount) AS refund
+                FROM predictions
+                WHERE event_id IN ({id_csv}) AND status = 'open'
+                GROUP BY user_id
+            ) AS sub
+            WHERE accounts.user_id = sub.user_id
+        """)).rowcount or 0
+
+        # Mark the predictions as void so they show up correctly in portfolio.
+        voided = conn.execute(sql_text(f"""
+            UPDATE predictions
+            SET status = 'void', pnl = 0.0
+            WHERE event_id IN ({id_csv}) AND status = 'open'
+        """)).rowcount or 0
+
+        # Finally close the legacy events.
+        conn.execute(sql_text(f"""
+            UPDATE events
+            SET status = 'resolved',
+                resolution_note = 'Legacy market closed during Polymarket migration',
+                resolved_at = NOW()
+            WHERE id IN ({id_csv})
+        """))
+        logger.info(
+            "[Migration] Closed %d legacy events, voided %d predictions, "
+            "refunded %d accounts.",
+            len(legacy_ids), voided, refunded,
+        )
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, version="0.6.0", debug=settings.app_debug)
 
@@ -337,6 +413,9 @@ def create_app() -> FastAPI:
             _backfill_xp()
             from app.migrations.indexes import ensure_indexes
             ensure_indexes(engine)
+            # Runs once (safely gated) — after Polymarket has produced enough
+            # events to safely close out legacy template-sourced markets.
+            _purge_legacy_non_polymarket_events()
             logger.info("[Startup] DB migrations and indexes applied.")
         except Exception as db_err:
             # Log clearly so the Render dashboard shows the root cause, but do
