@@ -22,20 +22,25 @@ _news_cache: dict[str, tuple[float, list]] = {}
 GNEWS_RSS = "https://news.google.com/rss/search?q={query}&hl={hl}&gl={gl}&ceid={ceid}"
 
 CATEGORY_QUERIES: dict[str, dict] = {
+    # ── Worldwide news for every UI language ─────────────────────────────────
+    # The `hl` parameter controls headline language (pt-419 / zh-CN / en-US),
+    # so PT users still see Portuguese-language headlines and ZH users see
+    # Chinese ones — but the SEARCH terms below are now globally scoped, so
+    # the content itself is worldwide instead of Brazil/China-focused.
     "all": {
-        "en": ("world news OR breaking news OR politics", "en-US", "US", "US:en"),
-        "pt": ("Brasil notícias OR política OR economia", "pt-419", "BR", "BR:pt-419"),
-        "zh": ("中国 OR 国际新闻 OR 科技 OR 经济 OR 世界", "zh-CN", "CN", "CN:zh-Hans"),
+        "en": ("world news OR breaking news OR international", "en-US", "US", "US:en"),
+        "pt": ("notícias mundiais OR notícias internacionais OR última hora", "pt-419", "BR", "BR:pt-419"),
+        "zh": ("国际新闻 OR 世界新闻 OR 突发新闻", "zh-CN", "CN", "CN:zh-Hans"),
     },
     "politics": {
-        "en": ("politics OR government OR election OR congress", "en-US", "US", "US:en"),
-        "pt": ("política Brasil OR Lula OR eleições OR congresso", "pt-419", "BR", "BR:pt-419"),
-        "zh": ("中国政治 OR 习近平 OR 美国政治 OR 国际政治 OR 选举", "zh-CN", "CN", "CN:zh-Hans"),
+        "en": ("politics OR government OR election OR diplomacy", "en-US", "US", "US:en"),
+        "pt": ("política mundial OR eleição OR governo OR diplomacia", "pt-419", "BR", "BR:pt-419"),
+        "zh": ("国际政治 OR 选举 OR 政府 OR 外交", "zh-CN", "CN", "CN:zh-Hans"),
     },
     "economy": {
         "en": ("economy OR inflation OR Fed OR GDP OR markets", "en-US", "US", "US:en"),
-        "pt": ("economia Brasil OR Selic OR inflação OR IPCA OR mercado", "pt-419", "BR", "BR:pt-419"),
-        "zh": ("中国经济 OR 美联储 OR 通货膨胀 OR GDP OR 股市", "zh-CN", "CN", "CN:zh-Hans"),
+        "pt": ("economia mundial OR inflação OR mercado financeiro OR juros", "pt-419", "BR", "BR:pt-419"),
+        "zh": ("世界经济 OR 通货膨胀 OR 美联储 OR GDP OR 股市", "zh-CN", "CN", "CN:zh-Hans"),
     },
     "crypto": {
         "en": ("Bitcoin OR Ethereum OR crypto OR blockchain", "en-US", "US", "US:en"),
@@ -44,23 +49,23 @@ CATEGORY_QUERIES: dict[str, dict] = {
     },
     "sports": {
         "en": ("World Cup OR FIFA OR NBA OR F1 OR Olympics", "en-US", "US", "US:en"),
-        "pt": ("futebol OR Copa do Mundo OR Brasileirão OR NBA OR F1", "pt-419", "BR", "BR:pt-419"),
-        "zh": ("世界杯 OR NBA OR 中国足球 OR F1 OR 奥运会", "zh-CN", "CN", "CN:zh-Hans"),
+        "pt": ("Copa do Mundo OR FIFA OR NBA OR F1 OR Olimpíadas", "pt-419", "BR", "BR:pt-419"),
+        "zh": ("世界杯 OR NBA OR F1 OR 奥运会 OR 国际足球", "zh-CN", "CN", "CN:zh-Hans"),
     },
     "technology": {
         "en": ("AI OR artificial intelligence OR tech OR Google OR Apple OR OpenAI", "en-US", "US", "US:en"),
-        "pt": ("tecnologia OR inteligência artificial OR IA OR Google OR Apple", "pt-419", "BR", "BR:pt-419"),
-        "zh": ("人工智能 OR 科技 OR 华为 OR 苹果 OR 谷歌 OR OpenAI", "zh-CN", "CN", "CN:zh-Hans"),
+        "pt": ("inteligência artificial OR IA OR tecnologia OR Google OR Apple OR OpenAI", "pt-419", "BR", "BR:pt-419"),
+        "zh": ("人工智能 OR 科技 OR 谷歌 OR 苹果 OR OpenAI", "zh-CN", "CN", "CN:zh-Hans"),
     },
     "geopolitics": {
-        "en": ("war OR Ukraine OR Gaza OR China OR diplomacy OR NATO", "en-US", "US", "US:en"),
-        "pt": ("guerra OR Ucrânia OR Gaza OR China OR diplomacia", "pt-419", "BR", "BR:pt-419"),
-        "zh": ("中美关系 OR 乌克兰 OR 中东 OR 外交 OR 地缘政治", "zh-CN", "CN", "CN:zh-Hans"),
+        "en": ("war OR Ukraine OR Gaza OR diplomacy OR NATO OR sanctions", "en-US", "US", "US:en"),
+        "pt": ("guerra OR Ucrânia OR Gaza OR diplomacia OR OTAN OR sanções", "pt-419", "BR", "BR:pt-419"),
+        "zh": ("战争 OR 乌克兰 OR 中东 OR 外交 OR 地缘政治", "zh-CN", "CN", "CN:zh-Hans"),
     },
     "entertainment": {
         "en": ("Netflix OR movie OR Oscar OR celebrity OR Hollywood", "en-US", "US", "US:en"),
         "pt": ("Netflix OR cinema OR Oscar OR celebridade OR Hollywood", "pt-419", "BR", "BR:pt-419"),
-        "zh": ("电影 OR 奥斯卡 OR Netflix OR 明星 OR 娱乐", "zh-CN", "CN", "CN:zh-Hans"),
+        "zh": ("电影 OR 奥斯卡 OR Netflix OR 明星 OR 好莱坞", "zh-CN", "CN", "CN:zh-Hans"),
     },
     "music": {
         "en": ("music OR concert OR album OR Spotify OR Grammy", "en-US", "US", "US:en"),
@@ -69,8 +74,8 @@ CATEGORY_QUERIES: dict[str, dict] = {
     },
     "tv": {
         "en": ("TV show OR streaming OR HBO OR Disney OR series", "en-US", "US", "US:en"),
-        "pt": ("novela OR série OR Globo OR BBB OR streaming", "pt-419", "BR", "BR:pt-419"),
-        "zh": ("电视剧 OR 流媒体 OR 爱奇艺 OR 腾讯视频 OR Netflix", "zh-CN", "CN", "CN:zh-Hans"),
+        "pt": ("série de TV OR streaming OR HBO OR Disney OR Netflix", "pt-419", "BR", "BR:pt-419"),
+        "zh": ("电视剧 OR 流媒体 OR HBO OR 迪士尼 OR Netflix", "zh-CN", "CN", "CN:zh-Hans"),
     },
     "science": {
         "en": ("science OR NASA OR space OR discovery OR research", "en-US", "US", "US:en"),
@@ -79,12 +84,12 @@ CATEGORY_QUERIES: dict[str, dict] = {
     },
     "weather": {
         "en": ("weather OR climate OR storm OR hurricane OR flood", "en-US", "US", "US:en"),
-        "pt": ("clima OR tempo Brasil OR tempestade OR enchente", "pt-419", "BR", "BR:pt-419"),
-        "zh": ("天气 OR 气候变化 OR 台风 OR 洪水 OR 极端天气", "zh-CN", "CN", "CN:zh-Hans"),
+        "pt": ("clima mundial OR tempestade OR furacão OR enchente", "pt-419", "BR", "BR:pt-419"),
+        "zh": ("世界天气 OR 气候变化 OR 台风 OR 洪水 OR 极端天气", "zh-CN", "CN", "CN:zh-Hans"),
     },
     "macro": {
         "en": ("economy OR markets OR stocks OR Fed OR inflation", "en-US", "US", "US:en"),
-        "pt": ("mercado OR economia OR bolsa OR inflação", "pt-419", "BR", "BR:pt-419"),
+        "pt": ("mercado financeiro OR economia OR bolsa OR inflação", "pt-419", "BR", "BR:pt-419"),
         "zh": ("宏观经济 OR 股市 OR 美联储 OR 通货膨胀 OR 债券", "zh-CN", "CN", "CN:zh-Hans"),
     },
 }
