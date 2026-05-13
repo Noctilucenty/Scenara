@@ -1852,25 +1852,33 @@ export default function MarketsScreen() {
       return !t || now - t > SENTIMENT_TTL;
     });
     if (toFetch.length === 0) return;
-    Promise.allSettled(
-      toFetch.map(e => api.get(`/predictions/events/${e.id}/sentiment`))
-    ).then(results => {
-      const cache: Record<number, { total: number; scenarios: SentimentItem[] }> = {};
-      results.forEach((r, i) => {
-        if (r.status === "fulfilled") {
-          cache[toFetch[i].id] = {
-            total: r.value.data.total_players ?? 0,
-            scenarios: r.value.data.scenarios ?? [],
+
+    // Single batched request — same data, 1 HTTP call instead of up to 8.
+    // Server caches the result for 60s so refreshes within the window
+    // never even reach the DB.
+    const ids = toFetch.map(e => e.id).join(",");
+    api.get(`/predictions/sentiment/batch?ids=${ids}`)
+      .then(res => {
+        const sentiments: { event_id: number; total_players: number; scenarios: SentimentItem[] }[] =
+          res.data?.sentiments ?? [];
+        const cache: Record<number, { total: number; scenarios: SentimentItem[] }> = {};
+        const stamped = Date.now();
+        for (const s of sentiments) {
+          cache[s.event_id] = {
+            total: s.total_players ?? 0,
+            scenarios: s.scenarios ?? [],
           };
-          sentimentFetchedAtRef.current[toFetch[i].id] = Date.now();
+          sentimentFetchedAtRef.current[s.event_id] = stamped;
         }
-      });
-      setSentimentCache(prev => {
-        const keys = Object.keys(prev);
-        const trimmed = keys.length > 150 ? Object.fromEntries(Object.entries(prev).slice(-100)) : prev;
-        return { ...trimmed, ...cache };
-      });
-    });
+        setSentimentCache(prev => {
+          const keys = Object.keys(prev);
+          const trimmed = keys.length > 150
+            ? Object.fromEntries(Object.entries(prev).slice(-100))
+            : prev;
+          return { ...trimmed, ...cache };
+        });
+      })
+      .catch(() => { /* silent — sentiment is decorative, missing data is fine */ });
   }, []);
 
   const historyCacheRef = useRef<Record<number, ScenarioHistory[]>>({});

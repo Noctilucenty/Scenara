@@ -762,6 +762,92 @@ def get_crowd_sentiment(event_id: int, db: Session = Depends(get_db)):
     return CrowdSentimentOut(event_id=event_id, total_players=total, scenarios=result)
 
 
+# ── Batch sentiment endpoint ─────────────────────────────────────────────────
+# Replaces N parallel /events/{id}/sentiment calls (which were saturating the
+# free-tier connection pool on markets-page first load).  Same response shape
+# wrapped in { sentiments: [...] }.  60 s in-memory cache.
+
+_BATCH_SENTIMENT_CACHE: dict[tuple, tuple[float, list]] = {}
+_BATCH_SENTIMENT_CACHE_TTL_SECONDS = 60
+
+
+class BatchSentimentOut(BaseModel):
+    sentiments: list[CrowdSentimentOut]
+
+
+@router.get("/sentiment/batch", response_model=BatchSentimentOut)
+def get_batch_sentiment(
+    ids: str = Query(..., description="Comma-separated event IDs, e.g. ?ids=1,2,3"),
+    db: Session = Depends(get_db),
+):
+    """Bulk-fetch crowd sentiment for many events in one round-trip."""
+    import time
+    from sqlalchemy import func
+
+    try:
+        event_ids = sorted({int(x) for x in ids.split(",") if x.strip()})[:50]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="ids must be comma-separated integers")
+    if not event_ids:
+        return BatchSentimentOut(sentiments=[])
+
+    cache_key = tuple(event_ids)
+    cached = _BATCH_SENTIMENT_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < _BATCH_SENTIMENT_CACHE_TTL_SECONDS:
+        return BatchSentimentOut(sentiments=cached[1])
+
+    # ONE query for all scenarios across all events
+    all_scenarios = (
+        db.query(models.Scenario)
+        .filter(models.Scenario.event_id.in_(event_ids))
+        .order_by(models.Scenario.event_id, models.Scenario.sort_order)
+        .all()
+    )
+    if not all_scenarios:
+        return BatchSentimentOut(sentiments=[])
+
+    # ONE aggregation query for all prediction counts
+    scenario_ids = [s.id for s in all_scenarios]
+    count_rows = (
+        db.query(models.Prediction.scenario_id, func.count(models.Prediction.id).label("cnt"))
+        .filter(models.Prediction.scenario_id.in_(scenario_ids))
+        .group_by(models.Prediction.scenario_id)
+        .all()
+    )
+    counts = {row.scenario_id: row.cnt for row in count_rows}
+
+    # Group scenarios by event_id
+    from collections import defaultdict as _dd
+    scenarios_by_event: dict = _dd(list)
+    for s in all_scenarios:
+        scenarios_by_event[s.event_id].append(s)
+
+    sentiments: list[CrowdSentimentOut] = []
+    for eid in event_ids:
+        ev_scenarios = scenarios_by_event.get(eid, [])
+        if not ev_scenarios:
+            sentiments.append(CrowdSentimentOut(event_id=eid, total_players=0, scenarios=[]))
+            continue
+        total = sum(counts.get(s.id, 0) for s in ev_scenarios)
+        result = []
+        for s in ev_scenarios:
+            cnt = counts.get(s.id, 0)
+            pct = round((cnt / total * 100), 1) if total > 0 else 0.0
+            result.append(ScenarioSentiment(
+                scenario_id=s.id,
+                scenario_title=s.title,
+                scenario_title_pt=s.title_pt,
+                player_count=cnt,
+                percentage=pct,
+            ))
+        sentiments.append(CrowdSentimentOut(
+            event_id=eid, total_players=total, scenarios=result,
+        ))
+
+    _BATCH_SENTIMENT_CACHE[cache_key] = (time.time(), sentiments)
+    return BatchSentimentOut(sentiments=sentiments)
+
+
 # ---------------------------------------------------------------------------
 # Activity feed — anonymized recent bets for social proof
 # ---------------------------------------------------------------------------
