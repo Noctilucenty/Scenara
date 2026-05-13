@@ -412,11 +412,11 @@ def trending_events(
     if cached and (time.time() - cached[0]) < _EVENTS_CACHE_TTL_SECONDS:
         return cached[1]
 
-    # Polymarket events first, ordered by their reported volume.  Non-Polymarket
-    # open events are appended after (rare now — only legacy data from before
-    # the Polymarket migration) so the response is never empty just because
-    # external_volume is null for some row.
-    polymarket_events = (
+    # Polymarket-only.  Sorted by reported trading volume so the markets the
+    # world is actually betting on appear first.  Legacy template-generated
+    # events are excluded entirely (use /events/?include_legacy=true to see
+    # them for admin / debug purposes).
+    events = (
         db.query(Event)
         .options(joinedload(Event.scenarios))
         .filter(Event.status == "open", Event.external_source == "polymarket")
@@ -424,20 +424,6 @@ def trending_events(
         .limit(limit)
         .all()
     )
-    remaining = limit - len(polymarket_events)
-    if remaining > 0:
-        seen = {e.id for e in polymarket_events}
-        legacy_events = (
-            db.query(Event)
-            .options(joinedload(Event.scenarios))
-            .filter(Event.status == "open", Event.id.notin_(seen) if seen else True)
-            .order_by(Event.is_featured.desc(), Event.id.desc())
-            .limit(remaining)
-            .all()
-        )
-        events = polymarket_events + legacy_events
-    else:
-        events = polymarket_events
 
     if lang == "zh":
         _fill_zh_translations(events)
@@ -454,11 +440,15 @@ def list_events(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     lang: str = Query(default="en"),
+    include_legacy: bool = Query(
+        default=False,
+        description="Set true to include non-Polymarket events. Default false hides legacy template-generated events still in the DB awaiting cleanup.",
+    ),
 ):
     import time
     from collections import defaultdict
 
-    cache_key = (status, featured_only, category, limit, offset, lang)
+    cache_key = (status, featured_only, category, limit, offset, lang, include_legacy)
     cached = _EVENTS_CACHE.get(cache_key)
     if cached and (time.time() - cached[0]) < _EVENTS_CACHE_TTL_SECONDS:
         return cached[1]
@@ -470,6 +460,10 @@ def list_events(
         base_q = base_q.filter(Event.is_featured.is_(True))
     if category and category != "all":
         base_q = base_q.filter(Event.category == category)
+    # Polymarket-only by default — see brief: Polymarket is the sole market
+    # source.  `include_legacy=true` is an escape hatch for admin tooling.
+    if not include_legacy:
+        base_q = base_q.filter(Event.external_source == "polymarket")
 
     # ── Fast single-query path ────────────────────────────────────────────────
     # Previously "all" categories used a two-round-trip approach:

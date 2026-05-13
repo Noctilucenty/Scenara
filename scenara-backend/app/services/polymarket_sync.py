@@ -363,6 +363,75 @@ def _expire_old_events(db: Session) -> int:
     return count
 
 
+# ── Legacy purge ──────────────────────────────────────────────────────────────
+
+def _purge_legacy_non_polymarket_events(db: Session) -> dict:
+    """One-time-style cleanup: close every open event whose source isn't
+    Polymarket and refund any still-open predictions on them.
+
+    These rows are leftovers from the deleted STATIC_EVENTS template
+    generator — they show up in the markets feed mixed in with real
+    Polymarket events, with no probability updates.
+
+    Safety gate: only runs once Polymarket has produced ≥5 open events,
+    so a transient sync failure can't wipe the table to zero.
+
+    Idempotent: once every legacy row is closed, subsequent calls find
+    nothing to do and return early.
+    """
+    pm_count = (
+        db.query(Event)
+        .filter(Event.status == "open", Event.external_source == SOURCE)
+        .count()
+    )
+    if pm_count < 5:
+        # Not enough real markets yet — keep legacy fallback alive.
+        return {"closed": 0, "skipped_reason": f"only_{pm_count}_polymarket"}
+
+    from sqlalchemy import or_ as _or
+    legacy = (
+        db.query(Event)
+        .filter(
+            Event.status == "open",
+            _or(Event.external_source.is_(None), Event.external_source != SOURCE),
+        )
+        .all()
+    )
+    if not legacy:
+        return {"closed": 0}
+
+    legacy_ids = [e.id for e in legacy]
+    open_preds = (
+        db.query(Prediction)
+        .filter(Prediction.event_id.in_(legacy_ids), Prediction.status == "open")
+        .all()
+    )
+    refunded_count = 0
+    for p in open_preds:
+        acct = db.query(Account).filter(Account.user_id == p.user_id).first()
+        if acct:
+            acct.balance += p.simulated_amount
+            refunded_count += 1
+        p.status = "void"
+        p.pnl = 0.0
+
+    for ev in legacy:
+        ev.status = "resolved"
+        ev.resolution_note = "Legacy market closed during Polymarket migration"
+        ev.resolved_at = datetime.utcnow()
+
+    db.commit()
+    logger.info(
+        "[Polymarket] Legacy purge — closed=%d voided=%d refunded=%d",
+        len(legacy_ids), len(open_preds), refunded_count,
+    )
+    return {
+        "closed": len(legacy_ids),
+        "voided": len(open_preds),
+        "refunded": refunded_count,
+    }
+
+
 # ── Orchestration ────────────────────────────────────────────────────────────
 
 async def sync_markets_once(max_new: int = MAX_INGEST_PER_RUN) -> dict:
@@ -457,6 +526,19 @@ async def sync_markets_once(max_new: int = MAX_INGEST_PER_RUN) -> dict:
         "[Polymarket] sync done — refreshed=%d inserted=%d skipped=%d reasons=%s",
         refreshed, inserted, skipped, skip_reasons,
     )
+    # After every successful sync, run the legacy purge.  Safety gate inside
+    # the function ensures it only fires once there are enough real Polymarket
+    # events to safely close out remaining template-generated rows.
+    purged: dict = {"closed": 0}
+    try:
+        db = SessionLocal()
+        try:
+            purged = _purge_legacy_non_polymarket_events(db)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.exception("[Polymarket] legacy purge failed: %s", e)
+
     return {
         "ok": True,
         "fetched": len(raw),
@@ -464,6 +546,7 @@ async def sync_markets_once(max_new: int = MAX_INGEST_PER_RUN) -> dict:
         "inserted": inserted,
         "skipped": skipped,
         "expired": expired_count,
+        "purged": purged,
         "skip_reasons": skip_reasons,
     }
 
