@@ -1,0 +1,10 @@
+# Scenara — zero-risk prediction-market simulation
+# https://scenara.vercel.app
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /sw.js
+
+# Sitemap
+Sitemap: https://scenara.vercel.app/sitemap.xml

@@ -109,11 +109,36 @@ function timeAgo(dateStr: string, lang: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+// ── Favicon helper — extract domain from source_url and route to Google's
+// favicon service.  Always returns a working URL, even for unknown sources,
+// because Google's service falls back to a default favicon icon.
+function sourceFaviconUrl(article: Article): string | null {
+  const src = article.source_url || "";
+  if (!src) return null;
+  try {
+    const u = new URL(src.startsWith("http") ? src : `https://${src}`);
+    return `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=128`;
+  } catch {
+    return null;
+  }
+}
+
 // ── News card — with image hero + AI summary ──────────────────────────────────
-function NewsCard({ article, onPress, language, catColor, summary, loadingSummary }: {
+function NewsCard({ article, onPress, language, catColor, summary, loadingSummary, category }: {
   article: Article; onPress(): void; language: string; catColor: string;
   summary?: string; loadingSummary?: boolean;
+  /** The currently-active category — drives the fallback hero image when
+   *  the article itself has no image (Google News RSS doesn't embed them). */
+  category: string;
 }) {
+  // Heuristic image fallback chain:
+  //   1. Real article image (rare — only when the source's RSS includes it)
+  //   2. Stock photo for the current category (Unsplash, looks great)
+  //   3. Source favicon centered on a colored panel (always works)
+  //   4. Placeholder emoji (very last resort)
+  const heroImage = article.image || CATEGORY_IMAGES[category] || null;
+  const faviconUrl = sourceFaviconUrl(article);
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -121,8 +146,21 @@ function NewsCard({ article, onPress, language, catColor, summary, loadingSummar
       style={{ backgroundColor: CARD, borderRadius: 14, marginBottom: 10, borderWidth: 1, borderColor: BORDER, overflow: "hidden" }}
     >
       {/* Hero image */}
-      {article.image ? (
-        <Image source={{ uri: article.image }} style={{ width: "100%", height: 160 }} resizeMode="cover" />
+      {heroImage ? (
+        <View style={{ width: "100%", height: 160, position: "relative" }}>
+          <Image source={{ uri: heroImage }} style={{ width: "100%", height: 160 }} resizeMode="cover" />
+          {/* Subtle dark overlay so the favicon badge stays legible */}
+          <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.18)" }} />
+          {faviconUrl ? (
+            <View style={{ position: "absolute", top: 10, right: 10, width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.65)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" }}>
+              <Image source={{ uri: faviconUrl }} style={{ width: 22, height: 22, borderRadius: 4 }} />
+            </View>
+          ) : null}
+        </View>
+      ) : faviconUrl ? (
+        <View style={{ width: "100%", height: 120, backgroundColor: catColor + "15", alignItems: "center", justifyContent: "center" }}>
+          <Image source={{ uri: faviconUrl }} style={{ width: 56, height: 56, borderRadius: 12 }} />
+        </View>
       ) : (
         <View style={{ width: "100%", height: 100, backgroundColor: catColor + "15", alignItems: "center", justifyContent: "center" }}>
           <Text style={{ fontSize: 32 }}>📰</Text>
@@ -363,6 +401,7 @@ export default function NewsScreen() {
                         onPress={() => openArticle(article)}
                         language={language}
                         catColor={activeCat.color}
+                        category={activeCategory}
                         summary={summaries[idx]}
                         loadingSummary={loadingSummaries[idx]}
                       />

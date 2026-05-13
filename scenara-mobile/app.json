@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "orryin-mobile",
-    "slug": "orryin-mobile",
-    "version": "1.0.0",
+    "name": "Scenara",
+    "slug": "scenara",
+    "version": "0.7.0",
+    "description": "Scenara — predict the world. Zero-risk prediction-market simulation powered by Polymarket data. Bet on real markets with virtual balance.",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "orryinmobile",
+    "scheme": "scenara",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
