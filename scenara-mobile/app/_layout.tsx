@@ -5,6 +5,7 @@ import { Stack, router, useSegments } from "expo-router";
 import {
   useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { TradingProvider, useTrading } from "@/src/session/TradingContext";
 import { LanguageProvider, useLanguage } from "@/src/i18n";
 import { hasSeenOnboarding } from "./onboarding";
@@ -169,6 +170,7 @@ export default function RootLayout() {
         <PushHandler />
         <AuthGuard />
         <LanguageModal />
+        <SpeedInsights />
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: BG } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="login"          options={{ animation: "fade" }} />
