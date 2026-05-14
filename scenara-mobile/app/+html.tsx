@@ -38,6 +38,11 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
+        {/* ── Search engine ownership verification ───────────────────────── */}
+        {/* Google Search Console — must stay even after first verification.
+            Token is intentionally public; Google designed it that way. */}
+        <meta name="google-site-verification" content="cmuVz9xgCj5bQZXJdMGZpvBSzVOeapBz-fDmhWQQIgI" />
+
         {/* ── Core SEO ───────────────────────────────────────────────────── */}
         <title>{SITE_TITLE}</title>
         <meta name="description" content={SITE_DESC} />
