@@ -70,6 +70,11 @@ export const CATEGORY_META: Record<string, { icon: string; color: string; label:
   tv:            { icon: "TV",  color: "#22D3EE", label: "TV",            label_pt: "TV",             label_zh: "电视" },
   science:       { icon: "SCI", color: "#86EFAC", label: "Science",       label_pt: "Ciência",        label_zh: "科学" },
   weather:       { icon: "WTH", color: "#7DD3FC", label: "Weather",       label_pt: "Clima",          label_zh: "天气" },
+  elections:     { icon: "ELE", color: "#6366F1", label: "Elections",     label_pt: "Eleições",       label_zh: "选举" },
+  finance:       { icon: "FIN", color: "#10B981", label: "Finance",       label_pt: "Finanças",       label_zh: "金融" },
+  esports:       { icon: "ESP", color: "#2DD4BF", label: "Esports",       label_pt: "Esports",        label_zh: "电竞" },
+  culture:       { icon: "CUL", color: "#FB7185", label: "Culture",       label_pt: "Cultura",        label_zh: "文化" },
+  mentions:      { icon: "MEN", color: "#FBBF24", label: "Mentions",      label_pt: "Menções",        label_zh: "言论" },
 };
 
 export function catMeta(c: string) {

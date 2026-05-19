@@ -121,23 +121,46 @@ def _normalize_category(raw: str | None) -> str:
 # before broad ones (e.g. "crypto" before "economy", since a Bitcoin price
 # question is crypto-first even though it's economically themed).
 _KEYWORD_CATEGORY: list[tuple[str, tuple[str, ...]]] = [
+    # crypto first — most distinctive keywords, near-zero false positives
     ("crypto", (
         "bitcoin", "ethereum", " btc", " eth ", "solana", "crypto", "blockchain",
         "dogecoin", " xrp", "stablecoin", "defi", " nft", "binance", "coinbase",
-        "altcoin", "memecoin", "satoshi", "halving",
+        "altcoin", "memecoin", "satoshi", "halving", "polymarket token",
     )),
-    ("sports", (
-        " nba", " nfl", " mlb", " nhl", "soccer", "football", "fifa", "world cup",
-        "champions league", "premier league", "super bowl", "olympic", " ufc",
-        "boxing", "tennis", " golf", " f1 ", "formula 1", "cricket", "playoff",
-        "championship", "grand slam", "wimbledon", "la liga", "serie a",
-        "ballon d'or", "march madness", "stanley cup",
+    # esports BEFORE sports — "LoL: A vs B (BO3)" must NOT fall into generic
+    # sports.  League acronyms + game names are unambiguous esports signals.
+    ("esports", (
+        "league of legends", "lol:", " lol ", " dota", "counter-strike",
+        " cs2", " csgo", "cs:go", "valorant", "overwatch", "rocket league",
+        "starcraft", "esports", "e-sports", " lck", " lpl", " lec", " lcs",
+        "rainbow six", "apex legends", " bo3", " bo5", "best of 3",
+        "best of 5", "the international", "evo 20", "fortnite", "pubg",
+        "mobile legends", "honor of kings",
+    )),
+    # mentions BEFORE elections/politics — "Will Trump tweet X?" is a
+    # mentions market, not a politics one.
+    ("mentions", (
+        "tweets from", "posts from", "truth posts", "say the word",
+        "mention the word", "number of tweets", "number of posts",
+        "number of mentions", "will say \"", "post between", "tweet between",
+        "how many times will", "times will", "wear a", "appear on",
+    )),
+    # elections BEFORE politics — outcome-of-an-election markets get their
+    # own bucket; broader political terms fall through to politics.
+    ("elections", (
+        "presidential election", "win the election", "election winner",
+        "primary winner", "general election", "electoral college",
+        "win the presidency", "next president", "win the primary",
+        "republican nominee", "democratic nominee", "win the senate seat",
+        "win the governorship", "popular vote", "swing state",
+        "win the 2026", "win the 2028", "elected",
     )),
     ("politics", (
-        "election", "president", "senate", "congress", "parliament", " vote",
-        "trump", "biden", "harris", "democrat", "republican", "governor",
-        "primary", "prime minister", "referendum", "impeach", "cabinet",
-        "midterm", "electoral", "campaign", "nominee", "approval rating",
+        "president", "senate", "congress", "parliament", " vote", "trump",
+        "biden", "harris", "democrat", "republican", "governor",
+        "prime minister", "referendum", "impeach", "cabinet", "midterm",
+        "campaign", "approval rating", "secretary of", "supreme court",
+        "legislation", "bill pass", "shutdown",
     )),
     ("geopolitics", (
         " war ", "ukraine", "russia", "gaza", "israel", "iran", "taiwan",
@@ -145,11 +168,31 @@ _KEYWORD_CATEGORY: list[tuple[str, tuple[str, ...]]] = [
         "north korea", "diplomac", "hostage", "missile", "airstrike",
         "annex", "coup",
     )),
+    # sports AFTER esports.  Added soccer-club guards (" fc ", " sc ",
+    # " cf ", " afc ") so e.g. "Shanghai Shenhua FC vs X" classifies as
+    # sports instead of leaking into politics/general.
+    ("sports", (
+        " nba", " nfl", " mlb", " nhl", "soccer", "football", "fifa",
+        "world cup", "champions league", "premier league", "super bowl",
+        "olympic", " ufc", "boxing", "tennis", " golf", " f1 ",
+        "formula 1", "cricket", "playoff", "championship", "grand slam",
+        "wimbledon", "la liga", "serie a", "ballon d'or", "march madness",
+        "stanley cup", " fc ", " fc.", " sc ", " cf ", " afc ", " sc.",
+        " vs ", " v.s ", "matchday", "relegat", "promot", "transfer window",
+    )),
+    # finance BEFORE economy — stock/IPO/earnings questions are finance;
+    # macro indicators (rates, GDP, inflation) stay in economy.
+    ("finance", (
+        " stock", " shares", " ipo", "earnings", "nasdaq", "s&p 500",
+        "dow jones", "share price", "market cap", "valuation", "acquisition",
+        "merger", "buyback", "dividend", "bankruptcy", "delisting",
+        "all-time high", "stock split",
+    )),
     ("economy", (
         "fed ", "federal reserve", "interest rate", "inflation", " gdp",
-        "recession", "unemployment", "stock market", "s&p 500", "nasdaq",
-        "earnings", " ipo", "treasury", "jerome powell", "rate cut",
-        "rate hike", "jobs report", "tariff", "debt ceiling",
+        "recession", "unemployment", "treasury", "jerome powell",
+        "rate cut", "rate hike", "jobs report", "tariff", "debt ceiling",
+        "consumer price", "trade deficit",
     )),
     ("technology", (
         " ai ", "artificial intelligence", "openai", "chatgpt", " gpt",
@@ -157,15 +200,26 @@ _KEYWORD_CATEGORY: list[tuple[str, tuple[str, ...]]] = [
         "nvidia", "robot", "self-driving", "quantum", "startup", "anthropic",
         "claude", "gemini", "llm", "humanoid", "neuralink",
     )),
+    # culture BEFORE entertainment/music/tv — anime, celebrities, awards,
+    # internet culture.  Fixes "My Hero Academia"→music misclassification.
+    ("culture", (
+        "anime", "manga", "one piece", "my hero academia", "naruto",
+        "jujutsu kaisen", "dragon ball", "demon slayer", "voice actor",
+        "comic-con", "comic con", "person of the year", "time magazine",
+        "influencer", "youtuber", "tiktok", "twitch streamer", "mrbeast",
+        "kardashian", "celebrity", " viral", " meme ", "k-pop", "kpop",
+        " bts ", "blackpink", "award show", "met gala", "fashion week",
+        "miss universe",
+    )),
     ("entertainment", (
         "movie", " film", "oscar", "box office", "netflix", "hollywood",
-        "celebrity", " actor", "actress", " emmy", "marvel", "disney",
-        "sequel", "premiere", "rotten tomatoes", "blockbuster",
+        " actor", "actress", " emmy", "marvel", "disney", "sequel",
+        "premiere", "rotten tomatoes", "blockbuster",
     )),
     ("music", (
-        " song", " album", " artist", "spotify", "billboard", "concert",
-        " tour", "taylor swift", "drake", "rapper", "musician", "grammy",
-        "coachella", "single", "chart-topping",
+        " song", " album", "spotify", "billboard", "concert", " tour",
+        "taylor swift", "drake", "rapper", "musician", "grammy",
+        "coachella", " single ", "chart-topping",
     )),
     ("tv", (
         "tv show", " series", " season", " episode", " hbo", "disney+",
