@@ -47,6 +47,12 @@ MAX_DAYS_TO_CLOSE    = 90           # ignore evergreen multi-year markets
 MAX_INGEST_PER_RUN   = 30           # don't dump 200 new markets in one cycle
 DEFAULT_FETCH_LIMIT  = 100          # markets to fetch per Gamma request
 
+# Lopsided-odds gate.  Outcomes priced outside [5%, 95%] are near-decided
+# and make boring prediction-game markets ("Yes 2% / No 98%").  Moderate
+# band chosen by the operator.  Tune these two numbers to widen/narrow.
+MIN_INTERESTING_PROB = 0.05         # 5%
+MAX_INTERESTING_PROB = 0.95         # 95%
+
 # Polymarket categories → Scenara categories. Anything unmapped lands in
 # "general" and admin can re-bucket later.
 _CATEGORY_MAP = {
@@ -106,6 +112,94 @@ def _normalize_category(raw: str | None) -> str:
     if not raw:
         return "general"
     return _CATEGORY_MAP.get(raw.strip().lower(), "general")
+
+
+# ── Keyword → category inference ──────────────────────────────────────────────
+# Polymarket's Gamma /markets endpoint rarely returns a usable `category`
+# field, so classify from the question + description text instead.  Order
+# matters: the FIRST matching rule wins, so list specific/high-signal terms
+# before broad ones (e.g. "crypto" before "economy", since a Bitcoin price
+# question is crypto-first even though it's economically themed).
+_KEYWORD_CATEGORY: list[tuple[str, tuple[str, ...]]] = [
+    ("crypto", (
+        "bitcoin", "ethereum", " btc", " eth ", "solana", "crypto", "blockchain",
+        "dogecoin", " xrp", "stablecoin", "defi", " nft", "binance", "coinbase",
+        "altcoin", "memecoin", "satoshi", "halving",
+    )),
+    ("sports", (
+        " nba", " nfl", " mlb", " nhl", "soccer", "football", "fifa", "world cup",
+        "champions league", "premier league", "super bowl", "olympic", " ufc",
+        "boxing", "tennis", " golf", " f1 ", "formula 1", "cricket", "playoff",
+        "championship", "grand slam", "wimbledon", "la liga", "serie a",
+        "ballon d'or", "march madness", "stanley cup",
+    )),
+    ("politics", (
+        "election", "president", "senate", "congress", "parliament", " vote",
+        "trump", "biden", "harris", "democrat", "republican", "governor",
+        "primary", "prime minister", "referendum", "impeach", "cabinet",
+        "midterm", "electoral", "campaign", "nominee", "approval rating",
+    )),
+    ("geopolitics", (
+        " war ", "ukraine", "russia", "gaza", "israel", "iran", "taiwan",
+        " nato", "sanction", "ceasefire", "invasion", "military", "nuclear",
+        "north korea", "diplomac", "hostage", "missile", "airstrike",
+        "annex", "coup",
+    )),
+    ("economy", (
+        "fed ", "federal reserve", "interest rate", "inflation", " gdp",
+        "recession", "unemployment", "stock market", "s&p 500", "nasdaq",
+        "earnings", " ipo", "treasury", "jerome powell", "rate cut",
+        "rate hike", "jobs report", "tariff", "debt ceiling",
+    )),
+    ("technology", (
+        " ai ", "artificial intelligence", "openai", "chatgpt", " gpt",
+        "google", "apple", "tesla", "spacex", " meta ", "microsoft",
+        "nvidia", "robot", "self-driving", "quantum", "startup", "anthropic",
+        "claude", "gemini", "llm", "humanoid", "neuralink",
+    )),
+    ("entertainment", (
+        "movie", " film", "oscar", "box office", "netflix", "hollywood",
+        "celebrity", " actor", "actress", " emmy", "marvel", "disney",
+        "sequel", "premiere", "rotten tomatoes", "blockbuster",
+    )),
+    ("music", (
+        " song", " album", " artist", "spotify", "billboard", "concert",
+        " tour", "taylor swift", "drake", "rapper", "musician", "grammy",
+        "coachella", "single", "chart-topping",
+    )),
+    ("tv", (
+        "tv show", " series", " season", " episode", " hbo", "disney+",
+        "streaming", "reality show", "finale", "renewed", "spin-off",
+    )),
+    ("science", (
+        "nasa", "rocket launch", " mars", " moon ", "asteroid", "vaccine",
+        "clinical trial", "crispr", "discovery", "research", "study finds",
+        "scientist", "telescope", "fusion", "genome", "particle",
+    )),
+    ("weather", (
+        "hurricane", "storm", "temperature record", "heatwave", "el niño",
+        "climate", " flood", "wildfire", "drought", "snowfall", "tornado",
+        "category 5", "blizzard",
+    )),
+]
+
+
+def _infer_category(market: dict) -> str:
+    """Classify a Polymarket market by keyword-matching its question text.
+
+    Falls back to Polymarket's declared category (if it maps cleanly via
+    _CATEGORY_MAP), then "general".  Padding the text with leading/trailing
+    spaces lets us use " btc"-style guards to avoid false matches inside
+    longer words (e.g. "debt" shouldn't match "bt").
+    """
+    text = " " + " ".join([
+        (market.get("question") or ""),
+        (market.get("description") or ""),
+    ]).lower() + " "
+    for category, keywords in _KEYWORD_CATEGORY:
+        if any(k in text for k in keywords):
+            return category
+    return _normalize_category(market.get("category"))
 
 
 def _looks_nsfw(text: str | None) -> bool:
@@ -171,6 +265,20 @@ def _is_acceptable(market: dict) -> tuple[bool, str]:
         # v1: binary markets only — multi-outcome support is more complex
         return False, "non-binary"
 
+    # Reject already-decided / lopsided markets.  A market priced at
+    # 0.02 / 0.98 renders as "Yes 2% / No 98%" — there's no real
+    # uncertainty, so it's a boring prediction-game market.  The user
+    # chose the "moderate" band: keep only markets where BOTH outcomes
+    # sit between 5% and 95%.
+    try:
+        p0 = float(prices[0])
+        p1 = float(prices[1])
+    except (TypeError, ValueError):
+        return False, "bad prices"
+    if not (MIN_INTERESTING_PROB <= p0 <= MAX_INTERESTING_PROB) or \
+       not (MIN_INTERESTING_PROB <= p1 <= MAX_INTERESTING_PROB):
+        return False, "lopsided (near-decided odds)"
+
     try:
         volume    = float(market.get("volume") or 0)
         liquidity = float(market.get("liquidity") or 0)
@@ -225,7 +333,7 @@ def _insert_market(db: Session, market: dict) -> Optional[Event]:
         market.get("url")
         or (f"https://polymarket.com/event/{market.get('slug')}" if market.get("slug") else None)
     )
-    category = _normalize_category(market.get("category"))
+    category = _infer_category(market)
 
     event = Event(
         slug=slug,
@@ -361,6 +469,89 @@ def _expire_old_events(db: Session) -> int:
     if count:
         db.commit()
     return count
+
+
+# ── Backfill: fix categories + close lopsided markets on existing rows ───────
+
+def _backfill_categories_and_lopsided(db: Session) -> dict:
+    """Repair Polymarket events that were ingested before the keyword
+    classifier and lopsided-odds filter existed.
+
+    1. Re-categorize any open Polymarket event still sitting in "general"
+       by running the stored title+description through _infer_category.
+    2. Close any open Polymarket event whose odds are now lopsided
+       (a scenario at ≤5% or ≥95%) and refund open predictions, exactly
+       like _expire_old_events does.
+
+    Idempotent: correctly-categorized rows are skipped, already-closed
+    rows are never re-touched, so this is safe to run on every sync.
+    """
+    recategorized = 0
+    closed_lopsided = 0
+    refunded = 0
+
+    open_pm = (
+        db.query(Event)
+        .options(joinedload(Event.scenarios))
+        .filter(Event.status == "open", Event.external_source == SOURCE)
+        .all()
+    )
+
+    for event in open_pm:
+        scenarios = event.scenarios or []
+
+        # ── Close lopsided ──────────────────────────────────────────────────
+        # DB stores probability as a 0–100 percentage; thresholds are fractions.
+        lo = MIN_INTERESTING_PROB * 100.0   # 5.0
+        hi = MAX_INTERESTING_PROB * 100.0   # 95.0
+        is_lopsided = any(
+            (s.probability is not None) and (s.probability <= lo or s.probability >= hi)
+            for s in scenarios
+        )
+        if is_lopsided and len(scenarios) == 2:
+            event.status = "resolved"
+            event.resolution_note = "Closed — odds too lopsided for a useful market"
+            event.resolved_at = datetime.utcnow()
+            try:
+                preds = (
+                    db.query(Prediction)
+                    .filter(Prediction.event_id == event.id, Prediction.status == "open")
+                    .all()
+                )
+                for p in preds:
+                    p.status = "void"
+                    p.pnl = 0.0
+                    acct = db.query(Account).filter(Account.user_id == p.user_id).first()
+                    if acct:
+                        acct.balance += p.simulated_amount
+                        refunded += 1
+            except Exception:
+                pass
+            closed_lopsided += 1
+            continue  # don't bother recategorizing a row we're closing
+
+        # ── Re-categorize "general" ─────────────────────────────────────────
+        if event.category == "general":
+            new_cat = _infer_category({
+                "question": event.title or "",
+                "description": event.description or "",
+                "category": None,
+            })
+            if new_cat != "general" and new_cat != event.category:
+                event.category = new_cat
+                recategorized += 1
+
+    if recategorized or closed_lopsided:
+        db.commit()
+        logger.info(
+            "[Polymarket] backfill — recategorized=%d closed_lopsided=%d refunded=%d",
+            recategorized, closed_lopsided, refunded,
+        )
+    return {
+        "recategorized": recategorized,
+        "closed_lopsided": closed_lopsided,
+        "refunded": refunded,
+    }
 
 
 # ── Legacy purge ──────────────────────────────────────────────────────────────
@@ -526,9 +717,19 @@ async def sync_markets_once(max_new: int = MAX_INGEST_PER_RUN) -> dict:
         "[Polymarket] sync done — refreshed=%d inserted=%d skipped=%d reasons=%s",
         refreshed, inserted, skipped, skip_reasons,
     )
-    # After every successful sync, run the legacy purge.  Safety gate inside
-    # the function ensures it only fires once there are enough real Polymarket
-    # events to safely close out remaining template-generated rows.
+    # After every successful sync: (1) backfill categories + close lopsided
+    # markets on already-ingested rows, (2) run the legacy purge.  Both are
+    # idempotent and self-gated, so safe to run every pass.
+    backfill: dict = {"recategorized": 0, "closed_lopsided": 0, "refunded": 0}
+    try:
+        db = SessionLocal()
+        try:
+            backfill = _backfill_categories_and_lopsided(db)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.exception("[Polymarket] category/lopsided backfill failed: %s", e)
+
     purged: dict = {"closed": 0}
     try:
         db = SessionLocal()
@@ -546,6 +747,7 @@ async def sync_markets_once(max_new: int = MAX_INGEST_PER_RUN) -> dict:
         "inserted": inserted,
         "skipped": skipped,
         "expired": expired_count,
+        "backfill": backfill,
         "purged": purged,
         "skip_reasons": skip_reasons,
     }
